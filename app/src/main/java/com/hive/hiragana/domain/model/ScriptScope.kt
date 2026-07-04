@@ -54,23 +54,42 @@ object ScriptScope {
         includeDiacritics: Boolean,
         includeYoon: Boolean,
         includeExtended: Boolean,
-    ): Boolean =
-        when {
-            isExtended -> includeExtended
-            isYoon -> includeYoon
-            kind != KanaKind.BASE -> includeDiacritics
-            else -> true
-        }
+    ): Boolean = unitInScope(character, includeDiacritics, includeYoon, includeExtended)
 
+    /**
+     * A word is in scope only when EVERY reading unit it is written with is in
+     * scope — the same per-unit rule as characters, applied to each of
+     * [VocabularyWord.requiredCharacters]. This is stricter (and more correct)
+     * than gating on the word's coarse per-character `uses…` flags: a word that
+     * mixes a standalone dakuten kana with a yōon — e.g. でんしゃ = で + ん + しゃ
+     * — needs BOTH [includeDiacritics] and [includeYoon], which is exactly what
+     * it takes to learn (and therefore unlock) it. So a word is shown iff it is
+     * actually unlockable. A voiced-base yōon unit like ぎゅ is still classified
+     * as yōon (the per-unit priority puts yōon ahead of voiced), so ぎゅうにゅう
+     * stays gated by [includeYoon] alone.
+     */
     private fun VocabularyWord.inScope(
         includeDiacritics: Boolean,
         includeYoon: Boolean,
         includeExtended: Boolean,
     ): Boolean =
+        requiredCharacters.all { unitInScope(it, includeDiacritics, includeYoon, includeExtended) }
+
+    /**
+     * Per reading-unit gate, priority **extended → yōon → voiced** (a unit is in
+     * at most one advanced bucket). Shared by character and word scoping so the
+     * two can never disagree.
+     */
+    private fun unitInScope(
+        unit: String,
+        includeDiacritics: Boolean,
+        includeYoon: Boolean,
+        includeExtended: Boolean,
+    ): Boolean =
         when {
-            usesExtended -> includeExtended
-            usesYoon -> includeYoon
-            usesDiacritics -> includeDiacritics
+            KanaUnits.isExtended(unit) -> includeExtended
+            KanaUnits.containsYoon(unit) -> includeYoon
+            KanaKind.of(unit) != KanaKind.BASE -> includeDiacritics
             else -> true
         }
 }

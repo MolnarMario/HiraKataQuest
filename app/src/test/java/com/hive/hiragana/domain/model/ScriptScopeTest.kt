@@ -256,6 +256,44 @@ class ScriptScopeTest {
         assertEquals(listOf("きょう"), session.vocabulary.map { it.kana })
     }
 
+    @Test
+    fun `a word mixing a standalone dakuten kana and a yoon needs BOTH opt-ins`() {
+        // でんしゃ = で(dakuten) + ん + しゃ(yōon). It can only be learned/unlocked
+        // once BOTH voiced and combined kana are on, so it must not appear in the
+        // Library while only one is on (previously usesYoon-priority showed it
+        // under yōon alone, yet で was never in scope → never unlockable).
+        val word = VocabularyWord.fromKana("でんしゃ", "train")
+        assertTrue(
+            "with yōon on but voiced off, でんしゃ is not yet unlockable → hidden",
+            ScriptScope.scopedWords(
+                listOf(word), Script.HIRAGANA,
+                includeDiacritics = false, includeYoon = true, includeExtended = false,
+            ).isEmpty(),
+        )
+        assertEquals(
+            listOf("でんしゃ"),
+            ScriptScope.scopedWords(
+                listOf(word), Script.HIRAGANA,
+                includeDiacritics = true, includeYoon = true, includeExtended = false,
+            ).map { it.kana },
+        )
+    }
+
+    @Test
+    fun `a voiced-base yoon word is gated by yoon alone, not by the voiced opt-in`() {
+        // ぎゅうにゅう splits into ぎゅ + う + にゅ — every unit is a yōon or base
+        // kana (ぎゅ is a yōon unit, not a standalone dakuten), so it unlocks with
+        // yōon on regardless of the voiced opt-in. Guards against over-gating.
+        val word = VocabularyWord.fromKana("ぎゅうにゅう", "milk")
+        assertEquals(
+            listOf("ぎゅうにゅう"),
+            ScriptScope.scopedWords(
+                listOf(word), Script.HIRAGANA,
+                includeDiacritics = false, includeYoon = true, includeExtended = false,
+            ).map { it.kana },
+        )
+    }
+
     // ---- extended-kana opt-in gate (independent of voiced + yōon) -------------
 
     /** Katakana deck: base フ, foreign combo ファ, small tsu ッ, plus ぎゃ (yōon). */

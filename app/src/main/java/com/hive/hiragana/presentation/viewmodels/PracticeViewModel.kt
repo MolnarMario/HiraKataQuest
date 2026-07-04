@@ -517,6 +517,43 @@ class PracticeViewModel(
     }
 
     /**
+     * A fresh [PracticeUiState] for a session rebuild: every DURABLE field —
+     * the loaded deck, learned/unlocked progress, and ALL persisted settings
+     * (grid/ghost/layout/ink color/library view, script + the three opt-ins,
+     * AND scoringMode/scoreStats) — is carried over from the current state,
+     * session/phase fields reset to their defaults, and [canvasClearKey]
+     * bumped. Callers override only what differs. Every rebuild path funnels
+     * through here so no path can silently drop a durable field.
+     */
+    private fun PracticeUiState.rebuilt(
+        isLoading: Boolean,
+        isLibraryOpen: Boolean = this.isLibraryOpen,
+        activeScript: Script = this.activeScript,
+        includeDiacritics: Boolean = this.includeDiacritics,
+        includeYoon: Boolean = this.includeYoon,
+        includeExtended: Boolean = this.includeExtended,
+    ): PracticeUiState = PracticeUiState(
+        isLoading = isLoading,
+        isLibraryOpen = isLibraryOpen,
+        characters = characters,
+        allWords = allWords,
+        unlockedWordKana = unlockedWordKana,
+        learnedCharacterIds = learnedCharacterIds,
+        isGridEnabled = isGridEnabled,
+        isGhostEnabled = isGhostEnabled,
+        isLibraryGridView = isLibraryGridView,
+        brushInkColor = brushInkColor,
+        practiceLayout = practiceLayout,
+        scoringMode = scoringMode,
+        scoreStats = scoreStats,
+        activeScript = activeScript,
+        includeDiacritics = includeDiacritics,
+        includeYoon = includeYoon,
+        includeExtended = includeExtended,
+        canvasClearKey = canvasClearKey + 1,
+    )
+
+    /**
      * "Start next session" button on the COMPLETE summary. Regenerates a
      * fresh [StudySession] from persisted state — since grading updated the
      * cards as the finished session went along, the mastery gate usually
@@ -526,27 +563,9 @@ class PracticeViewModel(
     fun startNextSession() {
         val phase = _uiState.value.phase
         if (phase != SessionPhase.COMPLETE && phase != SessionPhase.FREE) return
-        _uiState.update {
-            PracticeUiState(
-                isLoading = true,
-                characters = it.characters,
-                allWords = it.allWords,
-                unlockedWordKana = it.unlockedWordKana,
-                learnedCharacterIds = it.learnedCharacterIds,
-                isGridEnabled = it.isGridEnabled,
-                isGhostEnabled = it.isGhostEnabled,
-                isLibraryGridView = it.isLibraryGridView,
-                brushInkColor = it.brushInkColor,
-                practiceLayout = it.practiceLayout,
-                // Preserve the study scope across the reset — otherwise the
-                // next session silently reverts to the default hiragana/base.
-                activeScript = it.activeScript,
-                includeDiacritics = it.includeDiacritics,
-                includeYoon = it.includeYoon,
-                includeExtended = it.includeExtended,
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
+        // Every durable field (deck, progress, all settings incl. scoringMode)
+        // is preserved by the shared rebuild helper; only isLoading differs.
+        _uiState.update { it.rebuilt(isLoading = true) }
         startSession()
     }
 
@@ -567,30 +586,9 @@ class PracticeViewModel(
         if (script == _uiState.value.activeScript) return
         settingsRepository.setActiveScript(script)
         lastGradedSession = null
-        _uiState.update {
-            PracticeUiState(
-                // Not isLoading: the library overlay stays mounted and
-                // re-scopes in place; the rebuilt session waits behind it.
-                isLoading = false,
-                characters = it.characters,
-                allWords = it.allWords,
-                unlockedWordKana = it.unlockedWordKana,
-                learnedCharacterIds = it.learnedCharacterIds,
-                isGridEnabled = it.isGridEnabled,
-                isGhostEnabled = it.isGhostEnabled,
-                isLibraryGridView = it.isLibraryGridView,
-                brushInkColor = it.brushInkColor,
-                practiceLayout = it.practiceLayout,
-                scoringMode = it.scoringMode,
-                scoreStats = it.scoreStats,
-                activeScript =script,
-                includeDiacritics = it.includeDiacritics,
-                includeYoon = it.includeYoon,
-                includeExtended = it.includeExtended,
-                isLibraryOpen = it.isLibraryOpen,
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
+        // Not isLoading: the library overlay stays mounted and re-scopes in
+        // place; the rebuilt session waits behind it.
+        _uiState.update { it.rebuilt(isLoading = false, activeScript = script) }
         startSession()
     }
 
@@ -608,28 +606,7 @@ class PracticeViewModel(
         if (included == _uiState.value.includeDiacritics) return
         settingsRepository.setDiacriticsIncluded(included)
         lastGradedSession = null
-        _uiState.update {
-            PracticeUiState(
-                isLoading = false,
-                characters = it.characters,
-                allWords = it.allWords,
-                unlockedWordKana = it.unlockedWordKana,
-                learnedCharacterIds = it.learnedCharacterIds,
-                isGridEnabled = it.isGridEnabled,
-                isGhostEnabled = it.isGhostEnabled,
-                isLibraryGridView = it.isLibraryGridView,
-                brushInkColor = it.brushInkColor,
-                practiceLayout = it.practiceLayout,
-                scoringMode = it.scoringMode,
-                scoreStats = it.scoreStats,
-                activeScript =it.activeScript,
-                includeDiacritics = included,
-                includeYoon = it.includeYoon,
-                includeExtended = it.includeExtended,
-                isLibraryOpen = it.isLibraryOpen,
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
+        _uiState.update { it.rebuilt(isLoading = false, includeDiacritics = included) }
         startSession()
     }
 
@@ -646,28 +623,7 @@ class PracticeViewModel(
         if (included == _uiState.value.includeYoon) return
         settingsRepository.setYoonIncluded(included)
         lastGradedSession = null
-        _uiState.update {
-            PracticeUiState(
-                isLoading = false,
-                characters = it.characters,
-                allWords = it.allWords,
-                unlockedWordKana = it.unlockedWordKana,
-                learnedCharacterIds = it.learnedCharacterIds,
-                isGridEnabled = it.isGridEnabled,
-                isGhostEnabled = it.isGhostEnabled,
-                isLibraryGridView = it.isLibraryGridView,
-                brushInkColor = it.brushInkColor,
-                practiceLayout = it.practiceLayout,
-                scoringMode = it.scoringMode,
-                scoreStats = it.scoreStats,
-                activeScript =it.activeScript,
-                includeDiacritics = it.includeDiacritics,
-                includeYoon = included,
-                includeExtended = it.includeExtended,
-                isLibraryOpen = it.isLibraryOpen,
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
+        _uiState.update { it.rebuilt(isLoading = false, includeYoon = included) }
         startSession()
     }
 
@@ -684,28 +640,7 @@ class PracticeViewModel(
         if (included == _uiState.value.includeExtended) return
         settingsRepository.setExtendedIncluded(included)
         lastGradedSession = null
-        _uiState.update {
-            PracticeUiState(
-                isLoading = false,
-                characters = it.characters,
-                allWords = it.allWords,
-                unlockedWordKana = it.unlockedWordKana,
-                learnedCharacterIds = it.learnedCharacterIds,
-                isGridEnabled = it.isGridEnabled,
-                isGhostEnabled = it.isGhostEnabled,
-                isLibraryGridView = it.isLibraryGridView,
-                brushInkColor = it.brushInkColor,
-                practiceLayout = it.practiceLayout,
-                scoringMode = it.scoringMode,
-                scoreStats = it.scoreStats,
-                activeScript =it.activeScript,
-                includeDiacritics = it.includeDiacritics,
-                includeYoon = it.includeYoon,
-                includeExtended = included,
-                isLibraryOpen = it.isLibraryOpen,
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
+        _uiState.update { it.rebuilt(isLoading = false, includeExtended = included) }
         startSession()
     }
 
@@ -1054,9 +989,14 @@ class PracticeViewModel(
         recordAttempt(character, grade, session, PracticeSource.NEW)
 
         if (state.phase == SessionPhase.NEW_CHARACTER) {
-            markIntroduced(character.id)
+            // First rep: introduce (INSERT-OR-IGNORE) THEN increment, in ONE
+            // ordered coroutine, so the trace UPDATE can't race ahead of the
+            // INSERT and hit zero rows (losing the first trace).
+            markIntroducedThenIncrement(character.id)
+        } else {
+            // Later reps: the row already exists, so a bare increment is safe.
+            incrementTraces(character.id)
         }
-        incrementTraces(character.id)
 
         val isFinalRep = state.repetitionIndex + 1 >= state.repetitionsTotal
         if (isFinalRep) {
@@ -1200,11 +1140,20 @@ class PracticeViewModel(
         )
     }
 
-    private fun markIntroduced(characterId: String) {
+    /**
+     * First-trace path: mark the character introduced (INSERT-OR-IGNORE into
+     * character_progress) and then bump its trace count, **sequentially in one
+     * coroutine**. Kept in a single launch on purpose — running the two as
+     * separate fire-and-forget coroutines let the trace UPDATE occasionally
+     * land before the INSERT and silently drop the first trace.
+     */
+    private fun markIntroducedThenIncrement(characterId: String) {
         val now = clock.millis()
         viewModelScope.launch {
-            runCatching { learningRepository.markIntroduced(characterId, now) }
-                .onFailure { Log.w(TAG, "Failed to mark $characterId introduced", it) }
+            runCatching {
+                learningRepository.markIntroduced(characterId, now)
+                learningRepository.incrementTraces(characterId)
+            }.onFailure { Log.w(TAG, "Failed to record introduction/trace for $characterId", it) }
         }
     }
 
@@ -1341,7 +1290,17 @@ class PracticeViewModel(
                     Log.w(TAG, "Recognition failed for $target", it)
                     RecognitionResult.UNAVAILABLE
                 }
-            _uiState.update { it.copy(lastScore = CharacterScore.combine(geometry, recognition, mode)) }
+            // Only refine the headline if the glyph we scored is STILL the one
+            // on screen — a stale recognition from a previous character must not
+            // clobber the current score (nor flash onto the phase under a just-
+            // closed quiz, which clears lastScoredCharacter).
+            _uiState.update { s ->
+                if (s.lastScoredCharacter == target) {
+                    s.copy(lastScore = CharacterScore.combine(geometry, recognition, mode))
+                } else {
+                    s
+                }
+            }
         }
         // The synchronous geometry headline (recognition refines the live
         // card asynchronously but the caller/summary uses this value).

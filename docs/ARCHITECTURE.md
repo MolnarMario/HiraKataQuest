@@ -47,8 +47,8 @@ built and section 8 covers Phase 3; the full contracts are
 [docs/PHASE2-DESIGN.md](PHASE2-DESIGN.md) and [docs/PHASE3-DESIGN.md](PHASE3-DESIGN.md).
 
 All Kotlin sources live under `app/src/main/java/com/hive/hiragana/`. There are **68
-Kotlin files** in the `main` source set, plus **10 files** under `app/src/test/`
-(**105 JUnit tests total**; there is still no `androidTest/`). The test count grew
+Kotlin files** in the `main` source set, plus **11 files** under `app/src/test/`
+(**110 JUnit tests total**; there is still no `androidTest/`). The test count grew
 well past Phase 3's original 45 as the katakana/opt-in seam (`Script`, `KanaKind`,
 `KanaUnits`, `ScriptScope`), the Library chart (`KanaChart`), and the
 handwriting-scoring layer (`GeometryScorer`, `CharacterScore`) each brought their own
@@ -551,7 +551,8 @@ walk into a generated session.
 - **Tests**: `app/src/test/java/com/hive/hiragana/domain/learning/` — `SrsSchedulerTest`,
   `LessonGeneratorTest`, `VocabularyUnlockTest` — were the project's first tests (45 at
   Phase 3), since joined by pure-domain suites for the katakana/opt-in seam and the
-  scoring/chart work (see §8-scoring); **105 JUnit4 tests total** today, all green
+  scoring/chart work (see §8-scoring) and the first `PracticeViewModelTest`;
+  **110 JUnit4 tests total** today, all green
   (`testDebugUnitTest`). Pure domain logic made this practical without instrumentation,
   unlike Phase 2's UI/engine surface.
 
@@ -605,7 +606,7 @@ Paths relative to `app/src/main/java/com/hive/hiragana/` unless noted. This tabl
 covers the Phase 1–3 core in full; the later additive files (the katakana/opt-in seam,
 handwriting scoring, quiz, Library chart, settings) are listed as a group at the end
 rather than exhaustively re-inventoried — the `main` set is now **68 files**, the test
-set **10 files (105 tests)**.
+set **11 files (110 tests)** (incl. the first `PracticeViewModelTest`).
 
 ### Root (2)
 
