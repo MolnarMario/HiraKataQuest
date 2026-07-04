@@ -1,0 +1,604 @@
+{
+  "words": [
+    {
+      "kana": "コーヒー",
+      "meaning": "coffee"
+    },
+    {
+      "kana": "ケーキ",
+      "meaning": "cake"
+    },
+    {
+      "kana": "タクシー",
+      "meaning": "taxi"
+    },
+    {
+      "kana": "ラーメン",
+      "meaning": "ramen"
+    },
+    {
+      "kana": "カレー",
+      "meaning": "curry"
+    },
+    {
+      "kana": "コーラ",
+      "meaning": "cola"
+    },
+    {
+      "kana": "セーター",
+      "meaning": "sweater"
+    },
+    {
+      "kana": "スキー",
+      "meaning": "skiing"
+    },
+    {
+      "kana": "ノート",
+      "meaning": "notebook"
+    },
+    {
+      "kana": "メール",
+      "meaning": "email"
+    },
+    {
+      "kana": "カメラ",
+      "meaning": "camera"
+    },
+    {
+      "kana": "トマト",
+      "meaning": "tomato"
+    },
+    {
+      "kana": "レモン",
+      "meaning": "lemon"
+    },
+    {
+      "kana": "メロン",
+      "meaning": "melon"
+    },
+    {
+      "kana": "ミルク",
+      "meaning": "milk"
+    },
+    {
+      "kana": "ホテル",
+      "meaning": "hotel"
+    },
+    {
+      "kana": "テスト",
+      "meaning": "test"
+    },
+    {
+      "kana": "アニメ",
+      "meaning": "anime"
+    },
+    {
+      "kana": "カラオケ",
+      "meaning": "karaoke"
+    },
+    {
+      "kana": "テニス",
+      "meaning": "tennis"
+    },
+    {
+      "kana": "クラス",
+      "meaning": "class"
+    },
+    {
+      "kana": "ネクタイ",
+      "meaning": "necktie"
+    },
+    {
+      "kana": "マスク",
+      "meaning": "mask"
+    },
+    {
+      "kana": "タオル",
+      "meaning": "towel"
+    },
+    {
+      "kana": "ワイン",
+      "meaning": "wine"
+    },
+    {
+      "kana": "ライオン",
+      "meaning": "lion"
+    },
+    {
+      "kana": "アメリカ",
+      "meaning": "America"
+    },
+    {
+      "kana": "イタリア",
+      "meaning": "Italy"
+    },
+    {
+      "kana": "フランス",
+      "meaning": "France"
+    },
+    {
+      "kana": "エアコン",
+      "meaning": "air conditioner"
+    },
+    {
+      "kana": "マラソン",
+      "meaning": "marathon"
+    },
+    {
+      "kana": "リモコン",
+      "meaning": "remote control"
+    },
+    {
+      "kana": "レストラン",
+      "meaning": "restaurant"
+    },
+    {
+      "kana": "トイレ",
+      "meaning": "toilet"
+    },
+    {
+      "kana": "ハム",
+      "meaning": "ham"
+    },
+    {
+      "kana": "チキン",
+      "meaning": "chicken"
+    },
+    {
+      "kana": "スイカ",
+      "meaning": "watermelon"
+    },
+    {
+      "kana": "アイス",
+      "meaning": "ice cream"
+    },
+    {
+      "kana": "ライス",
+      "meaning": "rice"
+    },
+    {
+      "kana": "コイン",
+      "meaning": "coin"
+    },
+    {
+      "kana": "サイン",
+      "meaning": "signature"
+    },
+    {
+      "kana": "ソース",
+      "meaning": "sauce"
+    },
+    {
+      "kana": "ルール",
+      "meaning": "rule"
+    },
+    {
+      "kana": "シール",
+      "meaning": "sticker"
+    },
+    {
+      "kana": "ケース",
+      "meaning": "case"
+    },
+    {
+      "kana": "スカート",
+      "meaning": "skirt"
+    },
+    {
+      "kana": "スケート",
+      "meaning": "skating"
+    },
+    {
+      "kana": "ナイフ",
+      "meaning": "knife"
+    },
+    {
+      "kana": "マイク",
+      "meaning": "microphone"
+    },
+    {
+      "kana": "ヒント",
+      "meaning": "hint"
+    },
+    {
+      "kana": "テント",
+      "meaning": "tent"
+    },
+    {
+      "kana": "ハンカチ",
+      "meaning": "handkerchief"
+    },
+    {
+      "kana": "ホース",
+      "meaning": "hose"
+    },
+    {
+      "kana": "コート",
+      "meaning": "coat"
+    },
+    {
+      "kana": "スーツ",
+      "meaning": "suit"
+    },
+    {
+      "kana": "モーター",
+      "meaning": "motor"
+    },
+    {
+      "kana": "カウンター",
+      "meaning": "counter"
+    },
+    {
+      "kana": "センター",
+      "meaning": "center"
+    },
+    {
+      "kana": "アイロン",
+      "meaning": "iron"
+    },
+    {
+      "kana": "カヌー",
+      "meaning": "canoe"
+    },
+    {
+      "kana": "ミシン",
+      "meaning": "sewing machine"
+    },
+    {
+      "kana": "リス",
+      "meaning": "squirrel"
+    },
+    {
+      "kana": "ヘア",
+      "meaning": "hair"
+    },
+    {
+      "kana": "タイヤ",
+      "meaning": "tire"
+    },
+    {
+      "kana": "ユニホーム",
+      "meaning": "uniform"
+    },
+    {
+      "kana": "クレヨン",
+      "meaning": "crayon"
+    },
+    {
+      "kana": "ゲーム",
+      "meaning": "game"
+    },
+    {
+      "kana": "テレビ",
+      "meaning": "television"
+    },
+    {
+      "kana": "ラジオ",
+      "meaning": "radio"
+    },
+    {
+      "kana": "バス",
+      "meaning": "bus"
+    },
+    {
+      "kana": "ビル",
+      "meaning": "building"
+    },
+    {
+      "kana": "ズボン",
+      "meaning": "trousers"
+    },
+    {
+      "kana": "ドア",
+      "meaning": "door"
+    },
+    {
+      "kana": "パン",
+      "meaning": "bread"
+    },
+    {
+      "kana": "ピアノ",
+      "meaning": "piano"
+    },
+    {
+      "kana": "プール",
+      "meaning": "pool"
+    },
+    {
+      "kana": "ペン",
+      "meaning": "pen"
+    },
+    {
+      "kana": "ポスト",
+      "meaning": "mailbox"
+    },
+    {
+      "kana": "ダンス",
+      "meaning": "dance"
+    },
+    {
+      "kana": "ベル",
+      "meaning": "bell"
+    },
+    {
+      "kana": "ボタン",
+      "meaning": "button"
+    },
+    {
+      "kana": "ビール",
+      "meaning": "beer"
+    },
+    {
+      "kana": "ガス",
+      "meaning": "gas"
+    },
+    {
+      "kana": "ギター",
+      "meaning": "guitar"
+    },
+    {
+      "kana": "グラス",
+      "meaning": "glass"
+    },
+    {
+      "kana": "ゴルフ",
+      "meaning": "golf"
+    },
+    {
+      "kana": "デザート",
+      "meaning": "dessert"
+    },
+    {
+      "kana": "ジム",
+      "meaning": "gym"
+    },
+    {
+      "kana": "ゼロ",
+      "meaning": "zero"
+    },
+    {
+      "kana": "ゾーン",
+      "meaning": "zone"
+    },
+    {
+      "kana": "デパート",
+      "meaning": "department store"
+    },
+    {
+      "kana": "ビデオ",
+      "meaning": "video"
+    },
+    {
+      "kana": "バナナ",
+      "meaning": "banana"
+    },
+    {
+      "kana": "ボール",
+      "meaning": "ball"
+    },
+    {
+      "kana": "ポテト",
+      "meaning": "potato"
+    },
+    {
+      "kana": "ピザ",
+      "meaning": "pizza"
+    },
+    {
+      "kana": "ベンチ",
+      "meaning": "bench"
+    },
+    {
+      "kana": "パソコン",
+      "meaning": "personal computer"
+    },
+    {
+      "kana": "ガム",
+      "meaning": "chewing gum"
+    },
+    {
+      "kana": "ゴリラ",
+      "meaning": "gorilla"
+    },
+    {
+      "kana": "テーブル",
+      "meaning": "table"
+    },
+    {
+      "kana": "ニュース",
+      "meaning": "news"
+    },
+    {
+      "kana": "チョコ",
+      "meaning": "chocolate"
+    },
+    {
+      "kana": "ジュース",
+      "meaning": "juice"
+    },
+    {
+      "kana": "シャツ",
+      "meaning": "shirt"
+    },
+    {
+      "kana": "チャンス",
+      "meaning": "chance"
+    },
+    {
+      "kana": "メニュー",
+      "meaning": "menu"
+    },
+    {
+      "kana": "キャンプ",
+      "meaning": "camp"
+    },
+    {
+      "kana": "シャワー",
+      "meaning": "shower"
+    },
+    {
+      "kana": "ジャム",
+      "meaning": "jam"
+    },
+    {
+      "kana": "キャベツ",
+      "meaning": "cabbage"
+    },
+    {
+      "kana": "ジョギング",
+      "meaning": "jogging"
+    },
+    {
+      "kana": "チューブ",
+      "meaning": "tube"
+    },
+    {
+      "kana": "ジャズ",
+      "meaning": "jazz"
+    },
+    {
+      "kana": "チャイム",
+      "meaning": "chime"
+    },
+    {
+      "kana": "シャベル",
+      "meaning": "shovel"
+    },
+    {
+      "kana": "ミュージカル",
+      "meaning": "musical"
+    },
+    {
+      "kana": "シューズ",
+      "meaning": "shoes"
+    },
+    {
+      "kana": "チョーク",
+      "meaning": "chalk"
+    },
+    {
+      "kana": "ジョーク",
+      "meaning": "joke"
+    },
+    {
+      "kana": "キャンドル",
+      "meaning": "candle"
+    },
+    {
+      "kana": "シャンプー",
+      "meaning": "shampoo"
+    },
+    {
+      "kana": "チャーハン",
+      "meaning": "fried rice"
+    },
+    {
+      "kana": "キューブ",
+      "meaning": "cube"
+    },
+    {
+      "kana": "ショー",
+      "meaning": "show"
+    },
+    {
+      "kana": "ヒューズ",
+      "meaning": "fuse"
+    },
+    {
+      "kana": "インタビュー",
+      "meaning": "interview"
+    },
+    {
+      "kana": "コンピューター",
+      "meaning": "computer"
+    },
+    {
+      "kana": "ベッド",
+      "meaning": "bed"
+    },
+    {
+      "kana": "ポケット",
+      "meaning": "pocket"
+    },
+    {
+      "kana": "サッカー",
+      "meaning": "soccer"
+    },
+    {
+      "kana": "コップ",
+      "meaning": "cup"
+    },
+    {
+      "kana": "スリッパ",
+      "meaning": "slippers"
+    },
+    {
+      "kana": "ネット",
+      "meaning": "net"
+    },
+    {
+      "kana": "チケット",
+      "meaning": "ticket"
+    },
+    {
+      "kana": "ロケット",
+      "meaning": "rocket"
+    },
+    {
+      "kana": "ペット",
+      "meaning": "pet"
+    },
+    {
+      "kana": "マッチ",
+      "meaning": "match"
+    },
+    {
+      "kana": "ソファ",
+      "meaning": "sofa"
+    },
+    {
+      "kana": "フォーク",
+      "meaning": "fork"
+    },
+    {
+      "kana": "フィルム",
+      "meaning": "film"
+    },
+    {
+      "kana": "カフェ",
+      "meaning": "café"
+    },
+    {
+      "kana": "パーティー",
+      "meaning": "party"
+    },
+    {
+      "kana": "ウェブ",
+      "meaning": "web"
+    },
+    {
+      "kana": "ウォーター",
+      "meaning": "water"
+    },
+    {
+      "kana": "シェフ",
+      "meaning": "chef"
+    },
+    {
+      "kana": "ジェット",
+      "meaning": "jet"
+    },
+    {
+      "kana": "チェック",
+      "meaning": "check"
+    },
+    {
+      "kana": "ヴァイオリン",
+      "meaning": "violin"
+    },
+    {
+      "kana": "ディナー",
+      "meaning": "dinner"
+    }
+  ]
+}

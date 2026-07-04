@@ -1,0 +1,19 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+# module build outputs (the /build rule above only matches the root)
+app/build/
+/.kotlin/
+# packaged outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+# AI Hive coordination metadata (internal tooling, not part of the app)
+.aihive/

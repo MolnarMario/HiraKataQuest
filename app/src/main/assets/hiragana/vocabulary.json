@@ -1,0 +1,992 @@
+{
+  "words": [
+    {
+      "kana": "あい",
+      "meaning": "love"
+    },
+    {
+      "kana": "いえ",
+      "meaning": "house"
+    },
+    {
+      "kana": "うえ",
+      "meaning": "up; above"
+    },
+    {
+      "kana": "あお",
+      "meaning": "blue"
+    },
+    {
+      "kana": "いう",
+      "meaning": "to say"
+    },
+    {
+      "kana": "あう",
+      "meaning": "to meet"
+    },
+    {
+      "kana": "いいえ",
+      "meaning": "no"
+    },
+    {
+      "kana": "おい",
+      "meaning": "hey!"
+    },
+    {
+      "kana": "うお",
+      "meaning": "fish"
+    },
+    {
+      "kana": "あか",
+      "meaning": "red"
+    },
+    {
+      "kana": "あき",
+      "meaning": "autumn"
+    },
+    {
+      "kana": "いく",
+      "meaning": "to go"
+    },
+    {
+      "kana": "いけ",
+      "meaning": "pond"
+    },
+    {
+      "kana": "えき",
+      "meaning": "station"
+    },
+    {
+      "kana": "かう",
+      "meaning": "to buy"
+    },
+    {
+      "kana": "かお",
+      "meaning": "face"
+    },
+    {
+      "kana": "かく",
+      "meaning": "to write"
+    },
+    {
+      "kana": "きく",
+      "meaning": "to listen; to ask"
+    },
+    {
+      "kana": "くうき",
+      "meaning": "air"
+    },
+    {
+      "kana": "こえ",
+      "meaning": "voice"
+    },
+    {
+      "kana": "ここ",
+      "meaning": "here"
+    },
+    {
+      "kana": "こい",
+      "meaning": "carp"
+    },
+    {
+      "kana": "おおきい",
+      "meaning": "big"
+    },
+    {
+      "kana": "わたし",
+      "meaning": "I; me"
+    },
+    {
+      "kana": "あなた",
+      "meaning": "you"
+    },
+    {
+      "kana": "ひと",
+      "meaning": "person"
+    },
+    {
+      "kana": "おとこ",
+      "meaning": "man"
+    },
+    {
+      "kana": "おんな",
+      "meaning": "woman"
+    },
+    {
+      "kana": "おとな",
+      "meaning": "adult"
+    },
+    {
+      "kana": "なまえ",
+      "meaning": "name"
+    },
+    {
+      "kana": "みんな",
+      "meaning": "everyone"
+    },
+    {
+      "kana": "あたま",
+      "meaning": "head"
+    },
+    {
+      "kana": "くち",
+      "meaning": "mouth"
+    },
+    {
+      "kana": "みみ",
+      "meaning": "ear"
+    },
+    {
+      "kana": "あし",
+      "meaning": "leg; foot"
+    },
+    {
+      "kana": "はは",
+      "meaning": "mother"
+    },
+    {
+      "kana": "ちち",
+      "meaning": "father"
+    },
+    {
+      "kana": "あに",
+      "meaning": "older brother"
+    },
+    {
+      "kana": "あね",
+      "meaning": "older sister"
+    },
+    {
+      "kana": "おとうと",
+      "meaning": "younger brother"
+    },
+    {
+      "kana": "いもうと",
+      "meaning": "younger sister"
+    },
+    {
+      "kana": "ねこ",
+      "meaning": "cat"
+    },
+    {
+      "kana": "いぬ",
+      "meaning": "dog"
+    },
+    {
+      "kana": "とり",
+      "meaning": "bird"
+    },
+    {
+      "kana": "うま",
+      "meaning": "horse"
+    },
+    {
+      "kana": "さかな",
+      "meaning": "fish"
+    },
+    {
+      "kana": "うし",
+      "meaning": "cow"
+    },
+    {
+      "kana": "くま",
+      "meaning": "bear"
+    },
+    {
+      "kana": "むし",
+      "meaning": "insect"
+    },
+    {
+      "kana": "きつね",
+      "meaning": "fox"
+    },
+    {
+      "kana": "やま",
+      "meaning": "mountain"
+    },
+    {
+      "kana": "かわ",
+      "meaning": "river"
+    },
+    {
+      "kana": "うみ",
+      "meaning": "sea"
+    },
+    {
+      "kana": "そら",
+      "meaning": "sky"
+    },
+    {
+      "kana": "つき",
+      "meaning": "moon"
+    },
+    {
+      "kana": "ほし",
+      "meaning": "star"
+    },
+    {
+      "kana": "あめ",
+      "meaning": "rain"
+    },
+    {
+      "kana": "ゆき",
+      "meaning": "snow"
+    },
+    {
+      "kana": "はな",
+      "meaning": "flower"
+    },
+    {
+      "kana": "くも",
+      "meaning": "cloud"
+    },
+    {
+      "kana": "いし",
+      "meaning": "stone"
+    },
+    {
+      "kana": "はる",
+      "meaning": "spring"
+    },
+    {
+      "kana": "なつ",
+      "meaning": "summer"
+    },
+    {
+      "kana": "ふゆ",
+      "meaning": "winter"
+    },
+    {
+      "kana": "あさ",
+      "meaning": "morning"
+    },
+    {
+      "kana": "ひる",
+      "meaning": "noon; daytime"
+    },
+    {
+      "kana": "よる",
+      "meaning": "night"
+    },
+    {
+      "kana": "いま",
+      "meaning": "now"
+    },
+    {
+      "kana": "とき",
+      "meaning": "time"
+    },
+    {
+      "kana": "とし",
+      "meaning": "year"
+    },
+    {
+      "kana": "あした",
+      "meaning": "tomorrow"
+    },
+    {
+      "kana": "きのう",
+      "meaning": "yesterday"
+    },
+    {
+      "kana": "すし",
+      "meaning": "sushi"
+    },
+    {
+      "kana": "にく",
+      "meaning": "meat"
+    },
+    {
+      "kana": "こめ",
+      "meaning": "rice"
+    },
+    {
+      "kana": "もも",
+      "meaning": "peach"
+    },
+    {
+      "kana": "うめ",
+      "meaning": "plum"
+    },
+    {
+      "kana": "まめ",
+      "meaning": "beans"
+    },
+    {
+      "kana": "なし",
+      "meaning": "pear"
+    },
+    {
+      "kana": "しお",
+      "meaning": "salt"
+    },
+    {
+      "kana": "さとう",
+      "meaning": "sugar"
+    },
+    {
+      "kana": "みそ",
+      "meaning": "miso"
+    },
+    {
+      "kana": "のり",
+      "meaning": "seaweed"
+    },
+    {
+      "kana": "みかん",
+      "meaning": "mandarin orange"
+    },
+    {
+      "kana": "やさい",
+      "meaning": "vegetables"
+    },
+    {
+      "kana": "はし",
+      "meaning": "chopsticks"
+    },
+    {
+      "kana": "うち",
+      "meaning": "home"
+    },
+    {
+      "kana": "くに",
+      "meaning": "country"
+    },
+    {
+      "kana": "まち",
+      "meaning": "town"
+    },
+    {
+      "kana": "みせ",
+      "meaning": "shop"
+    },
+    {
+      "kana": "みち",
+      "meaning": "road"
+    },
+    {
+      "kana": "へや",
+      "meaning": "room"
+    },
+    {
+      "kana": "つくえ",
+      "meaning": "desk"
+    },
+    {
+      "kana": "いす",
+      "meaning": "chair"
+    },
+    {
+      "kana": "ほん",
+      "meaning": "book"
+    },
+    {
+      "kana": "かみ",
+      "meaning": "paper"
+    },
+    {
+      "kana": "ふく",
+      "meaning": "clothes"
+    },
+    {
+      "kana": "くつ",
+      "meaning": "shoes"
+    },
+    {
+      "kana": "かさ",
+      "meaning": "umbrella"
+    },
+    {
+      "kana": "くるま",
+      "meaning": "car"
+    },
+    {
+      "kana": "ふね",
+      "meaning": "boat"
+    },
+    {
+      "kana": "にわ",
+      "meaning": "garden"
+    },
+    {
+      "kana": "とけい",
+      "meaning": "clock"
+    },
+    {
+      "kana": "おかね",
+      "meaning": "money"
+    },
+    {
+      "kana": "くすり",
+      "meaning": "medicine"
+    },
+    {
+      "kana": "おふろ",
+      "meaning": "bath"
+    },
+    {
+      "kana": "うた",
+      "meaning": "song"
+    },
+    {
+      "kana": "ゆめ",
+      "meaning": "dream"
+    },
+    {
+      "kana": "おと",
+      "meaning": "sound"
+    },
+    {
+      "kana": "せかい",
+      "meaning": "world"
+    },
+    {
+      "kana": "てんき",
+      "meaning": "weather"
+    },
+    {
+      "kana": "たてもの",
+      "meaning": "building"
+    },
+    {
+      "kana": "せんせい",
+      "meaning": "teacher"
+    },
+    {
+      "kana": "まえ",
+      "meaning": "front; before"
+    },
+    {
+      "kana": "なか",
+      "meaning": "inside; middle"
+    },
+    {
+      "kana": "そと",
+      "meaning": "outside"
+    },
+    {
+      "kana": "した",
+      "meaning": "below; under"
+    },
+    {
+      "kana": "うしろ",
+      "meaning": "behind"
+    },
+    {
+      "kana": "のむ",
+      "meaning": "to drink"
+    },
+    {
+      "kana": "みる",
+      "meaning": "to see"
+    },
+    {
+      "kana": "よむ",
+      "meaning": "to read"
+    },
+    {
+      "kana": "ねる",
+      "meaning": "to sleep"
+    },
+    {
+      "kana": "おきる",
+      "meaning": "to wake up"
+    },
+    {
+      "kana": "すわる",
+      "meaning": "to sit"
+    },
+    {
+      "kana": "あるく",
+      "meaning": "to walk"
+    },
+    {
+      "kana": "はなす",
+      "meaning": "to speak"
+    },
+    {
+      "kana": "はしる",
+      "meaning": "to run"
+    },
+    {
+      "kana": "すき",
+      "meaning": "liked; favorite"
+    },
+    {
+      "kana": "たかい",
+      "meaning": "tall; expensive"
+    },
+    {
+      "kana": "やすい",
+      "meaning": "cheap"
+    },
+    {
+      "kana": "ちいさい",
+      "meaning": "small"
+    },
+    {
+      "kana": "あつい",
+      "meaning": "hot"
+    },
+    {
+      "kana": "さむい",
+      "meaning": "cold"
+    },
+    {
+      "kana": "たのしい",
+      "meaning": "fun"
+    },
+    {
+      "kana": "おいしい",
+      "meaning": "delicious"
+    },
+    {
+      "kana": "しろ",
+      "meaning": "white"
+    },
+    {
+      "kana": "くろ",
+      "meaning": "black"
+    },
+    {
+      "kana": "これ",
+      "meaning": "this"
+    },
+    {
+      "kana": "それ",
+      "meaning": "that"
+    },
+    {
+      "kana": "あれ",
+      "meaning": "that over there"
+    },
+    {
+      "kana": "そこ",
+      "meaning": "there"
+    },
+    {
+      "kana": "あそこ",
+      "meaning": "over there"
+    },
+    {
+      "kana": "なに",
+      "meaning": "what"
+    },
+    {
+      "kana": "いつ",
+      "meaning": "when"
+    },
+    {
+      "kana": "はい",
+      "meaning": "yes"
+    },
+    {
+      "kana": "いち",
+      "meaning": "one"
+    },
+    {
+      "kana": "さん",
+      "meaning": "three"
+    },
+    {
+      "kana": "ろく",
+      "meaning": "six"
+    },
+    {
+      "kana": "なな",
+      "meaning": "seven"
+    },
+    {
+      "kana": "はち",
+      "meaning": "eight"
+    },
+    {
+      "kana": "おはよう",
+      "meaning": "good morning"
+    },
+    {
+      "kana": "こんにちは",
+      "meaning": "hello"
+    },
+    {
+      "kana": "さようなら",
+      "meaning": "goodbye"
+    },
+    {
+      "kana": "かぎ",
+      "meaning": "key"
+    },
+    {
+      "kana": "めがね",
+      "meaning": "glasses"
+    },
+    {
+      "kana": "たまご",
+      "meaning": "egg"
+    },
+    {
+      "kana": "かぞく",
+      "meaning": "family"
+    },
+    {
+      "kana": "でんわ",
+      "meaning": "telephone"
+    },
+    {
+      "kana": "ぶた",
+      "meaning": "pig"
+    },
+    {
+      "kana": "ぞう",
+      "meaning": "elephant"
+    },
+    {
+      "kana": "かばん",
+      "meaning": "bag"
+    },
+    {
+      "kana": "そば",
+      "meaning": "buckwheat noodles"
+    },
+    {
+      "kana": "みず",
+      "meaning": "water"
+    },
+    {
+      "kana": "はなび",
+      "meaning": "fireworks"
+    },
+    {
+      "kana": "ごはん",
+      "meaning": "cooked rice; meal"
+    },
+    {
+      "kana": "でぐち",
+      "meaning": "exit"
+    },
+    {
+      "kana": "じかん",
+      "meaning": "time; hour"
+    },
+    {
+      "kana": "かがみ",
+      "meaning": "mirror"
+    },
+    {
+      "kana": "からだ",
+      "meaning": "body"
+    },
+    {
+      "kana": "ちず",
+      "meaning": "map"
+    },
+    {
+      "kana": "だいがく",
+      "meaning": "university"
+    },
+    {
+      "kana": "ぎんこう",
+      "meaning": "bank"
+    },
+    {
+      "kana": "でんき",
+      "meaning": "electricity"
+    },
+    {
+      "kana": "どうぶつ",
+      "meaning": "animal"
+    },
+    {
+      "kana": "べんとう",
+      "meaning": "boxed lunch"
+    },
+    {
+      "kana": "ぶどう",
+      "meaning": "grapes"
+    },
+    {
+      "kana": "みぎ",
+      "meaning": "right"
+    },
+    {
+      "kana": "あぶら",
+      "meaning": "oil"
+    },
+    {
+      "kana": "かぜ",
+      "meaning": "wind; a cold"
+    },
+    {
+      "kana": "さんぽ",
+      "meaning": "a walk"
+    },
+    {
+      "kana": "えんぴつ",
+      "meaning": "pencil"
+    },
+    {
+      "kana": "ぺらぺら",
+      "meaning": "fluently"
+    },
+    {
+      "kana": "てんぷら",
+      "meaning": "tempura"
+    },
+    {
+      "kana": "つづく",
+      "meaning": "to continue"
+    },
+    {
+      "kana": "みかづき",
+      "meaning": "crescent moon"
+    },
+    {
+      "kana": "はなぢ",
+      "meaning": "nosebleed"
+    },
+    {
+      "kana": "ちぢむ",
+      "meaning": "to shrink"
+    },
+    {
+      "kana": "ぜんぶ",
+      "meaning": "all; everything"
+    },
+    {
+      "kana": "だんご",
+      "meaning": "dumpling"
+    },
+    {
+      "kana": "ざる",
+      "meaning": "sieve; basket"
+    },
+    {
+      "kana": "ひげ",
+      "meaning": "beard"
+    },
+    {
+      "kana": "かんぱい",
+      "meaning": "cheers; a toast"
+    },
+    {
+      "kana": "ぼうし",
+      "meaning": "hat"
+    },
+    {
+      "kana": "きょう",
+      "meaning": "today"
+    },
+    {
+      "kana": "しゅくだい",
+      "meaning": "homework"
+    },
+    {
+      "kana": "でんしゃ",
+      "meaning": "train"
+    },
+    {
+      "kana": "おちゃ",
+      "meaning": "tea"
+    },
+    {
+      "kana": "じてんしゃ",
+      "meaning": "bicycle"
+    },
+    {
+      "kana": "びょういん",
+      "meaning": "hospital"
+    },
+    {
+      "kana": "りょこう",
+      "meaning": "travel"
+    },
+    {
+      "kana": "しゃしん",
+      "meaning": "photograph"
+    },
+    {
+      "kana": "きゅう",
+      "meaning": "nine"
+    },
+    {
+      "kana": "ぎゅうにゅう",
+      "meaning": "milk"
+    },
+    {
+      "kana": "じゅう",
+      "meaning": "ten"
+    },
+    {
+      "kana": "ちょう",
+      "meaning": "butterfly"
+    },
+    {
+      "kana": "きょうしつ",
+      "meaning": "classroom"
+    },
+    {
+      "kana": "しゅみ",
+      "meaning": "hobby"
+    },
+    {
+      "kana": "りょうり",
+      "meaning": "cooking"
+    },
+    {
+      "kana": "びょうき",
+      "meaning": "illness"
+    },
+    {
+      "kana": "ひゃく",
+      "meaning": "hundred"
+    },
+    {
+      "kana": "じしょ",
+      "meaning": "dictionary"
+    },
+    {
+      "kana": "おもちゃ",
+      "meaning": "toy"
+    },
+    {
+      "kana": "こうちゃ",
+      "meaning": "black tea"
+    },
+    {
+      "kana": "しょくじ",
+      "meaning": "a meal"
+    },
+    {
+      "kana": "ちゅうい",
+      "meaning": "caution"
+    },
+    {
+      "kana": "みゃく",
+      "meaning": "pulse"
+    },
+    {
+      "kana": "ひょう",
+      "meaning": "chart"
+    },
+    {
+      "kana": "ぎょうざ",
+      "meaning": "gyoza"
+    },
+    {
+      "kana": "きゃく",
+      "meaning": "guest"
+    },
+    {
+      "kana": "しゅう",
+      "meaning": "week"
+    },
+    {
+      "kana": "ぴょんぴょん",
+      "meaning": "hopping"
+    },
+    {
+      "kana": "にゅういん",
+      "meaning": "hospitalization"
+    },
+    {
+      "kana": "しょうゆ",
+      "meaning": "soy sauce"
+    },
+    {
+      "kana": "じゅぎょう",
+      "meaning": "class lesson"
+    },
+    {
+      "kana": "りゃく",
+      "meaning": "abbreviation"
+    },
+    {
+      "kana": "さんびゃく",
+      "meaning": "three hundred"
+    },
+    {
+      "kana": "ちょきん",
+      "meaning": "savings"
+    },
+    {
+      "kana": "りゅう",
+      "meaning": "dragon"
+    },
+    {
+      "kana": "じゃがいも",
+      "meaning": "potato"
+    },
+    {
+      "kana": "じょうず",
+      "meaning": "skillful"
+    },
+    {
+      "kana": "ぎゃく",
+      "meaning": "reverse"
+    },
+    {
+      "kana": "みょうじ",
+      "meaning": "surname"
+    },
+    {
+      "kana": "にゃあ",
+      "meaning": "meow"
+    },
+    {
+      "kana": "きって",
+      "meaning": "postage stamp"
+    },
+    {
+      "kana": "がっこう",
+      "meaning": "school"
+    },
+    {
+      "kana": "ざっし",
+      "meaning": "magazine"
+    },
+    {
+      "kana": "きっぷ",
+      "meaning": "ticket"
+    },
+    {
+      "kana": "いっぱい",
+      "meaning": "full; a lot"
+    },
+    {
+      "kana": "しっぽ",
+      "meaning": "tail"
+    },
+    {
+      "kana": "まっすぐ",
+      "meaning": "straight"
+    },
+    {
+      "kana": "けっこん",
+      "meaning": "marriage"
+    },
+    {
+      "kana": "せっけん",
+      "meaning": "soap"
+    },
+    {
+      "kana": "みっつ",
+      "meaning": "three (things)"
+    },
+    {
+      "kana": "やっつ",
+      "meaning": "eight (things)"
+    },
+    {
+      "kana": "きっさてん",
+      "meaning": "café"
+    },
+    {
+      "kana": "ちょっと",
+      "meaning": "a little"
+    },
+    {
+      "kana": "けっか",
+      "meaning": "result"
+    }
+  ]
+}
