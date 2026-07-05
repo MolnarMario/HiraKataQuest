@@ -20,8 +20,7 @@ data class CellRect(val left: Float, val top: Float, val size: Float) {
  * Pure geometric handwriting scorer. Compares a user's drawn strokes to a
  * reference glyph's stroke polylines and produces the FORM and FIT dials
  * plus coaching tags. No Android dependencies, no clock, no randomness —
- * deterministic and unit-tested, in the same spirit as
- * [com.hive.hiragana.domain.learning.SrsScheduler].
+ * deterministic and unit-tested.
  *
  * The design deliberately rewards *correctly formed, legible* writing and
  * forgives *where* on the sheet it lands: the FORM dial normalizes both the

@@ -1,5 +1,18 @@
 # Phase 3 Design — Smart Learning System
 
+> **⚠️ REMOVED 2026-07-05 — historical document.** The guided study session
+> described in this file **no longer exists**: the SM-2 spaced-repetition
+> scheduler (`SrsScheduler`), the lesson generator (`LessonGenerator`), the
+> `StudySession` model, and the `PracticeViewModel` session state machine were
+> all deleted on 2026-07-05. The app is now **free practice + the "Quiz me!"
+> quiz** only, with **built-in default practice sets**
+> (`domain/model/DefaultPracticeSets.kt`) providing structured learning instead.
+> This document is retained for historical context on how Phase 3 was designed
+> and built. The Room SRS tables (`review_cards`, `character_progress`,
+> `vocabulary_progress`) remain in the schema as **dormant, unused** data
+> (removing them would require a destructive migration). See `docs/HISTORY.md`
+> (timeline row 27) for the removal.
+
 Status: **CONTRACT — proposed (2026-07-04), implementation not started.**
 Written before any Phase 3 code, following the pattern that worked for Phase 2:
 fixed contract → parallel workstreams → integration build → adversarial review →

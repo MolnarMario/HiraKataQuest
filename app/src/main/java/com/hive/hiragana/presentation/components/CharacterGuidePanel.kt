@@ -54,19 +54,16 @@ import com.hive.hiragana.domain.model.VocabularyWord
  *   playback controls on the right (falling back to the static numbered
  *   diagram inside [AnimatedStrokePreview] when there is no timed data).
  * - **Word mode** ([word] non-null): the whole word's kana, its English
- *   meaning — with a "New word!" prefix when [isNewWord] (a fresh unlock,
- *   not a reinforcement pick) — and a row of per-kana stroke-order previews
- *   ([wordCharacters], one demo per reading unit) that share ONE playback
- *   controls row (same controls a single character gets — see
- *   [WordStrokePreview]). The word is traced as one sheet, but each kana still
- *   gets its own "how to draw it" demo.
+ *   meaning, and a row of per-kana stroke-order previews ([wordCharacters],
+ *   one demo per reading unit) that share ONE playback controls row (same
+ *   controls a single character gets — see [WordStrokePreview]). The word is
+ *   traced as one sheet, but each kana still gets its own "how to draw it" demo.
  *
- * [sessionLabel] renders a small progress line at the top (e.g.
- * "Review 2/5", "Practice 1/3") whenever non-null. A full-width controls
- * strip along the panel's bottom edge (either mode) holds the Library
- * entry, the 1×1/2×2/3×3 repetition-layout picker ([practiceLayout] +
- * [onSelectLayout]), the grid toggle, and the ghost-glyph toggle — in the
- * panel, not on the canvas, so the drawing surface keeps its full height.
+ * A full-width controls strip along the panel's bottom edge (either mode)
+ * holds the Library entry, the 1×1/2×2/3×3 repetition-layout picker
+ * ([practiceLayout] + [onSelectLayout]), the grid toggle, and the ghost-glyph
+ * toggle — in the panel, not on the canvas, so the drawing surface keeps its
+ * full height.
  */
 @Composable
 fun CharacterGuidePanel(
@@ -74,13 +71,11 @@ fun CharacterGuidePanel(
     position: Int,
     total: Int,
     modifier: Modifier = Modifier,
-    sessionLabel: String? = null,
     word: VocabularyWord? = null,
     // The deck characters for the word's kana units, in order — drives the
     // per-kana stroke-order previews in word mode (empty in character mode).
     wordCharacters: List<HiraganaCharacter> = emptyList(),
     pronunciation: String? = null,
-    isNewWord: Boolean = false,
     onOpenLibrary: (() -> Unit)? = null,
     isGridEnabled: Boolean = true,
     onToggleGrid: (() -> Unit)? = null,
@@ -107,13 +102,6 @@ fun CharacterGuidePanel(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    if (sessionLabel != null) {
-                        Text(
-                            text = sessionLabel,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
                     if (word != null) {
                         // displaySmall leaves room for the per-kana stroke-order
                         // previews on the right while still reading large.
@@ -126,8 +114,6 @@ fun CharacterGuidePanel(
                             text = meaningLine(
                                 word = word,
                                 pronunciation = pronunciation,
-                                isNewWord = isNewWord,
-                                badgeColor = MaterialTheme.colorScheme.primary,
                             ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -366,22 +352,13 @@ private fun DrawScope.drawGridGlyph(color: Color) {
 
 /**
  * The word's meaning followed by its per-kana pronunciation (e.g.
- * "to buy · ka u"), prefixed with a highlighted "New word!" badge when
- * this session freshly unlocked it (docs/PHASE3-DESIGN.md §6) — one line,
- * because the 25% panel has no room for a separate badge row. The
- * pronunciation is bolded so the two parts read apart at a glance.
+ * "to buy · ka u") — one line, because the 25% panel has no room for more.
+ * The pronunciation is bolded so the two parts read apart at a glance.
  */
 private fun meaningLine(
     word: VocabularyWord,
     pronunciation: String?,
-    isNewWord: Boolean,
-    badgeColor: Color,
 ) = buildAnnotatedString {
-    if (isNewWord) {
-        withStyle(style = SpanStyle(color = badgeColor, fontWeight = FontWeight.Bold)) {
-            append("New word! ")
-        }
-    }
     append(word.meaning)
     if (!pronunciation.isNullOrBlank()) {
         append(" · ")

@@ -1,11 +1,9 @@
 package com.hive.hiragana.presentation.viewmodels
 
-import com.hive.hiragana.domain.model.CharacterProgress
 import com.hive.hiragana.domain.model.Grade
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeAttempt
 import com.hive.hiragana.domain.model.PracticeLayout
-import com.hive.hiragana.domain.model.ReviewCard
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.model.StrokeDefinition
 import com.hive.hiragana.domain.model.StrokeFrame
@@ -15,7 +13,6 @@ import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.domain.repository.CharacterRepository
 import com.hive.hiragana.domain.repository.HandwritingRecognizer
-import com.hive.hiragana.domain.repository.LearningRepository
 import com.hive.hiragana.domain.repository.PracticeRepository
 import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
@@ -132,14 +129,14 @@ class PracticeViewModelTest {
         recognizer: HandwritingRecognizer = FakeRecognizer(),
         settings: FakeSettingsRepository = FakeSettingsRepository(),
         practiceRepository: FakePracticeRepository = FakePracticeRepository(),
+        practiceSetRepository: FakePracticeSetRepository = FakePracticeSetRepository(),
         words: List<VocabularyWord> = emptyList(),
     ) = PracticeViewModel(
         characterRepository = FakeCharacterRepository(characters),
         practiceRepository = practiceRepository,
-        learningRepository = FakeLearningRepository(),
         vocabularyRepository = FakeVocabularyRepository(words),
         settingsRepository = settings,
-        practiceSetRepository = FakePracticeSetRepository(),
+        practiceSetRepository = practiceSetRepository,
         handwritingRecognizer = recognizer,
         clock = fixedClock,
     )
@@ -164,25 +161,19 @@ class PracticeViewModelTest {
     }
 
     /**
-     * The actual reported bug: [startNextSession] used to drop scoringMode,
-     * reverting scoring to the FORM default. Reaching FREE via
-     * [practiceCharacter] is the shortest route past the COMPLETE/FREE guard.
+     * scoringMode is preserved when free practice re-scopes (via
+     * [practiceCharacter] here it just needs to survive a state change). The
+     * durable-field rebuild used by the scope setters must not drop it.
      */
     @Test
-    fun `scoringMode survives startNextSession`() = runTest(dispatcher) {
+    fun `scoringMode survives entering free practice`() = runTest(dispatcher) {
         val vm = buildViewModel()
         advanceUntilIdle()
 
+        vm.setScoringMode(ScoringMode.OFF)
         vm.practiceCharacter(deck().first())
         advanceUntilIdle()
         assertEquals(SessionPhase.FREE, vm.uiState.value.phase)
-
-        vm.setScoringMode(ScoringMode.OFF)
-        vm.startNextSession()
-        advanceUntilIdle()
-
-        // Would be FORM (the default) under the pre-fix startNextSession that
-        // omitted scoringMode from its rebuild.
         assertEquals(ScoringMode.OFF, vm.uiState.value.scoringMode)
     }
 
@@ -238,6 +229,94 @@ class PracticeViewModelTest {
         // Let B's recognition drain so the test doesn't leak a suspended coroutine.
         recognizer.complete("い", RecognitionResult.UNAVAILABLE)
         advanceUntilIdle()
+    }
+
+    // ---- launch behavior -------------------------------------------------
+
+    /**
+     * A cold start drops straight into FREE practice (no graded SRS session) on
+     * a character from the scoped deck when the last-used Library section was
+     * Characters (the default).
+     */
+    @Test
+    fun `launch enters free practice on a character by default`() = runTest(dispatcher) {
+        val vm = buildViewModel() // librarySection defaults to 0 (Characters)
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals(SessionPhase.FREE, state.phase)
+        assertTrue(state.freeCharacters.isNotEmpty())
+        assertTrue(state.freeWords.isEmpty())
+        assertNull(state.freeWord)
+        // The random start index must be a valid position in the free deck.
+        assertNotNull(state.currentCharacter)
+    }
+
+    /**
+     * When the last-used section was Words, a cold start resumes free practice
+     * on a random word, with the whole scoped word list loaded so Next cycles.
+     */
+    @Test
+    fun `launch enters free practice on a word when last section was words`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        settings.sectionPref = 1 // Words
+        val vm = buildViewModel(settings = settings, words = listOf(aiWord()))
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals(SessionPhase.FREE, state.phase)
+        assertNotNull(state.freeWord)
+        assertEquals("あい", state.freeWord?.kana)
+        assertTrue(state.freeWords.isNotEmpty())
+        assertTrue(state.freeCharacters.isEmpty())
+    }
+
+    /**
+     * Words section but no words in scope: launch must not land on a blank
+     * sheet — it falls back to a character.
+     */
+    @Test
+    fun `launch falls back to a character when the words section is empty`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        settings.sectionPref = 1 // Words, but the fake vocab repo has none
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals(SessionPhase.FREE, state.phase)
+        assertTrue(state.freeCharacters.isNotEmpty())
+        assertNull(state.freeWord)
+    }
+
+    // ---- default practice sets ------------------------------------------
+
+    /**
+     * On first launch (the seed latch is off) the built-in default practice
+     * sets are seeded into the library and the latch flips on.
+     */
+    @Test
+    fun `default sets seed once on first launch`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository().apply { seededDefaults = false }
+        val sets = FakePracticeSetRepository()
+        val vm = buildViewModel(settings = settings, practiceSetRepository = sets)
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.practiceSets.isNotEmpty())
+        assertTrue(settings.seededDefaults)
+    }
+
+    /**
+     * When the latch is already on (a subsequent launch, or a user who deleted
+     * a default), nothing is re-seeded.
+     */
+    @Test
+    fun `default sets do not re-seed when already seeded`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository().apply { seededDefaults = true }
+        val sets = FakePracticeSetRepository()
+        val vm = buildViewModel(settings = settings, practiceSetRepository = sets)
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.practiceSets.isEmpty())
     }
 
     /**
@@ -491,14 +570,6 @@ class PracticeViewModelTest {
         override fun observeScoreSummaries(): Flow<List<CharacterScoreSummary>> = emptyFlow()
     }
 
-    private class FakeLearningRepository : LearningRepository {
-        override suspend fun getReviewCards(): List<ReviewCard> = emptyList()
-        override suspend fun upsertReviewCard(card: ReviewCard) = Unit
-        override suspend fun getCharacterProgress(): List<CharacterProgress> = emptyList()
-        override suspend fun markIntroduced(characterId: String, atMillis: Long) = Unit
-        override suspend fun incrementTraces(characterId: String) = Unit
-    }
-
     private class FakeVocabularyRepository(
         private val words: List<VocabularyWord> = emptyList(),
     ) : VocabularyRepository {
@@ -551,6 +622,10 @@ class PracticeViewModelTest {
         private var extended = false
         private var scoringMode = ScoringMode.FORM
         private var libraryGridView = false
+        var sectionPref = 0
+        // Defaults to true so unrelated tests don't seed the built-in sets; the
+        // seeding tests set it explicitly.
+        var seededDefaults = true
         private var brushInkColor = 0xFF20222E.toInt()
 
         override fun isGridEnabled(): Boolean = grid
@@ -571,6 +646,10 @@ class PracticeViewModelTest {
         override fun setScoringMode(mode: ScoringMode) { scoringMode = mode }
         override fun isLibraryGridView(): Boolean = libraryGridView
         override fun setLibraryGridView(gridView: Boolean) { libraryGridView = gridView }
+        override fun getLibrarySection(): Int = sectionPref
+        override fun setLibrarySection(index: Int) { sectionPref = index }
+        override fun hasSeededDefaultSets(): Boolean = seededDefaults
+        override fun setDefaultSetsSeeded() { seededDefaults = true }
         override fun getBrushInkColor(): Int = brushInkColor
         override fun setBrushInkColor(color: Int) { brushInkColor = color }
     }

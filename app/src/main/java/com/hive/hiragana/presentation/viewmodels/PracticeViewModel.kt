@@ -7,8 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.hive.hiragana.HiraganaApplication
-import com.hive.hiragana.domain.learning.LessonGenerator
-import com.hive.hiragana.domain.learning.SrsScheduler
+import com.hive.hiragana.domain.model.DefaultPracticeSets
 import com.hive.hiragana.domain.model.Grade
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeAttempt
@@ -17,14 +16,11 @@ import com.hive.hiragana.domain.model.KanaUnits
 import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.domain.model.PracticeSource
-import com.hive.hiragana.domain.model.ReviewCard
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.model.ScriptScope
-import com.hive.hiragana.domain.model.StudySession
 import com.hive.hiragana.domain.model.VocabularyWord
 import com.hive.hiragana.domain.repository.CharacterRepository
 import com.hive.hiragana.domain.repository.HandwritingRecognizer
-import com.hive.hiragana.domain.repository.LearningRepository
 import com.hive.hiragana.domain.repository.PracticeRepository
 import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
@@ -42,9 +38,8 @@ import com.hive.hiragana.domain.scoring.WordUnitScore
 import com.hive.hiragana.drawing.stroke.DrawingSession
 import com.hive.hiragana.drawing.stroke.durationMillis
 import java.time.Clock
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlin.math.roundToInt
+import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,22 +48,17 @@ import kotlinx.coroutines.launch
 
 private const val TAG = "HiraganaSession"
 
+/** Library section (tab) index persisted via [SettingsRepository]. */
+private const val SECTION_CHARACTERS = 0
+private const val SECTION_WORDS = 1
+
 /**
- * Step of the Phase 3 session state machine (docs/PHASE3-DESIGN.md §6).
- *
- * NEW_CHARACTER and PRACTICE are deliberately collapsed into one phase:
- * the Phase 2 animated preview auto-plays as soon as the new character is
- * shown, and its first trace *is* practice repetition 1 — there is no
- * separate "introduction" UI to build. [PracticeUiState.repetitionIndex]
- * distinguishes "Practice 1/3" from "Practice 2/3" within this phase.
+ * Which surface the practice screen is showing. The app has only free
+ * practice now (the guided SRS study session was removed), so this is just
+ * [LOADING] while the deck loads, then [FREE] for all practice.
  */
 enum class SessionPhase {
     LOADING,
-    REVIEWS,
-    NEW_CHARACTER,
-    PRACTICE,
-    VOCABULARY,
-    COMPLETE,
     FREE,
 }
 
@@ -170,27 +160,8 @@ data class PracticeUiState(
     val characters: List<HiraganaCharacter> = emptyList(),
     val errorMessage: String? = null,
     val canvasClearKey: Int = 0,
-    // REVIEWS
-    val reviewQueue: List<HiraganaCharacter> = emptyList(),
-    val reviewsTotal: Int = 0,
-    val reviewsDone: Int = 0,
-    // NEW_CHARACTER / PRACTICE
-    val newCharacter: HiraganaCharacter? = null,
-    val repetitionIndex: Int = 0,
-    val repetitionsTotal: Int = 0,
-    // VOCABULARY
-    val vocabularyQueue: List<VocabularyWord> = emptyList(),
-    val currentWord: VocabularyWord? = null,
-    val wordsTotal: Int = 0,
-    val wordsPracticed: Int = 0,
-    val newlyUnlockedKana: Set<String> = emptySet(),
-    // COMPLETE
-    val allCaughtUp: Boolean = false,
-    val newCharacterLearned: String? = null,
-    val wordsUnlocked: List<String> = emptyList(),
-    val hasLearnedCharacters: Boolean = false,
-    // FREE (post-session endless loop; via the library it can hold ANY
-    // characters, not just learned ones, and optionally a word context)
+    // FREE practice deck: any characters (from the library it can hold the
+    // whole scoped deck), and optionally a word context.
     val freeCharacters: List<HiraganaCharacter> = emptyList(),
     val currentIndex: Int = 0,
     val gradedCount: Int = 0,
@@ -207,8 +178,6 @@ data class PracticeUiState(
     // LIBRARY (browse everything; overlays whatever phase is active)
     val isLibraryOpen: Boolean = false,
     val allWords: List<VocabularyWord> = emptyList(),
-    val unlockedWordKana: Set<String> = emptySet(),
-    val learnedCharacterIds: Set<String> = emptySet(),
     // Saved practice sets (user-curated character/word lists), newest first.
     // Observed from the repository; durable across session rebuilds.
     val practiceSets: List<PracticeSet> = emptyList(),
@@ -223,6 +192,10 @@ data class PracticeUiState(
     val isGridEnabled: Boolean = true,
     val isGhostEnabled: Boolean = true,
     val isLibraryGridView: Boolean = false,
+    // Which Library tab the learner last had open (0 = Characters, 1 = Words),
+    // persisted. Seeds the Library's initial tab AND decides whether a cold
+    // start resumes free practice on a character or a word.
+    val librarySection: Int = SECTION_CHARACTERS,
     val practiceLayout: PracticeLayout = PracticeLayout.SINGLE,
     // SCRIPT (which writing system is being studied; persisted). [characters]
     // and [allWords] stay the FULL merged deck so cross-script glyph→romaji
@@ -287,50 +260,25 @@ data class PracticeUiState(
 
     val currentCharacter: HiraganaCharacter?
         get() = when (phase) {
-            SessionPhase.REVIEWS -> reviewQueue.firstOrNull()
-            SessionPhase.NEW_CHARACTER, SessionPhase.PRACTICE -> newCharacter
-            // Words are traced whole — no single current character.
-            SessionPhase.VOCABULARY -> null
+            // A word is traced whole — no single current character.
             SessionPhase.FREE -> if (freeWord != null) null else freeCharacters.getOrNull(currentIndex)
-            SessionPhase.LOADING, SessionPhase.COMPLETE -> null
+            SessionPhase.LOADING -> null
         }
 
     /**
-     * Glyphs the tracing canvas renders, one practice cell each: the whole
-     * word's kana in word modes (split into reading units so a yōon like きょ
-     * shares one cell instead of orphaning the small ょ), otherwise the single
-     * current character.
+     * Glyphs the tracing canvas renders, one practice cell each: the free
+     * word's kana (split into reading units so a yōon like きょ shares one cell
+     * instead of orphaning the small ょ), otherwise the single current character.
      */
     val canvasGlyphs: List<String>
         get() {
-            val word = when {
-                phase == SessionPhase.VOCABULARY -> currentWord
-                phase == SessionPhase.FREE -> freeWord
-                else -> null
-            }
+            val word = if (phase == SessionPhase.FREE) freeWord else null
             return word?.kana?.let { KanaUnits.split(it) }
                 ?: currentCharacter?.let { listOf(it.character) }
                 ?: emptyList()
         }
 
-    /** Human-readable progress line shown by CharacterGuidePanel; null outside a session. */
-    val sessionProgress: String?
-        get() = when (phase) {
-            SessionPhase.REVIEWS -> "Review ${reviewsDone + 1}/$reviewsTotal"
-            SessionPhase.NEW_CHARACTER, SessionPhase.PRACTICE ->
-                "Practice ${repetitionIndex + 1}/$repetitionsTotal"
-            SessionPhase.VOCABULARY -> {
-                val word = currentWord
-                if (word == null) null else "Word ${wordsPracticed + 1}/$wordsTotal · ${word.kana}"
-            }
-            else -> null
-        }
-
     val total: Int get() = characters.size
-
-    /** True when the word being traced was unlocked by this session — drives the "New word!" badge. */
-    val isCurrentWordNew: Boolean
-        get() = currentWord?.kana?.let { it in newlyUnlockedKana } == true
 
     /**
      * O(1) glyph -> deck character lookup, built once per state instance. Backs
@@ -367,12 +315,11 @@ data class PracticeUiState(
 }
 
 /**
- * Drives the Phase 3 session flow: on launch it generates today's
- * [StudySession] (reviews due, at most one new character, vocabulary) and
- * walks the learner through REVIEWS -> NEW_CHARACTER/PRACTICE -> VOCABULARY
- * -> COMPLETE, persisting SRS/progress/vocabulary state as each step is
- * graded. COMPLETE offers an escape hatch into FREE, the old endless loop
- * over already-learned characters, which does not touch scheduling.
+ * Drives free practice: on launch it loads the deck and drops into [FREE]
+ * practice on a random item from the last-used Library section (scoped by the
+ * Study-scope settings). There is no guided study session — whether an attempt
+ * is scored is governed solely by [PracticeUiState.scoringMode]. The library's
+ * "Quiz me!" overlay and user/default practice sets are the structured modes.
  *
  * All repository writes are fire-and-forget from [viewModelScope] but,
  * unlike the Phase 1 attempt-recording wart, log failures instead of
@@ -381,12 +328,10 @@ data class PracticeUiState(
 class PracticeViewModel(
     private val characterRepository: CharacterRepository,
     private val practiceRepository: PracticeRepository,
-    private val learningRepository: LearningRepository,
     private val vocabularyRepository: VocabularyRepository,
     private val settingsRepository: SettingsRepository,
     private val practiceSetRepository: PracticeSetRepository,
     private val handwritingRecognizer: HandwritingRecognizer,
-    private val lessonGenerator: LessonGenerator = LessonGenerator(),
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
 
@@ -395,6 +340,7 @@ class PracticeViewModel(
             isGridEnabled = settingsRepository.isGridEnabled(),
             isGhostEnabled = settingsRepository.isGhostEnabled(),
             isLibraryGridView = settingsRepository.isLibraryGridView(),
+            librarySection = settingsRepository.getLibrarySection(),
             practiceLayout = settingsRepository.getPracticeLayout(),
             activeScript = settingsRepository.getActiveScript(),
             includeDiacritics = settingsRepository.isDiacriticsIncluded(),
@@ -405,9 +351,6 @@ class PracticeViewModel(
         ),
     )
     val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
-
-    /** All cards indexed by characterId, kept in sync as reviews/practice are graded. */
-    private var cardsById: MutableMap<String, ReviewCard> = mutableMapOf()
 
     /**
      * The [DrawingSession] consumed by the most recent grade. Grade buttons
@@ -421,23 +364,23 @@ class PracticeViewModel(
 
     /**
      * The guide cell captured from the canvas at the moment of the current
-     * grade tap, used for the FIT score. Set by the grade entry points
-     * ([gradeCurrentCharacter]/[gradeQuizCharacter]) before dispatch and read
-     * by [recordAttempt]; null when the layout has no single well-defined cell.
+     * submit tap, used for the FIT score. Set by the submit entry points
+     * ([freeSubmit]/[quizSubmit]) before dispatch and read by [recordAttempt];
+     * null when the layout has no single well-defined cell.
      */
     private var pendingCellRect: CellRect? = null
 
     /**
      * The per-kana guide cells captured from the canvas at the moment of the
-     * current grade/submit tap, used to score a whole word cell-by-cell. Set by
-     * the grade entry points alongside [pendingCellRect] and read by
+     * current submit tap, used to score a whole word cell-by-cell. Set by the
+     * submit entry points alongside [pendingCellRect] and read by
      * [recordWordAttempt]; empty when the layout has no per-kana cells (multi-
      * copy 2×2/3×3 sheets), which is exactly when a word must not be scored.
      */
     private var pendingCells: List<CellRect> = emptyList()
 
     init {
-        startSession()
+        startPractice()
         // Long-lived: keeps the Library's per-glyph score history live as
         // attempts are recorded. Independent of session resets.
         viewModelScope.launch {
@@ -455,78 +398,38 @@ class PracticeViewModel(
         }
     }
 
-    private fun todayStartMillis(): Long =
-        LocalDate.now(clock).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
     /**
      * Recovery path for the error state: back to LOADING, then a fresh
-     * session load. Without it a failed [startSession] leaves the user on a
+     * load. Without it a failed [startPractice] leaves the user on a
      * dead-end error screen whose only exit is killing the app.
      */
     fun retrySession() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        startSession()
+        startPractice()
     }
 
-    private fun startSession() {
+    /**
+     * App-launch entry point: loads the deck + word/progress data, then drops
+     * straight into FREE practice on a random item from the learner's last-used
+     * Library section ([PracticeUiState.librarySection]), scoped by the active
+     * script and the Study-scope opt-ins. Replaces the old session-first launch:
+     * there is no separate graded SRS session anymore — whether an attempt is
+     * scored is governed solely by [PracticeUiState.scoringMode] (Score my
+     * writing). The SRS scheduler code stays in place but is no longer entered
+     * from launch.
+     */
+    private fun startPractice() {
         viewModelScope.launch {
             runCatching {
                 val characters = characterRepository.getCharacters()
-                val cards = learningRepository.getReviewCards()
                 val words = vocabularyRepository.getWords()
-                val progress = vocabularyRepository.getProgress()
-                val unlockedWordKana = progress.map { it.kana }.toSet()
-                val wordLastPracticedAt = progress
-                    .mapNotNull { p -> p.lastPracticedAt?.let { p.kana to it } }
-                    .toMap()
-                val today = todayStartMillis()
-
-                cardsById = cards.associateBy { it.characterId }.toMutableMap()
-
-                // Scope the deck to the active script BEFORE generation: the
-                // full merged deck stays in UiState for lookups, but the
-                // session (reviews, new character, vocabulary) is built from
-                // the active script only. Other-script cards become orphaned
-                // and are dropped by LessonGenerator's up-front liveCards
-                // filter — no spurious reviews, backlog, gating, or unlocks.
-                val script = _uiState.value.activeScript
-                val includeDiacritics = _uiState.value.includeDiacritics
-                val includeYoon = _uiState.value.includeYoon
-                val includeExtended = _uiState.value.includeExtended
-                val session = lessonGenerator.generate(
-                    allCharacters = ScriptScope.scopedCharacters(
-                        characters, script, includeDiacritics, includeYoon, includeExtended,
-                    ),
-                    cards = cards,
-                    allWords = ScriptScope.scopedWords(
-                        words, script, includeDiacritics, includeYoon, includeExtended,
-                    ),
-                    unlockedWordKana = unlockedWordKana,
-                    wordLastPracticedAt = wordLastPracticedAt,
-                    todayStartMillis = today,
-                )
-
-                val newlyUnlocked = session.vocabulary.filter { it.kana !in unlockedWordKana }
-                newlyUnlocked.forEach { word ->
-                    runCatching { vocabularyRepository.unlock(word.kana, today) }
-                        .onFailure { Log.w(TAG, "Failed to persist unlock for ${word.kana}", it) }
-                }
-
-                SessionLoad(
-                    characters = characters,
-                    session = session,
-                    newlyUnlockedKana = newlyUnlocked.map { it.kana }.toSet(),
-                    allWords = words,
-                    unlockedWordKana = unlockedWordKana + newlyUnlocked.map { it.kana },
-                )
+                DeckLoad(characters = characters, allWords = words)
             }.onSuccess { load ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         characters = load.characters,
                         allWords = load.allWords,
-                        unlockedWordKana = load.unlockedWordKana,
-                        learnedCharacterIds = learnedIds(),
                         errorMessage = if (load.characters.isEmpty()) {
                             "No characters found."
                         } else {
@@ -534,9 +437,12 @@ class PracticeViewModel(
                         },
                     )
                 }
-                if (load.characters.isNotEmpty()) enterSession(load.session, load.newlyUnlockedKana)
+                if (load.characters.isNotEmpty()) {
+                    seedDefaultSetsIfNeeded(load.characters, load.allWords)
+                    enterFreePracticeFromLastSection()
+                }
             }.onFailure { error ->
-                Log.w(TAG, "Failed to start session", error)
+                Log.w(TAG, "Failed to start practice", error)
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -548,65 +454,86 @@ class PracticeViewModel(
     }
 
     /**
-     * Enters REVIEWS, or skips forward through whichever steps are empty.
-     * [newlyUnlockedKana] distinguishes fresh unlocks from reinforcement
-     * picks: only the former appear in the COMPLETE summary's
-     * [PracticeUiState.wordsUnlocked] and get the "New word!" badge.
+     * Seeds the built-in [DefaultPracticeSets] into the library the first time
+     * ever (guarded by the [SettingsRepository] latch). Runs once per install —
+     * fresh installs and existing installs upgrading from before defaults
+     * existed both seed on the next launch; a default the user later deletes
+     * does not reappear. Fire-and-forget per set; the observe stream picks them
+     * up into [PracticeUiState.practiceSets].
      */
-    private fun enterSession(session: StudySession, newlyUnlockedKana: Set<String>) {
-        if (session.isEmpty) {
-            _uiState.update {
-                it.copy(
-                    phase = SessionPhase.COMPLETE,
-                    allCaughtUp = true,
-                    hasLearnedCharacters = anyLearnedCharacters(),
-                )
+    private suspend fun seedDefaultSetsIfNeeded(
+        deck: List<HiraganaCharacter>,
+        words: List<VocabularyWord>,
+    ) {
+        if (settingsRepository.hasSeededDefaultSets()) return
+        runCatching {
+            DefaultPracticeSets.build(deck, words).forEach { spec ->
+                practiceSetRepository.createSet(spec.name, spec.type, spec.script, spec.members)
             }
-            return
-        }
-        _uiState.update {
-            it.copy(
-                reviewQueue = session.reviews,
-                reviewsTotal = session.reviews.size,
-                reviewsDone = 0,
-                newCharacter = session.newCharacter,
-                repetitionsTotal = session.practiceRepetitions,
-                vocabularyQueue = session.vocabulary,
-                wordsTotal = session.vocabulary.size,
-                newlyUnlockedKana = newlyUnlockedKana,
-                wordsUnlocked = session.vocabulary.map { it.kana }.filter { it in newlyUnlockedKana },
-            )
-        }
-        if (session.reviews.isNotEmpty()) {
-            advanceToPhase(SessionPhase.REVIEWS)
-        } else {
-            afterReviews(session)
-        }
+        }.onFailure { Log.w(TAG, "Failed to seed default practice sets", it) }
+        settingsRepository.setDefaultSetsSeeded()
     }
 
     /**
-     * Easy/Okay/Hard/Again button. Behavior depends on the active phase;
-     * the canvas session is always snapshotted synchronously first (the
-     * canvas is cleared as soon as [PracticeUiState.canvasClearKey] moves).
+     * Enters FREE practice on a random item drawn from the last-used Library
+     * section: a random word (cycling the whole scoped word list) when the
+     * learner was last on the Words tab, otherwise a random character (cycling
+     * the scoped character deck). Reads the current in-memory deck/words and the
+     * active scope from state, so callers that only changed scope (the
+     * Study-scope setters) can re-enter without reloading. Falls back from Words
+     * to Characters when no words are in scope.
      */
-    fun gradeCurrentCharacter(
-        grade: Grade,
-        session: DrawingSession,
-        cellRect: CellRect? = null,
-        cells: List<CellRect> = emptyList(),
-    ) {
-        if (session === lastGradedSession) return
-        lastGradedSession = session
-        pendingCellRect = cellRect
-        pendingCells = cells
-        when (_uiState.value.phase) {
-            SessionPhase.REVIEWS -> gradeReview(grade, session)
-            SessionPhase.NEW_CHARACTER, SessionPhase.PRACTICE -> gradePractice(grade, session)
-            SessionPhase.VOCABULARY -> gradeVocabulary(grade, session)
-            // FREE uses the two-step Submit→Next flow (freeSubmit/freeRetry/
-            // advanceToNextCharacter), not the session grade buttons.
-            SessionPhase.FREE -> Unit
-            SessionPhase.LOADING, SessionPhase.COMPLETE -> Unit
+    private fun enterFreePracticeFromLastSection() {
+        val state = _uiState.value
+        if (state.librarySection == SECTION_WORDS) {
+            val words = ScriptScope.scopedWords(
+                state.allWords,
+                state.activeScript,
+                state.includeDiacritics,
+                state.includeYoon,
+                state.includeExtended,
+            )
+            if (words.isNotEmpty()) {
+                val start = Random.nextInt(words.size)
+                _uiState.update {
+                    it.copy(
+                        phase = SessionPhase.FREE,
+                        freeCharacters = emptyList(),
+                        freeWords = words,
+                        currentIndex = start,
+                        freeWord = words[start],
+                        gradedCount = 0,
+                        freeSubmitted = false,
+                        lastScore = null,
+                        lastScoredCharacter = null,
+                        lastWordScores = null,
+                        lastWordAverage = null,
+                        canvasClearKey = it.canvasClearKey + 1,
+                    )
+                }
+                return
+            }
+            // No words in scope — fall through to a character so launch never
+            // lands on a blank sheet.
+        }
+        val deck = state.activeScriptCharacters
+        if (deck.isEmpty()) return
+        val start = Random.nextInt(deck.size)
+        _uiState.update {
+            it.copy(
+                phase = SessionPhase.FREE,
+                freeCharacters = deck,
+                freeWords = emptyList(),
+                currentIndex = start,
+                freeWord = null,
+                gradedCount = 0,
+                freeSubmitted = false,
+                lastScore = null,
+                lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
+                canvasClearKey = it.canvasClearKey + 1,
+            )
         }
     }
 
@@ -715,42 +642,13 @@ class PracticeViewModel(
     }
 
     /**
-     * "Keep practicing" button on the COMPLETE summary. Only characters
-     * that are actually learned (docs/PHASE3-DESIGN.md §3: a card with
-     * `repetitions >= 1`) enter the free deck; with nothing learned yet
-     * this is a no-op (the screen hides the button in that case too).
-     */
-    fun startFreePractice() {
-        val learned = _uiState.value.activeScriptCharacters.filter {
-            (cardsById[it.id]?.repetitions ?: 0) >= 1
-        }
-        if (learned.isEmpty()) return
-        _uiState.update {
-            it.copy(
-                phase = SessionPhase.FREE,
-                freeCharacters = learned,
-                freeWords = emptyList(),
-                currentIndex = 0,
-                gradedCount = 0,
-                freeWord = null,
-                freeSubmitted = false,
-                lastScore = null,
-                lastScoredCharacter = null,
-                lastWordScores = null,
-                lastWordAverage = null,
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
-    }
-
-    /**
-     * A fresh [PracticeUiState] for a session rebuild: every DURABLE field —
-     * the loaded deck, learned/unlocked progress, and ALL persisted settings
-     * (grid/ghost/layout/ink color/library view, script + the three opt-ins,
-     * AND scoringMode/scoreStats) — is carried over from the current state,
-     * session/phase fields reset to their defaults, and [canvasClearKey]
-     * bumped. Callers override only what differs. Every rebuild path funnels
-     * through here so no path can silently drop a durable field.
+     * A fresh [PracticeUiState] for a rebuild after a scope change: every
+     * DURABLE field — the loaded deck, all persisted settings (grid/ghost/
+     * layout/ink color/library view/section, script + the three opt-ins, AND
+     * scoringMode/scoreStats) — is carried over from the current state, the
+     * transient practice fields reset to defaults, and [canvasClearKey] bumped.
+     * Callers override only what differs. Every rebuild path funnels through
+     * here so no path can silently drop a durable field.
      */
     private fun PracticeUiState.rebuilt(
         isLoading: Boolean,
@@ -764,12 +662,11 @@ class PracticeViewModel(
         isLibraryOpen = isLibraryOpen,
         characters = characters,
         allWords = allWords,
-        unlockedWordKana = unlockedWordKana,
-        learnedCharacterIds = learnedCharacterIds,
         practiceSets = practiceSets,
         isGridEnabled = isGridEnabled,
         isGhostEnabled = isGhostEnabled,
         isLibraryGridView = isLibraryGridView,
+        librarySection = librarySection,
         brushInkColor = brushInkColor,
         practiceLayout = practiceLayout,
         scoringMode = scoringMode,
@@ -782,42 +679,25 @@ class PracticeViewModel(
     )
 
     /**
-     * "Start next session" button on the COMPLETE summary. Regenerates a
-     * fresh [StudySession] from persisted state — since grading updated the
-     * cards as the finished session went along, the mastery gate usually
-     * opens and the new session introduces the next character. Restarting
-     * the app is no longer the only way to keep learning.
-     */
-    fun startNextSession() {
-        val phase = _uiState.value.phase
-        if (phase != SessionPhase.COMPLETE && phase != SessionPhase.FREE) return
-        // Every durable field (deck, progress, all settings incl. scoringMode)
-        // is preserved by the shared rebuild helper; only isLoading differs.
-        _uiState.update { it.rebuilt(isLoading = true) }
-        startSession()
-    }
-
-    /**
      * Switches the studied writing system (the Library's Hiragana/Katakana
-     * selector). Persists the choice, then rebuilds the session scoped to the
-     * new script. Unlike [startNextSession] this must NOT be gated on the
-     * current phase — the selector lives in the library, which overlays ANY
-     * phase, so it force-resets to a fresh LOADING state regardless of where
-     * the abandoned session was. [lastGradedSession] is cleared so a stray
-     * in-flight grade tap can't land against the discarded session, and the
-     * full [characters]/[allWords] deck is preserved across the reset. The
-     * library stays open ([PracticeUiState.isLibraryOpen] preserved) so the
-     * selector reads as an in-place filter — the rebuilt session waits behind
-     * it and is ready when the user closes the overlay.
+     * selector). Persists the choice, then re-scopes free practice to the new
+     * script in place. The selector lives in the library, which overlays any
+     * phase, so it force-resets regardless of where practice was.
+     * [lastGradedSession] is cleared so a stray in-flight submit can't land
+     * against the discarded session, and the full [characters]/[allWords] deck
+     * is preserved across the reset. The library stays open
+     * ([PracticeUiState.isLibraryOpen] preserved) so the selector reads as an
+     * in-place filter — the re-scoped practice waits behind the overlay.
      */
     fun setActiveScript(script: Script) {
         if (script == _uiState.value.activeScript) return
         settingsRepository.setActiveScript(script)
         lastGradedSession = null
         // Not isLoading: the library overlay stays mounted and re-scopes in
-        // place; the rebuilt session waits behind it.
+        // place; the rebuilt free practice waits behind it. No reload needed —
+        // the full merged deck is already in memory, so re-scoping is enough.
         _uiState.update { it.rebuilt(isLoading = false, activeScript = script) }
-        startSession()
+        enterFreePracticeFromLastSection()
     }
 
     /**
@@ -835,7 +715,7 @@ class PracticeViewModel(
         settingsRepository.setDiacriticsIncluded(included)
         lastGradedSession = null
         _uiState.update { it.rebuilt(isLoading = false, includeDiacritics = included) }
-        startSession()
+        enterFreePracticeFromLastSection()
     }
 
     /**
@@ -852,7 +732,7 @@ class PracticeViewModel(
         settingsRepository.setYoonIncluded(included)
         lastGradedSession = null
         _uiState.update { it.rebuilt(isLoading = false, includeYoon = included) }
-        startSession()
+        enterFreePracticeFromLastSection()
     }
 
     /**
@@ -869,7 +749,7 @@ class PracticeViewModel(
         settingsRepository.setExtendedIncluded(included)
         lastGradedSession = null
         _uiState.update { it.rebuilt(isLoading = false, includeExtended = included) }
-        startSession()
+        enterFreePracticeFromLastSection()
     }
 
     /**
@@ -905,6 +785,18 @@ class PracticeViewModel(
     fun setLibraryGridView(gridView: Boolean) {
         settingsRepository.setLibraryGridView(gridView)
         _uiState.update { it.copy(isLibraryGridView = gridView) }
+    }
+
+    /**
+     * Remembers which Library tab (0 = Characters, 1 = Words) the learner last
+     * viewed. Persisted so the next cold start resumes free practice in that
+     * same area (see [enterFreePracticeFromLastSection]). A view preference
+     * only — no effect on the current in-progress practice.
+     */
+    fun setLibrarySection(index: Int) {
+        if (index == _uiState.value.librarySection) return
+        settingsRepository.setLibrarySection(index)
+        _uiState.update { it.copy(librarySection = index) }
     }
 
     /**
@@ -971,7 +863,7 @@ class PracticeViewModel(
 
     /** Opens the character/word library overlay (any phase; purely visual). */
     fun openLibrary() {
-        _uiState.update { it.copy(isLibraryOpen = true, learnedCharacterIds = learnedIds()) }
+        _uiState.update { it.copy(isLibraryOpen = true) }
     }
 
     /** Back/close from the library without changing the underlying phase. */
@@ -1235,16 +1127,14 @@ class PracticeViewModel(
 
     /**
      * Builds the quiz deck and starts writing (also "Quiz again" on the
-     * summary). For the default source, learned characters come first — they
-     * are the ones worth testing — topped up with unlearned picks; both groups
+     * summary). For the default source, the active-script characters are
      * shuffled. For a saved set, the set's members (characters OR words) are the
      * pool, resolved to deck entries and shuffled.
      */
     fun startQuiz() {
-        val learned = learnedIds()
         _uiState.update { state ->
             val quiz = state.quiz ?: return@update state
-            val pool = buildQuizPool(state, quiz.selectedSetId, learned)
+            val pool = buildQuizPool(state, quiz.selectedSetId)
             if (pool.isEmpty()) return@update state
             state.copy(
                 quiz = quiz.copy(
@@ -1265,17 +1155,12 @@ class PracticeViewModel(
     private fun buildQuizPool(
         state: PracticeUiState,
         setId: Long?,
-        learned: Set<String>,
     ): List<QuizItem> {
         val set = state.practiceSet(setId)
         return when {
-            set == null -> {
-                // Default source: active-script characters, learned first.
-                val deck = state.activeScriptCharacters
-                (deck.filter { it.id in learned }.shuffled() +
-                    deck.filterNot { it.id in learned }.shuffled())
-                    .map { CharQuizItem(it) }
-            }
+            set == null ->
+                // Default source: active-script characters, shuffled.
+                state.activeScriptCharacters.shuffled().map { CharQuizItem(it) }
             set.type == PracticeSetType.CHARACTERS ->
                 set.members
                     .mapNotNull { glyph -> state.characters.firstOrNull { it.character == glyph } }
@@ -1386,211 +1271,6 @@ class PracticeViewModel(
                 lastWordAverage = null,
                 canvasClearKey = state.canvasClearKey + 1,
             )
-        }
-    }
-
-    // ---- REVIEWS ----------------------------------------------------
-
-    private fun gradeReview(grade: Grade, session: DrawingSession) {
-        val state = _uiState.value
-        val character = state.reviewQueue.firstOrNull() ?: return
-        recordAttempt(character, grade, session, PracticeSource.REVIEW)
-
-        val today = todayStartMillis()
-        val currentCard = cardsById[character.id] ?: SrsScheduler.newCard(character.id, today)
-        val updatedCard = SrsScheduler.next(currentCard, grade, today)
-        cardsById[character.id] = updatedCard
-        persistCard(updatedCard)
-
-        val remainingQueue = state.reviewQueue.drop(1)
-        val nextQueue = if (grade == Grade.AGAIN) remainingQueue + character else remainingQueue
-        val reviewsDone = if (grade == Grade.AGAIN) state.reviewsDone else state.reviewsDone + 1
-
-        _uiState.update {
-            it.copy(
-                reviewQueue = nextQueue,
-                reviewsDone = reviewsDone,
-                learnedCharacterIds = learnedIds(),
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
-
-        if (nextQueue.isEmpty()) afterReviews(sessionSnapshot())
-    }
-
-    private fun afterReviews(session: StudySession) {
-        when {
-            session.newCharacter != null -> advanceToPhase(SessionPhase.NEW_CHARACTER)
-            session.vocabulary.isNotEmpty() -> enterVocabulary()
-            else -> finishSession()
-        }
-    }
-
-    // ---- NEW_CHARACTER / PRACTICE ------------------------------------
-
-    private fun gradePractice(grade: Grade, session: DrawingSession) {
-        val state = _uiState.value
-        val character = state.newCharacter ?: return
-        recordAttempt(character, grade, session, PracticeSource.NEW)
-
-        if (state.phase == SessionPhase.NEW_CHARACTER) {
-            // First rep: introduce (INSERT-OR-IGNORE) THEN increment, in ONE
-            // ordered coroutine, so the trace UPDATE can't race ahead of the
-            // INSERT and hit zero rows (losing the first trace).
-            markIntroducedThenIncrement(character.id)
-        } else {
-            // Later reps: the row already exists, so a bare increment is safe.
-            incrementTraces(character.id)
-        }
-
-        val isFinalRep = state.repetitionIndex + 1 >= state.repetitionsTotal
-        if (isFinalRep) {
-            val today = todayStartMillis()
-            val seeded = SrsScheduler.next(SrsScheduler.newCard(character.id, today), grade, today)
-            cardsById[character.id] = seeded
-            persistCard(seeded)
-
-            _uiState.update {
-                it.copy(
-                    // AGAIN seeds a repetitions-0 card: introduced, but not
-                    // "learned" — the summary must not claim otherwise.
-                    newCharacterLearned = if (seeded.repetitions >= 1) character.character else null,
-                    learnedCharacterIds = learnedIds(),
-                    canvasClearKey = it.canvasClearKey + 1,
-                )
-            }
-            if (_uiState.value.vocabularyQueue.isNotEmpty()) {
-                enterVocabulary()
-            } else {
-                finishSession()
-            }
-        } else {
-            _uiState.update {
-                it.copy(
-                    phase = SessionPhase.PRACTICE,
-                    repetitionIndex = it.repetitionIndex + 1,
-                    canvasClearKey = it.canvasClearKey + 1,
-                )
-            }
-        }
-    }
-
-    // ---- VOCABULARY ---------------------------------------------------
-
-    private fun enterVocabulary() {
-        val queue = _uiState.value.vocabularyQueue
-        val firstWord = queue.firstOrNull()
-        if (firstWord == null) {
-            finishSession()
-            return
-        }
-        _uiState.update {
-            it.copy(
-                phase = SessionPhase.VOCABULARY,
-                currentWord = firstWord,
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
-    }
-
-    /**
-     * One grade covers the WHOLE word — it is traced on a single sheet
-     * with one cell per kana, so there is no per-kana step to grade.
-     */
-    private fun gradeVocabulary(grade: Grade, session: DrawingSession) {
-        val state = _uiState.value
-        val word = state.currentWord ?: return
-        recordWordAttempt(word, grade, session, PracticeSource.VOCAB)
-
-        val now = clock.millis()
-        viewModelScope.launch {
-            runCatching { vocabularyRepository.recordPractice(word.kana, now) }
-                .onFailure { Log.w(TAG, "Failed to record practice for ${word.kana}", it) }
-        }
-
-        val remainingWords = state.vocabularyQueue.drop(1)
-        val nextWord = remainingWords.firstOrNull()
-        _uiState.update {
-            it.copy(
-                vocabularyQueue = remainingWords,
-                currentWord = nextWord,
-                wordsPracticed = it.wordsPracticed + 1,
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
-
-        if (nextWord == null) finishSession()
-    }
-
-    // ---- COMPLETE / FREE ---------------------------------------------
-
-    private fun finishSession() {
-        _uiState.update {
-            it.copy(
-                phase = SessionPhase.COMPLETE,
-                allCaughtUp = false,
-                hasLearnedCharacters = anyLearnedCharacters(),
-            )
-        }
-    }
-
-    private fun anyLearnedCharacters(): Boolean = cardsById.values.any { it.repetitions >= 1 }
-
-    /** Ids of characters with a recalled-at-least-once card — the library's "learned" badges. */
-    private fun learnedIds(): Set<String> =
-        cardsById.filterValues { it.repetitions >= 1 }.keys.toSet()
-
-    // ---- shared helpers -------------------------------------------------
-
-    private fun advanceToPhase(phase: SessionPhase) {
-        _uiState.update {
-            it.copy(
-                phase = phase,
-                repetitionIndex = 0,
-                canvasClearKey = it.canvasClearKey + 1,
-            )
-        }
-    }
-
-    /** Rebuilds a [StudySession]-shaped view of the current UiState for post-step routing. */
-    private fun sessionSnapshot(): StudySession {
-        val state = _uiState.value
-        return StudySession(
-            reviews = state.reviewQueue,
-            newCharacter = state.newCharacter,
-            practiceRepetitions = state.repetitionsTotal,
-            vocabulary = state.vocabularyQueue,
-        )
-    }
-
-    /**
-     * First-trace path: mark the character introduced (INSERT-OR-IGNORE into
-     * character_progress) and then bump its trace count, **sequentially in one
-     * coroutine**. Kept in a single launch on purpose — running the two as
-     * separate fire-and-forget coroutines let the trace UPDATE occasionally
-     * land before the INSERT and silently drop the first trace.
-     */
-    private fun markIntroducedThenIncrement(characterId: String) {
-        val now = clock.millis()
-        viewModelScope.launch {
-            runCatching {
-                learningRepository.markIntroduced(characterId, now)
-                learningRepository.incrementTraces(characterId)
-            }.onFailure { Log.w(TAG, "Failed to record introduction/trace for $characterId", it) }
-        }
-    }
-
-    private fun incrementTraces(characterId: String) {
-        viewModelScope.launch {
-            runCatching { learningRepository.incrementTraces(characterId) }
-                .onFailure { Log.w(TAG, "Failed to increment traces for $characterId", it) }
-        }
-    }
-
-    private fun persistCard(card: ReviewCard) {
-        viewModelScope.launch {
-            runCatching { learningRepository.upsertReviewCard(card) }
-                .onFailure { Log.w(TAG, "Failed to persist review card for ${card.characterId}", it) }
         }
     }
 
@@ -1881,13 +1561,10 @@ class PracticeViewModel(
         return score
     }
 
-    /** Everything [startSession] loads, bundled for the success path. */
-    private data class SessionLoad(
+    /** Everything [startPractice] loads (deck + words). */
+    private data class DeckLoad(
         val characters: List<HiraganaCharacter>,
-        val session: StudySession,
-        val newlyUnlockedKana: Set<String>,
         val allWords: List<VocabularyWord>,
-        val unlockedWordKana: Set<String>,
     )
 
     companion object {
@@ -1898,7 +1575,6 @@ class PracticeViewModel(
                 PracticeViewModel(
                     characterRepository = application.container.characterRepository,
                     practiceRepository = application.container.practiceRepository,
-                    learningRepository = application.container.learningRepository,
                     vocabularyRepository = application.container.vocabularyRepository,
                     settingsRepository = application.container.settingsRepository,
                     practiceSetRepository = application.container.practiceSetRepository,

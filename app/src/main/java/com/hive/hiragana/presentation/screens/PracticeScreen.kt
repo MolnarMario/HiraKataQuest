@@ -4,22 +4,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,22 +26,18 @@ import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.presentation.components.CharacterGuidePanel
 import com.hive.hiragana.presentation.components.FreePracticeActionBar
-import com.hive.hiragana.presentation.components.PracticeActionBar
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
 import com.hive.hiragana.presentation.components.WordAverageCard
 import com.hive.hiragana.presentation.components.WordScoreChips
 import com.hive.hiragana.presentation.viewmodels.PracticeUiState
 import com.hive.hiragana.presentation.viewmodels.PracticeViewModel
-import com.hive.hiragana.presentation.viewmodels.SessionPhase
 
 /**
- * The single screen, now driven by the Phase 3 session state machine:
+ * The single screen:
  *   - LOADING: spinner
- *   - REVIEWS / NEW_CHARACTER / PRACTICE / VOCABULARY / FREE: the
- *     three-pane layout (guide 25% / canvas 65% / action bar 10%)
- *   - COMPLETE: a centered summary card with a "Keep practicing" escape
- *     hatch into FREE
+ *   - FREE: the three-pane layout (guide 25% / canvas 65% / action bar 10%)
+ *   - the library and quiz overlays render above FREE.
  */
 @Composable
 fun PracticeScreen(
@@ -133,8 +119,6 @@ fun PracticeScreen(
                 LibraryScreen(
                     characters = uiState.characters,
                     words = uiState.allWords,
-                    learnedCharacterIds = uiState.learnedCharacterIds,
-                    unlockedWordKana = uiState.unlockedWordKana,
                     scoreStats = uiState.scoreStats,
                     activeScript = uiState.activeScript,
                     onSelectScript = viewModel::setActiveScript,
@@ -150,6 +134,8 @@ fun PracticeScreen(
                     onClose = viewModel::closeLibrary,
                     isGridView = uiState.isLibraryGridView,
                     onSetGridView = viewModel::setLibraryGridView,
+                    initialTab = uiState.librarySection,
+                    onSelectTab = viewModel::setLibrarySection,
                     pronunciation = uiState::pronunciationOf,
                     brushInkColor = uiState.brushInkColor,
                     onSelectBrushColor = viewModel::setBrushInkColor,
@@ -167,13 +153,6 @@ fun PracticeScreen(
                 )
             }
 
-            uiState.phase == SessionPhase.COMPLETE -> SessionCompleteContent(
-                uiState = uiState,
-                onStartNextSession = viewModel::startNextSession,
-                onKeepPracticing = viewModel::startFreePractice,
-                onOpenLibrary = viewModel::openLibrary,
-            )
-
             else -> PracticeContent(
                 uiState = uiState,
                 canvasState = canvasState,
@@ -190,26 +169,16 @@ private fun PracticeContent(
     viewModel: PracticeViewModel,
 ) {
     val character = uiState.currentCharacter
-    val isFree = uiState.phase == SessionPhase.FREE
-    val activeWord = when {
-        uiState.phase == SessionPhase.VOCABULARY -> uiState.currentWord
-        isFree -> uiState.freeWord
-        else -> null
-    }
+    val activeWord = uiState.freeWord
 
     Column(modifier = Modifier.fillMaxSize()) {
         CharacterGuidePanel(
             character = character,
-            // Deck position is only meaningful in FREE; passing total = 0
-            // during session phases hides the "character N of M" line
-            // (session progress lives in sessionLabel instead).
-            position = if (isFree) uiState.currentIndex + 1 else 0,
-            total = if (isFree) uiState.freeCharacters.size else 0,
-            sessionLabel = uiState.sessionProgress,
+            position = uiState.currentIndex + 1,
+            total = uiState.freeCharacters.size,
             word = activeWord,
             wordCharacters = activeWord?.let(uiState::wordUnitCharacters) ?: emptyList(),
             pronunciation = activeWord?.let(uiState::pronunciationOf),
-            isNewWord = uiState.isCurrentWordNew,
             onOpenLibrary = viewModel::openLibrary,
             isGridEnabled = uiState.isGridEnabled,
             onToggleGrid = viewModel::toggleGrid,
@@ -271,132 +240,41 @@ private fun PracticeContent(
             }
         }
 
-        if (isFree) {
-            // FREE practice: two-step Submit→Next (mirrors the quiz). "Again"
-            // rewrites the same character; Next advances the character deck.
-            // Word free practice is a single repeating sheet — no Next.
-            FreePracticeActionBar(
-                hasInk = canvasState.hasInk,
-                submitted = uiState.freeSubmitted,
-                // Next cycles the deck: a character deck, or a word-SET queue
-                // (>1 word). A lone word (library word tap) has nothing to
-                // advance to, so it stays a single repeating sheet.
-                canAdvance = if (uiState.freeWord != null) {
-                    uiState.freeWords.size > 1
-                } else {
-                    uiState.freeCharacters.isNotEmpty()
-                },
-                // Multi-copy 2×2/3×3 character practice is a repetition
-                // worksheet (Clear·Next, no scoring); words keep the two-step.
-                repetitionMode = uiState.freeWord == null &&
-                    uiState.practiceLayout != PracticeLayout.SINGLE,
-                // Scoring Off (Study Scope → "Score my writing" = Off) drops
-                // the Submit/score step, leaving just Clear · Next.
-                scoringEnabled = uiState.scoringMode != ScoringMode.OFF,
-                onClear = { canvasState.clear() },
-                onSubmit = {
-                    viewModel.freeSubmit(
-                        canvasState.currentSession,
-                        canvasState.lastCell,
-                        canvasState.kanaCellRects,
-                    )
-                },
-                onRetry = viewModel::freeRetry,
-                onNext = viewModel::advanceToNextCharacter,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.10f),
-            )
-        } else {
-            PracticeActionBar(
-                hasInk = canvasState.hasInk,
-                onClear = { canvasState.clear() },
-                onGrade = { grade ->
-                    viewModel.gradeCurrentCharacter(
-                        grade,
-                        canvasState.currentSession,
-                        canvasState.lastCell,
-                        canvasState.kanaCellRects,
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.10f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SessionCompleteContent(
-    uiState: PracticeUiState,
-    onStartNextSession: () -> Unit,
-    onKeepPracticing: () -> Unit,
-    onOpenLibrary: () -> Unit,
-) {
-    CenteredBox {
-        Card {
-            Column(
-                modifier = Modifier.padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = "Session complete",
-                    style = MaterialTheme.typography.headlineSmall,
+        // Free practice: two-step Submit→Next (mirrors the quiz). "Again"
+        // rewrites the same character; Next advances the character deck.
+        // A lone word (library word tap) is a single repeating sheet — no Next.
+        FreePracticeActionBar(
+            hasInk = canvasState.hasInk,
+            submitted = uiState.freeSubmitted,
+            // Next cycles the deck: a character deck, or a word-SET queue
+            // (>1 word). A lone word (library word tap) has nothing to
+            // advance to, so it stays a single repeating sheet.
+            canAdvance = if (uiState.freeWord != null) {
+                uiState.freeWords.size > 1
+            } else {
+                uiState.freeCharacters.isNotEmpty()
+            },
+            // Multi-copy 2×2/3×3 character practice is a repetition
+            // worksheet (Clear·Next, no scoring); words keep the two-step.
+            repetitionMode = uiState.freeWord == null &&
+                uiState.practiceLayout != PracticeLayout.SINGLE,
+            // Scoring Off (Study Scope → "Score my writing" = Off) drops
+            // the Submit/score step, leaving just Clear · Next.
+            scoringEnabled = uiState.scoringMode != ScoringMode.OFF,
+            onClear = { canvasState.clear() },
+            onSubmit = {
+                viewModel.freeSubmit(
+                    canvasState.currentSession,
+                    canvasState.lastCell,
+                    canvasState.kanaCellRects,
                 )
-                if (uiState.allCaughtUp) {
-                    Text(
-                        text = "You're all caught up — nothing due right now.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                } else {
-                    Text(
-                        text = "Reviews done: ${uiState.reviewsDone}",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    uiState.newCharacterLearned?.let { learned ->
-                        Text(
-                            text = "New character learned: $learned",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    if (uiState.wordsUnlocked.isNotEmpty()) {
-                        Text(
-                            text = "Words unlocked: ${uiState.wordsUnlocked.joinToString(", ")}",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    Text(
-                        text = "Words practiced: ${uiState.wordsPracticed}",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                // The primary continuation: regenerate a session from the
-                // just-updated cards (usually introduces the next character).
-                // Pointless when the generator already came back empty —
-                // that's what allCaughtUp means.
-                if (!uiState.allCaughtUp) {
-                    Button(onClick = onStartNextSession) {
-                        Text("Start next session")
-                    }
-                }
-                if (uiState.hasLearnedCharacters) {
-                    FilledTonalButton(onClick = onKeepPracticing) {
-                        Text("Keep practicing")
-                    }
-                }
-                OutlinedButton(onClick = onOpenLibrary) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.List,
-                        contentDescription = null,
-                        modifier = Modifier.size(ButtonDefaults.IconSize),
-                    )
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text("Browse library")
-                }
-            }
-        }
+            },
+            onRetry = viewModel::freeRetry,
+            onNext = viewModel::advanceToNextCharacter,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.10f),
+        )
     }
 }
 
