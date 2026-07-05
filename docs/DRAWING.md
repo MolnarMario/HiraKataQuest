@@ -21,6 +21,12 @@ The subsequent **brush rework did**: `StrokeRenderer` was rewritten (uniform
 polyline stroke → filled variable-width ribbon), and `CanvasState` /
 `TracingCanvas` changed with it; input capture (`StrokeCapture`), the
 grid/ghost renderers, and the animation engine are unchanged.
+The later **handwriting-scoring wiring** also touched this subsystem lightly:
+`CanvasState`/`TracingCanvas` now publish the guide-cell rects the scorer
+consumes (`lastCell` for FIT, `kanaCellRects` for per-kana word scoring — see
+§4/§5), a pure `StrokeAttribution` groups captured strokes by cell, and
+`AnimatedStrokePreview.kt` was refactored to add a whole-word preview (§7);
+the ink pipeline itself (capture → ribbon → draw) is unchanged.
 See [docs/HISTORY.md](HISTORY.md) for the phase history and
 [docs/ARCHITECTURE.md](ARCHITECTURE.md) for how this subsystem plugs into
 the rest of the app.
@@ -40,7 +46,8 @@ the rest of the app.
 | `app/src/main/java/com/hive/hiragana/presentation/components/StrokeOrderDiagram.kt` | Static SVG-based stroke-order guide with numbered badges (Phase 2 fallback) |
 | `app/src/main/java/com/hive/hiragana/drawing/animation/StrokeAnimationEngine.kt` | Phase 2 playback engine (`@Stable` snapshot state, desired-state controls + `run()` driver) |
 | `app/src/main/java/com/hive/hiragana/drawing/animation/StrokeFramePath.kt` | Timed frames → full/partial `Path` + interpolated pen tip |
-| `app/src/main/java/com/hive/hiragana/presentation/components/AnimatedStrokePreview.kt` | Animated stroke-order demo canvas + playback controls |
+| `app/src/main/java/com/hive/hiragana/presentation/components/AnimatedStrokePreview.kt` | Animated stroke-order demo: single-char `AnimatedStrokePreview` + whole-word `WordStrokePreview`, sharing a private `StrokeCanvas` + `PlaybackControls` |
+| `app/src/main/java/com/hive/hiragana/domain/scoring/StrokeAttribution.kt` | Pure `groupByCell`: splits flat captured strokes into per-kana groups (nearest cell center) so a whole word can be scored cell-by-cell |
 
 ## 1. Pipeline overview
 
@@ -241,9 +248,15 @@ Properties:
 | `activePath` | `mutableStateOf<Path?>(null)` | public get, private set | Brush ribbon of the in-progress stroke |
 | `activeStroke` | plain `var UserStroke?` | private | Raw points of the in-progress stroke (not snapshot state — only its derived `activePath` needs to be observable) |
 | `hasInk` | derived getter | public | `completedPaths.isNotEmpty() \|\| activePath != null`; enables the Clear/grade buttons in `PracticeActionBar` |
+| `lastCell` | plain `var CellRect? = null` (not snapshot state) | public | The single guide cell (px) when the canvas shows one character in a 1×1 layout — the reference frame for **FIT** scoring. Null for word sheets and multi-copy layouts (where "fit to the cell" is ill-defined). `TracingCanvas` refreshes it every draw pass, like `brushBaseWidthPx` |
+| `kanaCellRects` | plain `var List<CellRect> = emptyList()` (not snapshot state) | public | The per-kana guide cells (px, in glyph order) for the current **single-copy** sheet — one cell per `KanaUnits` unit — so a whole word can be scored cell-by-cell. Empty for multi-copy 2×2/3×3 layouts (repeated rows can't attribute ink to one kana); for a lone character it holds the one cell (same rect as `lastCell`). Refreshed every draw pass |
 
 (The old `activeWidthScale` property and `CompletedStroke` wrapper are gone
-— width is per-point ribbon geometry now, not a stroke-level multiplier.)
+— width is per-point ribbon geometry now, not a stroke-level multiplier.
+`lastCell`/`kanaCellRects` are the guide-cell rects the scorer consumes; they
+carry no ink and, like `brushBaseWidthPx`, are deliberately plain fields so
+publishing them from the draw pass never re-invalidates the draw. `CellRect`
+lives in `domain/scoring/GeometryScorer.kt`.)
 
 ### State machine
 
@@ -405,6 +418,47 @@ so coverage of the template is immediately visible — drawing the ghost above
 the ink would wash out exactly the feedback the tracing exercise exists to
 give.
 
+### Publishing the guide cells for scoring
+
+The same draw pass that publishes the ink width also publishes the guide
+cells the geometry scorer needs, so the rects are always in the ink's
+canvas-pixel space:
+
+- `canvasState.lastCell` — the lone guide cell, set **only** when
+  `repetitions == 1 && cellCount == 1` (a single character on a 1×1 sheet);
+  null otherwise. It is the FIT reference (fit-to-cell is undefined for word
+  sheets and multi-copy layouts).
+- `canvasState.kanaCellRects` — the per-kana cells in glyph order, set for
+  **any single-copy sheet** (`repetitions == 1`): one `CellRect` per cell,
+  computed from the same `left + index * (side + cellGap)` layout the ghost
+  glyphs use. Empty for multi-copy 2×2/3×3 layouts, where the repeated row
+  makes ink un-attributable to one kana. This is what lets a whole word be
+  scored cell-by-cell (see §Stroke→cell attribution below).
+
+Both are plain-field writes (not snapshot state) for the same reason as
+`brushBaseWidthPx` — publishing them each pass must not re-invalidate the
+draw.
+
+### Stroke→cell attribution (`domain/scoring/StrokeAttribution.kt`)
+
+The canvas captures **all** ink in one flat stroke list regardless of cell.
+To score each kana of a word independently, the ViewModel splits that flat
+list against `kanaCellRects` with `StrokeAttribution.groupByCell(strokes,
+cells)` — a pure, Android-free, unit-tested function (in the same spirit as
+`GeometryScorer`/`SrsScheduler`):
+
+- each stroke is attributed to the cell whose **center** is nearest the
+  stroke's centroid;
+- it is **nearest-center, not strict point-in-rect** — a stroke that lands in
+  the small gap between two cells still counts toward the closer kana rather
+  than being dropped;
+- it returns one stroke group per cell, in cell order (same size/order as
+  `cells`); empty strokes are ignored, and an empty `cells` yields an empty
+  result.
+
+The ViewModel then runs `GeometryScorer` on each group against its cell to
+score every kana of the word.
+
 ## 6. Practice grid and ghost glyph (`CanvasRenderers.kt`)
 
 ### `drawPracticeGrid(cell, borderColor, guideColor)`
@@ -464,6 +518,37 @@ strokeAnimations JSON (timed frames, viewBox space; docs/DATA.md)
 
 Full engine semantics (pause/resume, speed math, epoch-guarded aborts,
 edge cases) are specified in [docs/PHASE2-DESIGN.md](PHASE2-DESIGN.md) §2.
+
+### Shared `StrokeCanvas` + whole-word `WordStrokePreview`
+
+`AnimatedStrokePreview.kt` factors the per-glyph rendering into a private
+`StrokeCanvas` composable — the guide paths + the engine's completed/active
+paths + the pen-tip dot, all read off engine snapshot state in the draw
+lambda (so a frame invalidates the draw, not a recompose). It is pure
+rendering: it owns neither the controls nor the engine lifecycle; callers
+supply both. Two callers share it:
+
+- **`AnimatedStrokePreview`** (single character) — one `StrokeCanvas` + one
+  `PlaybackControls` row, exactly as before, still falling back to the static
+  `StrokeOrderDiagram` when the character has no `strokeAnimations`.
+- **`WordStrokePreview`** (whole word) — lays out one `StrokeCanvas` per kana
+  reading unit (each with its **own** `StrokeAnimationEngine`) in a centered
+  `Row`, under a **single** shared `PlaybackControls` row. A `BoxWithConstraints`
+  sizes every square to `min(stripHeight, (stripWidth − gaps) / unitCount)`, so
+  **all** the word's demos are visible at once — a 3+ kana word shrinks its
+  squares to fit rather than clipping the trailing kana. (This replaced an
+  earlier height-driven `fillMaxHeight().aspectRatio(1f)` sizing inside a
+  horizontally-scrollable `Row`, where only ~2 large squares fit and the rest
+  overflowed into a non-obvious scroll — reported as "no demo" for longer
+  words.) Units without timed data (e.g. the long-vowel mark ー) fall back to the
+  static `StrokeOrderDiagram` in their slot. Engines are remembered keyed on
+  the word (switching words rebuilds them); each engine's `run()`/auto-play
+  `play()` effects are pinned to its identity with `key(engine)`.
+
+`PlaybackControls` now takes a `List<StrokeAnimationEngine>` and **broadcasts**
+play/pause, replay, speed cycle, and auto-repeat to all of them, reading the
+shared button state (playing/speed/auto-repeat) off the first engine — so a
+word's kana all animate together on one control row.
 
 ### Static `StrokeOrderDiagram` (`presentation/components/StrokeOrderDiagram.kt`)
 

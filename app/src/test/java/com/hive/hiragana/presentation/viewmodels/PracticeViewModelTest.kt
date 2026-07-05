@@ -11,13 +11,17 @@ import com.hive.hiragana.domain.model.StrokeDefinition
 import com.hive.hiragana.domain.model.StrokeFrame
 import com.hive.hiragana.domain.model.VocabularyProgress
 import com.hive.hiragana.domain.model.VocabularyWord
+import com.hive.hiragana.domain.model.PracticeSet
+import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.domain.repository.CharacterRepository
 import com.hive.hiragana.domain.repository.HandwritingRecognizer
 import com.hive.hiragana.domain.repository.LearningRepository
 import com.hive.hiragana.domain.repository.PracticeRepository
+import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
 import com.hive.hiragana.domain.repository.SettingsRepository
 import com.hive.hiragana.domain.repository.VocabularyRepository
+import com.hive.hiragana.domain.scoring.CellRect
 import com.hive.hiragana.domain.scoring.CharacterScoreSummary
 import com.hive.hiragana.domain.scoring.RecognitionResult
 import com.hive.hiragana.domain.scoring.ScoringMode
@@ -31,6 +35,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -39,7 +44,10 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -109,6 +117,13 @@ class PracticeViewModelTest {
         ),
     )
 
+    /**
+     * A single 1×1 guide cell — the reference frame for FIT scoring, and the
+     * signal that ONE glyph was written ONCE. Scoring only runs when this is
+     * non-null (see [PracticeViewModel] recordAttempt / CanvasState.lastCell).
+     */
+    private fun cell(): CellRect = CellRect(left = 0f, top = 0f, size = 109f)
+
     private val fixedClock: Clock =
         Clock.fixed(Instant.ofEpochMilli(1_800_000_000_000L), ZoneOffset.UTC)
 
@@ -116,12 +131,15 @@ class PracticeViewModelTest {
         characters: List<HiraganaCharacter> = deck(),
         recognizer: HandwritingRecognizer = FakeRecognizer(),
         settings: FakeSettingsRepository = FakeSettingsRepository(),
+        practiceRepository: FakePracticeRepository = FakePracticeRepository(),
+        words: List<VocabularyWord> = emptyList(),
     ) = PracticeViewModel(
         characterRepository = FakeCharacterRepository(characters),
-        practiceRepository = FakePracticeRepository(),
+        practiceRepository = practiceRepository,
         learningRepository = FakeLearningRepository(),
-        vocabularyRepository = FakeVocabularyRepository(),
+        vocabularyRepository = FakeVocabularyRepository(words),
         settingsRepository = settings,
+        practiceSetRepository = FakePracticeSetRepository(),
         handwritingRecognizer = recognizer,
         clock = fixedClock,
     )
@@ -170,9 +188,9 @@ class PracticeViewModelTest {
 
     /**
      * A stale recognition result for a previous glyph must not clobber the
-     * current glyph's score. Two FREE grades (A then B) each launch a
+     * current glyph's score. Two FREE submits (A then B) each launch a
      * recognition coroutine that suspends on a per-target deferred we control;
-     * completing A's deferred AFTER B was graded must leave lastScore labelled
+     * completing A's deferred AFTER B was submitted must leave lastScore labelled
      * with B, because the guard only refines when `lastScoredCharacter == target`.
      */
     @Test
@@ -188,17 +206,21 @@ class PracticeViewModelTest {
         advanceUntilIdle()
         assertEquals("あ", vm.uiState.value.currentCharacter?.character)
 
-        // Grade A (あ) — synchronous geometry sets lastScore/-Character to あ,
-        // recognition for あ is now suspended.
-        vm.gradeCurrentCharacter(Grade.GOOD, inkSession())
+        // Submit A (あ) — synchronous geometry sets lastScore/-Character to あ,
+        // recognition for あ is now suspended. A real 1×1 cell is required for
+        // scoring to run at all (the multi-cell gate).
+        vm.freeSubmit(inkSession(), cell())
         advanceUntilIdle()
         assertEquals("あ", vm.uiState.value.lastScoredCharacter)
-        // FREE advanced to index 1 (い).
+
+        // Advance to index 1 (い); this clears the feedback, so submit B refreshes it.
+        vm.advanceToNextCharacter()
+        advanceUntilIdle()
         assertEquals("い", vm.uiState.value.currentCharacter?.character)
 
-        // Grade B (い) — geometry sets lastScore/-Character to い; recognition
+        // Submit B (い) — geometry sets lastScore/-Character to い; recognition
         // for い is now suspended too.
-        vm.gradeCurrentCharacter(Grade.GOOD, inkSession())
+        vm.freeSubmit(inkSession(), cell())
         advanceUntilIdle()
         assertEquals("い", vm.uiState.value.lastScoredCharacter)
         val scoreForB = vm.uiState.value.lastScore
@@ -218,6 +240,238 @@ class PracticeViewModelTest {
         advanceUntilIdle()
     }
 
+    /**
+     * Multi-copy 2×2/3×3 layouts are repetition worksheets, not scored
+     * attempts. In FREE, [freeSubmit] is guarded off for a multi-cell character
+     * (the UI shows Clear·Next there, never Submit): no score is produced and
+     * the writing↔reviewing flag never flips.
+     */
+    @Test
+    fun `multi-cell layout suppresses free-practice scoring`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        settings.setPracticeLayout(PracticeLayout.GRID_2X2)
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        vm.practiceCharacter(deck().first())
+        advanceUntilIdle()
+        assertEquals(PracticeLayout.GRID_2X2, vm.uiState.value.practiceLayout)
+        assertEquals(SessionPhase.FREE, vm.uiState.value.phase)
+
+        // A cell is passed, but the multi-cell guard short-circuits regardless.
+        vm.freeSubmit(inkSession(), cell())
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.lastScore)
+        assertFalse(vm.uiState.value.freeSubmitted)
+    }
+
+    /**
+     * The counterpart: a single character in the SINGLE layout with a real 1×1
+     * cell still scores on Submit and enters the reviewing sub-state.
+     */
+    @Test
+    fun `single-cell layout scores on submit`() = runTest(dispatcher) {
+        val vm = buildViewModel() // default layout SINGLE
+        advanceUntilIdle()
+
+        vm.practiceCharacter(deck().first())
+        advanceUntilIdle()
+
+        vm.freeSubmit(inkSession(), cell())
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.freeSubmitted)
+        assertNotNull(vm.uiState.value.lastScore)
+    }
+
+    /**
+     * Changing the practice layout after a FREE submit must clear the pending
+     * feedback (the submitted flag + score cards) along with the sheet — the
+     * ghost cells move, so stale "Again·Next" chrome and a score card would
+     * otherwise float over a freshly-blanked canvas.
+     */
+    @Test
+    fun `changing layout clears pending free-practice feedback`() = runTest(dispatcher) {
+        val vm = buildViewModel() // default layout SINGLE
+        advanceUntilIdle()
+
+        vm.practiceCharacter(deck().first())
+        advanceUntilIdle()
+
+        vm.freeSubmit(inkSession(), cell())
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.freeSubmitted)
+        assertNotNull(vm.uiState.value.lastScore)
+
+        vm.setPracticeLayout(PracticeLayout.GRID_2X2)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.freeSubmitted)
+        assertNull(vm.uiState.value.lastScore)
+        assertNull(vm.uiState.value.lastScoredCharacter)
+        assertNull(vm.uiState.value.lastWordScores)
+        assertNull(vm.uiState.value.lastWordAverage)
+    }
+
+    /**
+     * With scoring OFF, a FREE submit produces no headline and records no
+     * attempt — the geometry/persistence path is skipped entirely, so nothing
+     * lands in the practice repository.
+     */
+    @Test
+    fun `free submit with scoring off records no attempt`() = runTest(dispatcher) {
+        val practice = FakePracticeRepository()
+        val settings = FakeSettingsRepository()
+        settings.setScoringMode(ScoringMode.OFF)
+        val vm = buildViewModel(settings = settings, practiceRepository = practice)
+        advanceUntilIdle()
+
+        vm.practiceCharacter(deck().first())
+        advanceUntilIdle()
+
+        vm.freeSubmit(inkSession(), cell())
+        advanceUntilIdle()
+
+        assertTrue(practice.recorded.isEmpty())
+    }
+
+    // ---- word (per-cell) scoring ----------------------------------------
+
+    /** The word "あい" — both kana are in the deck, so it can be per-kana scored. */
+    private fun aiWord(): VocabularyWord =
+        VocabularyWord.fromKana(kana = "あい", meaning = "love")
+
+    /** Two 109-wide guide cells side by side (one per kana of "あい"). */
+    private fun twoCells(): List<CellRect> = listOf(
+        CellRect(left = 0f, top = 0f, size = 109f),   // center (54.5, 54.5)
+        CellRect(left = 120f, top = 0f, size = 109f), // center (174.5, 54.5)
+    )
+
+    /** A session with one stroke inside cell 0 and one inside cell 1. */
+    private fun wordSession(): DrawingSession = DrawingSession(
+        strokes = mutableListOf(
+            UserStroke(
+                points = mutableListOf(
+                    StrokePoint(x = 12f, y = 12f, pressure = 1f, timestamp = 0L),
+                    StrokePoint(x = 88f, y = 88f, pressure = 1f, timestamp = 50L),
+                ),
+            ),
+            UserStroke(
+                points = mutableListOf(
+                    StrokePoint(x = 132f, y = 12f, pressure = 1f, timestamp = 100L),
+                    StrokePoint(x = 208f, y = 88f, pressure = 1f, timestamp = 150L),
+                ),
+            ),
+        ),
+    )
+
+    /**
+     * Free WORD practice with one guide cell per kana (`cells.size == units.size`)
+     * scores each kana independently: [PracticeUiState.lastWordScores] carries one
+     * [WordUnitScore] per kana and [lastWordAverage] the 0..100 headline average.
+     */
+    @Test
+    fun `free word practice scores each kana per cell`() = runTest(dispatcher) {
+        val vm = buildViewModel(words = listOf(aiWord()))
+        advanceUntilIdle()
+
+        vm.practiceWord(aiWord())
+        advanceUntilIdle()
+        assertEquals(SessionPhase.FREE, vm.uiState.value.phase)
+        assertEquals("あい", vm.uiState.value.freeWord?.kana)
+
+        val cells = twoCells()
+        vm.freeSubmit(wordSession(), cells.first(), cells)
+        advanceUntilIdle()
+
+        val scores = vm.uiState.value.lastWordScores
+        assertNotNull(scores)
+        assertEquals(2, scores!!.size)
+        assertEquals("あ", scores[0].glyph)
+        assertEquals("い", scores[1].glyph)
+
+        val avg = vm.uiState.value.lastWordAverage
+        assertNotNull(avg)
+        assertTrue("word average $avg out of range", avg!! in 0..100)
+    }
+
+    /**
+     * Changing the scoring mode must clear the per-kana word chips too — the
+     * "reset wherever lastScore is" invariant. Regression for a round-2 review
+     * finding where [setScoringMode] cleared only [lastScore], leaving stale
+     * word chips lingering over the sheet after a Library mode change.
+     */
+    @Test
+    fun `setScoringMode clears lingering word-score chips`() = runTest(dispatcher) {
+        val vm = buildViewModel(words = listOf(aiWord()))
+        advanceUntilIdle()
+
+        vm.practiceWord(aiWord())
+        advanceUntilIdle()
+        val cells = twoCells()
+        vm.freeSubmit(wordSession(), cells.first(), cells)
+        advanceUntilIdle()
+        assertNotNull(vm.uiState.value.lastWordScores)
+
+        // Default is FORM; switching to BOTH must wipe the chips.
+        vm.setScoringMode(ScoringMode.BOTH)
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.lastWordScores)
+        assertNull(vm.uiState.value.lastWordAverage)
+    }
+
+    /**
+     * Per-kana scoring runs only when there is exactly one guide cell per reading
+     * unit. With no cells (multi-copy sheet / fit meaningless), [lastWordScores]
+     * stays null and a single plain word row is recorded instead.
+     */
+    @Test
+    fun `free word practice without matching cells leaves word scores null`() = runTest(dispatcher) {
+        val vm = buildViewModel(words = listOf(aiWord()))
+        advanceUntilIdle()
+
+        vm.practiceWord(aiWord())
+        advanceUntilIdle()
+
+        // No cells → cells.size (0) != units.size (2): the per-cell gate is off.
+        vm.freeSubmit(wordSession(), null, emptyList())
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.lastWordScores)
+        assertNull(vm.uiState.value.lastWordAverage)
+        assertTrue(vm.uiState.value.freeSubmitted)
+    }
+
+    /**
+     * On a scored word submit, each kana persists its own scored [PracticeAttempt]
+     * (character = the unit glyph, form score set) plus a word-level row keyed by
+     * the whole word string carrying the average form.
+     */
+    @Test
+    fun `free word practice persists per-kana and word-level attempts`() = runTest(dispatcher) {
+        val practice = FakePracticeRepository()
+        val vm = buildViewModel(practiceRepository = practice, words = listOf(aiWord()))
+        advanceUntilIdle()
+
+        vm.practiceWord(aiWord())
+        advanceUntilIdle()
+
+        val cells = twoCells()
+        vm.freeSubmit(wordSession(), cells.first(), cells)
+        advanceUntilIdle()
+
+        // Per-kana rows: "あ" and "い" with a non-null form score.
+        val aRow = practice.recorded.firstOrNull { it.character == "あ" }
+        val iRow = practice.recorded.firstOrNull { it.character == "い" }
+        assertNotNull("no per-kana row for あ", aRow)
+        assertNotNull("no per-kana row for い", iRow)
+        assertNotNull(aRow!!.formScore)
+        assertNotNull(iRow!!.formScore)
+
+        // Word-level row keyed by the full word.
+        val wordRow = practice.recorded.firstOrNull { it.character == "あい" }
+        assertNotNull("no word-level row for あい", wordRow)
+        assertNotNull(wordRow!!.formScore)
+    }
+
     // ---- fakes -----------------------------------------------------------
 
     private class FakeCharacterRepository(
@@ -226,8 +480,13 @@ class PracticeViewModelTest {
         override suspend fun getCharacters(): List<HiraganaCharacter> = characters
     }
 
-    private class FakePracticeRepository : PracticeRepository {
-        override suspend fun recordAttempt(attempt: PracticeAttempt) = Unit
+    private class FakePracticeRepository(
+        /** Every recorded attempt is appended here so tests can assert on persistence. */
+        val recorded: MutableList<PracticeAttempt> = mutableListOf(),
+    ) : PracticeRepository {
+        override suspend fun recordAttempt(attempt: PracticeAttempt) {
+            recorded.add(attempt)
+        }
         override fun observeAttempts(): Flow<List<PracticeAttempt>> = emptyFlow()
         override fun observeScoreSummaries(): Flow<List<CharacterScoreSummary>> = emptyFlow()
     }
@@ -240,8 +499,10 @@ class PracticeViewModelTest {
         override suspend fun incrementTraces(characterId: String) = Unit
     }
 
-    private class FakeVocabularyRepository : VocabularyRepository {
-        override suspend fun getWords(): List<VocabularyWord> = emptyList()
+    private class FakeVocabularyRepository(
+        private val words: List<VocabularyWord> = emptyList(),
+    ) : VocabularyRepository {
+        override suspend fun getWords(): List<VocabularyWord> = words
         override suspend fun getProgress(): List<VocabularyProgress> = emptyList()
         override suspend fun unlock(kana: String, atMillis: Long) = Unit
         override suspend fun recordPractice(kana: String, atMillis: Long) = Unit
@@ -312,5 +573,36 @@ class PracticeViewModelTest {
         override fun setLibraryGridView(gridView: Boolean) { libraryGridView = gridView }
         override fun getBrushInkColor(): Int = brushInkColor
         override fun setBrushInkColor(color: Int) { brushInkColor = color }
+    }
+
+    /** In-memory practice sets, backing a [MutableStateFlow] for observation. */
+    private class FakePracticeSetRepository : PracticeSetRepository {
+        private val sets = MutableStateFlow<List<PracticeSet>>(emptyList())
+        private var nextId = 1L
+
+        override fun observeSets(): Flow<List<PracticeSet>> = sets
+
+        override suspend fun createSet(
+            name: String,
+            type: PracticeSetType,
+            script: Script,
+            members: List<String>,
+        ): Long {
+            val id = nextId++
+            sets.value = sets.value + PracticeSet(id, name, type, script, members)
+            return id
+        }
+
+        override suspend fun renameSet(id: Long, name: String) {
+            sets.value = sets.value.map { if (it.id == id) it.copy(name = name) else it }
+        }
+
+        override suspend fun deleteSet(id: Long) {
+            sets.value = sets.value.filterNot { it.id == id }
+        }
+
+        override suspend fun updateMembers(id: Long, members: List<String>) {
+            sets.value = sets.value.map { if (it.id == id) it.copy(members = members) else it }
+        }
     }
 }

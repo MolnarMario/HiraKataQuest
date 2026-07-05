@@ -42,17 +42,25 @@ NFD — stay under `includeDiacritics`). `setActiveScript`,
 then do a phase-independent session rebuild that keeps the library open;
 `startNextSession` preserves all four across its state reconstruction. With all
 three opt-ins on, the deck is the complete kana inventory (both scripts).
+A later **practice-sets** feature adds user-curated, hand-picked lists of
+characters or words (`domain/model/PracticeSet.kt`) — an *explicit membership
+list*, deliberately distinct from the declarative Study-scope opt-ins (a filter
+config). Sets persist to two new additive Room tables (DB **v4**,
+`MIGRATION_3_4`) and can be launched into FREE practice or the "Quiz me!" mode;
+the same feature generalized the quiz to handle **words** as well as characters
+(`QuizItem` sealed interface, per-kana feedback) and re-sized the Library's
+Study-scope sheet (see §8-scoring below).
 Section 7 covers the Phase 2 design as
 built and section 8 covers Phase 3; the full contracts are
 [docs/PHASE2-DESIGN.md](PHASE2-DESIGN.md) and [docs/PHASE3-DESIGN.md](PHASE3-DESIGN.md).
 
-All Kotlin sources live under `app/src/main/java/com/hive/hiragana/`. There are **68
-Kotlin files** in the `main` source set, plus **11 files** under `app/src/test/`
-(**110 JUnit tests total**; there is still no `androidTest/`). The test count grew
+All Kotlin sources live under `app/src/main/java/com/hive/hiragana/`. There are **76
+Kotlin files** in the `main` source set, plus **12 files** under `app/src/test/`
+(121 JUnit tests total; there is still no `androidTest/`). The test count grew
 well past Phase 3's original 45 as the katakana/opt-in seam (`Script`, `KanaKind`,
 `KanaUnits`, `ScriptScope`), the Library chart (`KanaChart`), and the
-handwriting-scoring layer (`GeometryScorer`, `CharacterScore`) each brought their own
-pure-domain suites. Paths below are given relative to
+handwriting-scoring layer (`GeometryScorer`, `CharacterScore`, `StrokeAttribution`) each
+brought their own pure-domain suites. Paths below are given relative to
 `app/src/main/java/com/hive/hiragana/` unless otherwise noted.
 
 Beyond the three phases and the katakana/opt-in work described above, later additive
@@ -62,7 +70,13 @@ geometry scorer + an ML Kit `data/recognition/` recognizer, advisory-only, §8),
 **write-from-memory quiz** overlay (`QuizScreen` + `QuizState`/`QuizStage` in the
 ViewModel, `PracticeSource.QUIZ`), and a **Library chart view** (`domain/model/KanaChart.kt`,
 a list⇄grid toggle). These pushed Room to **v3** (a purely additive score-column
-migration — see §8 and [docs/DATA.md](DATA.md)).
+migration — see §8 and [docs/DATA.md](DATA.md)). A most-recent scoring-UX batch (§8) then
+made FREE practice a **two-step Submit→review flow** (`FreePracticeActionBar`,
+`PracticeUiState.freeSubmitted`), gated single-glyph scoring to a lone 1×1 cell, added
+**per-kana word scoring** (`domain/scoring/StrokeAttribution.kt` +
+`presentation/components/WordScoreDisplay.kt`), made "grading off" skip recording
+entirely, added multi-unit **word stroke-order previews** (`WordStrokePreview`), and
+tinted the Library by score (`presentation/theme/ScoreColors.kt`).
 
 ---
 
@@ -72,7 +86,7 @@ Four packages plus two root files:
 
 | Package | Responsibility | Depends on |
 |---|---|---|
-| `domain` | Models (`HiraganaCharacter`, `Grade`, `PracticeAttempt`, `StrokeDefinition`/`StrokeFrame`, the Phase 3 additions `ReviewCard`, `VocabularyWord`, `StudySession`, `CharacterProgress`, `VocabularyProgress`, and the later `Script`/`KanaKind`/`KanaUnits`/`ScriptScope`/`PracticeLayout`/`KanaChart` types), repository interfaces (incl. `SettingsRepository`, `HandwritingRecognizer`), `domain/learning` (pure SRS scheduler + session generator), and `domain/scoring` — the pure handwriting-quality scorer (`GeometryScorer`, `ScoringMode`, `CharacterScore`, `CharacterScoreSummary`). | **Pure Kotlin + `kotlinx.coroutines`** (`Flow` in `PracticeRepository`). Zero Android imports. `domain/learning` and `domain/scoring` additionally take no clock reads internally — every computation is parameterized (`todayStartMillis: Long`; explicit stroke/cell inputs), which is what makes them unit-testable without instrumentation. |
+| `domain` | Models (`HiraganaCharacter`, `Grade`, `PracticeAttempt`, `StrokeDefinition`/`StrokeFrame`, the Phase 3 additions `ReviewCard`, `VocabularyWord`, `StudySession`, `CharacterProgress`, `VocabularyProgress`, and the later `Script`/`KanaKind`/`KanaUnits`/`ScriptScope`/`PracticeLayout`/`KanaChart`/`PracticeSet` types), repository interfaces (incl. `SettingsRepository`, `HandwritingRecognizer`, `PracticeSetRepository`), `domain/learning` (pure SRS scheduler + session generator), and `domain/scoring` — the pure handwriting-quality scorer (`GeometryScorer`, `ScoringMode`, `CharacterScore`, `CharacterScoreSummary`). | **Pure Kotlin + `kotlinx.coroutines`** (`Flow` in `PracticeRepository`). Zero Android imports. `domain/learning` and `domain/scoring` additionally take no clock reads internally — every computation is parameterized (`todayStartMillis: Long`; explicit stroke/cell inputs), which is what makes them unit-testable without instrumentation. |
 | `data` | Implements the domain repository interfaces: asset JSON parsing (`data/assets`), Room persistence (`data/local`), repository adapters (`data/repository`), and the ML Kit handwriting recognizer (`data/recognition`). | `domain`, Android (`AssetManager`, Room, ML Kit `digital-ink-recognition`), `org.json`, coroutines. |
 | `drawing` | Standalone ink + playback subsystem: raw `MotionEvent` capture, stroke models, path smoothing, canvas snapshot-state, grid/ghost draw helpers, and the Phase 2 stroke-order playback engine (`drawing/animation`). | Compose runtime/UI (`Path`, `DrawScope`, snapshot state, `Animatable`) and `android.view.MotionEvent` / `android.graphics.Paint`. Does not depend on `data` or `presentation`; since Phase 2, `drawing/animation` imports `domain.model.StrokeDefinition`/`StrokeFrame` (timed stroke data) — the one `drawing → domain` edge. Phase 3 did not touch this package. |
 | `presentation` | Compose UI: theme, components, the single `PracticeScreen` (plus the `LibraryScreen` overlay it hosts), and `PracticeViewModel` (now a Phase 3 session state machine — see §3/§8). | `domain` + `drawing` + Compose/lifecycle. |
@@ -114,7 +128,8 @@ Manual DI, no Hilt/Koin. The choice is documented in-code as deliberate — the 
 `AppContainer` reads: *"Hand-rolled dependency container — deliberately simple for the
 MVP; swap for Hilt if the object graph grows."* Phase 3 grew the graph from three lazy
 objects to five; the later settings and scoring work took it to seven (adding
-`settingsRepository` and `handwritingRecognizer`), still all manual.
+`settingsRepository` and `handwritingRecognizer`), and the practice-sets feature
+to eight (adding `practiceSetRepository`), still all manual.
 
 Wiring chain (all in `HiraganaApplication.kt` and `PracticeViewModel.kt`):
 
@@ -122,7 +137,7 @@ Wiring chain (all in `HiraganaApplication.kt` and `PracticeViewModel.kt`):
    `HiraganaApplication` is registered via `android:name=".HiraganaApplication"` in
    `app/src/main/AndroidManifest.xml`.
 2. `AppContainer` (same file as the Application class) holds, all `by lazy`:
-   - `database: HiraganaDatabase` — `HiraganaDatabase.build(appContext)` (Room v3,
+   - `database: HiraganaDatabase` — `HiraganaDatabase.build(appContext)` (Room v4,
      `hiragana-practice.db`, private).
    - `assetDataSource: HiraganaAssetDataSource` — `HiraganaAssetDataSource(appContext.assets)`
      (private; Phase 3 extracted it to its own lazy so both `characterRepository` and
@@ -139,6 +154,9 @@ Wiring chain (all in `HiraganaApplication.kt` and `PracticeViewModel.kt`):
      ink-color toggles — see §3).
    - `handwritingRecognizer: HandwritingRecognizer` = `MlKitHandwritingRecognizer()`
      (ML Kit Digital Ink; feeds the §8 scoring pass).
+   - `practiceSetRepository: PracticeSetRepository` =
+     `RoomPracticeSetRepository(database.practiceSetDao())` (user-curated character/
+     word lists — Room v4, see §8-scoring).
    Nothing is constructed until first use; the Room database is only built when the
    first grade is recorded or the first session is generated (nothing reads it at startup).
 3. `MainActivity.onCreate()` → `setContent { HiraganaTheme { PracticeScreen(viewModel = viewModel(factory = PracticeViewModel.Factory)) } }`.
@@ -155,10 +173,11 @@ Wiring chain (all in `HiraganaApplication.kt` and `PracticeViewModel.kt`):
        vocabularyRepository = application.container.vocabularyRepository,
        settingsRepository = application.container.settingsRepository,
        handwritingRecognizer = application.container.handwritingRecognizer,
+       practiceSetRepository = application.container.practiceSetRepository,
    )
    ```
 
-   The ViewModel itself only sees the six `domain` repository interfaces (plus, as
+   The ViewModel itself only sees the seven `domain` repository interfaces (plus, as
    defaulted constructor parameters, a `LessonGenerator()` and `Clock.systemDefaultZone()`
    — not part of `AppContainer`, since both are cheap pure-Kotlin objects) — it does not
    know about Room, assets, or the container beyond the factory. `GeometryScorer` /
@@ -202,11 +221,14 @@ they serve:
 | `newCharacter`, `repetitionIndex`, `repetitionsTotal` | NEW_CHARACTER/PRACTICE: the character being introduced and its rep count (3 by default). |
 | `vocabularyQueue`, `currentWord`, `wordCharIndex`, `wordsTotal`, `wordsPracticed`, `newlyUnlockedKana` | VOCABULARY: the word queue, the kana index being traced, and which unlocks are fresh this session (drives the "New word!" badge, not reinforcement picks). |
 | `allCaughtUp`, `newCharacterLearned`, `wordsUnlocked`, `hasLearnedCharacters` | COMPLETE: summary stats. `newCharacterLearned` is null if the final practice rep was graded Again (introduced, not learned); `wordsUnlocked` lists only fresh unlocks; `hasLearnedCharacters` gates whether "Keep practicing" renders at all. |
-| `freeCharacters`, `currentIndex`, `gradedCount`, `freeWord` | FREE: the old Phase 1/2 deck-walking fields. Via "Keep practicing" the deck is scoped to characters with `repetitions >= 1`; via a library pick it can hold the **whole** deck (`practiceCharacter`) or one word's kana in order (`practiceWord`, with `freeWord` non-null so the guide panel shows the word header). |
+| `freeCharacters`, `currentIndex`, `gradedCount`, `freeWord`, `freeSubmitted` | FREE: the old Phase 1/2 deck-walking fields, now driving a **two-step Submit→review flow**. Via "Keep practicing" the deck is scoped to characters with `repetitions >= 1`; via a library pick it can hold the **whole** deck (`practiceCharacter`) or one word's kana in order (`practiceWord`, with `freeWord` non-null so the guide panel shows the word header). `freeSubmitted` is the writing↔reviewing flag: `false` = writing (Clear · Submit/Skip), `true` = reviewing the just-scored attempt (Again · Next). It is reset at every FREE entry point, on `freeRetry()` (rewrite the same char/word), and on `advanceToNextCharacter()` (Next). See §4. |
 | `isLibraryOpen`, `allWords`, `unlockedWordKana`, `learnedCharacterIds` | LIBRARY: whether the full-screen library overlay is showing (it overlays whatever phase is active without disturbing it), every vocabulary word, and the unlock/learned sets that drive the rows' "Unlocked"/"Locked" and "Learned"/"Not started" labels. |
-| `quiz: QuizState?` | QUIZ (write-from-memory overlay launched from the library; renders above it). `QuizState` holds a `QuizStage` (`SETUP`/`RUNNING`/`SUMMARY`), the requested count, a per-quiz `showGrid`, the chosen `characters`, `index`, `revealed`/`submitted` two-step flags, and `results` (auto quality-score headline by character id). Each submit auto-scores (no self-grade) and records a `PracticeSource.QUIZ` attempt — **no SRS/unlock side effects**. |
+| `quiz: QuizState?` | QUIZ (write-from-memory overlay launched from the library; renders above it). `QuizState` holds a `QuizStage` (`SETUP`/`RUNNING`/`SUMMARY`), the requested count, a per-quiz `showGrid`, the chosen `items: List<QuizItem>`, a `selectedSetId: Long?` (null = active-script character scope; else a saved practice set), `index`, `revealed`/`submitted` two-step flags, and `results` (auto quality-score headline by item key). `QuizItem` is a sealed interface (`key`/`prompt`/`answer`/`glyphs`/`subtitle`) with `CharQuizItem(character)` and `WordQuizItem(word, prompt)`, so a quiz can now draw **words** as well as characters. Each submit auto-scores (no self-grade — `quizSubmit(cells)` branches character → `recordAttempt`, word → `recordWordAttempt` per-kana average) and records a `PracticeSource.QUIZ` attempt — **no SRS/unlock side effects**. |
+| `practiceSets: List<PracticeSet>` | Always relevant. The user's saved practice sets, observed from `PracticeSetRepository.observeSets()` in `init` and carried through the `rebuilt()` helper (durable). Feeds the Study-scope sets manager and the quiz source picker. |
+| `pendingOpenSetsManager: Boolean` | LIBRARY (one-shot). Set true by `closeQuiz()` when the closing quiz's `selectedSetId != null`, so the library reopens the practice-sets manager instead of the browse page — needed because the quiz overlay decomposes `LibraryScreen` and loses its local `showSetsManager` state. Consumed by a `LibraryScreen` `LaunchedEffect` calling `consumeOpenSetsManager()`, which clears it. |
+| `freeWords: List<VocabularyWord>` | FREE (word-set practice). The FREE word-set queue when a `PracticeSetType.WORDS` set is launched via `practiceSet(id)`; `advanceToNextCharacter()` cycles it (modulo wrap), keeping `freeWord` pointed at the current item. Empty for single-character/word FREE. |
 | `isGridEnabled`, `isGhostEnabled`, `isLibraryGridView`, `practiceLayout`, `activeScript`, `includeDiacritics`, `includeYoon`, `includeExtended`, `scoringMode`, `brushInkColor` | SETTINGS: seeded from and persisted via `SettingsRepository` (keys `grid_enabled`, `ghost_enabled`, `library_grid_view`, `practice_layout_span`, `active_script`, `diacritics_included`, `yoon_included`, `extended_included`, `scoring_mode`, `brush_ink_color`). |
-| `lastScore`, `lastScoredCharacter`, `scoreStats` | SCORING (§8): the most recent `CharacterScore` and the glyph it was computed for (drives `ScoreFeedbackCard`), plus a `Map<String, CharacterScoreSummary>` for the Library's per-character readout. |
+| `lastScore`, `lastScoredCharacter`, `lastWordScores`, `lastWordAverage`, `scoreStats` | SCORING (§8): the most recent single-glyph `CharacterScore` and the glyph it was computed for (drives `ScoreFeedbackCard`); `lastWordScores: List<WordUnitScore>?` + `lastWordAverage: Int?` are the transient per-kana word breakdown (drives `WordScoreChips` above the canvas + `WordAverageCard` below); and `scoreStats: Map<String, CharacterScoreSummary>` for the Library's per-character readout. The single-glyph and word fields are mutually exclusive — each is set with the other nulled, and all four are reset wherever `lastScore` is (on every advance/retry/entry point, and when scoring is `OFF`). |
 | derived: `currentCharacter`, `sessionProgress`, `total`, `isCurrentWordNew`, `activeScriptCharacters` | `currentCharacter` resolves per-phase (review queue head / new character / word's current kana resolved back to a `HiraganaCharacter` / free-deck position); `sessionProgress` is the human-readable line ("Review 3/5", "Practice 1/3", …) shown by `CharacterGuidePanel`; `activeScriptCharacters` is the script/opt-in-scoped view of the full deck. |
 
 This is the durable, screen-rotation-safe state (ViewModel-scoped). Collected in
@@ -287,31 +309,61 @@ CLEAR (local-only; ViewModel never involved)
           └─► CanvasState.clear()          resets session/paths → canvas recomposes,
                                            hasInk=false disables Clear + grade buttons
 
-GRADE (Again / Hard / Good / Easy)
+GRADE (Again / Hard / Good / Easy — session phases only; FREE uses SUBMIT below)
   User taps a grade button (enabled only when hasInk)
     └─► PracticeActionBar.onGrade(grade)
-          └─► PracticeScreen: viewModel.gradeCurrentCharacter(grade, canvasState.currentSession)
+          └─► PracticeScreen: viewModel.gradeCurrentCharacter(grade, session, cellRect, cells)
                 ├─ 0. double-grade guard: return early if this DrawingSession was
-                │       already consumed by the previous grade (identity check)
-                ├─ 1. SYNCHRONOUS snapshot: build PracticeAttempt
-                │       (character, romaji, grade, session.strokes.size,
-                │        session.durationMillis(), System.currentTimeMillis(), source)
-                ├─ 2. viewModelScope.launch { runCatching { practiceRepository.recordAttempt(attempt) } }
-                │       fire-and-forget Room insert; failures now LOGGED (Log.w, tag
-                │       HiraganaSession) instead of silently swallowed
-                └─ 3. phase-specific routing (gradeReview / gradePractice / gradeVocabulary / gradeFree):
-                        REVIEWS      → SrsScheduler.next(...) reschedules the card;
+                │       already consumed by the previous grade (identity check);
+                │       stashes cellRect (single 1×1 cell) + cells (per-kana word cells)
+                │       for the recordAttempt/recordWordAttempt scoring pass
+                └─ phase-specific routing:
+                        REVIEWS      → gradeReview: SrsScheduler.next(...) reschedules;
                                        Again re-queues the character within reviewQueue
-                        NEW_CHARACTER/PRACTICE → on the final rep, SrsScheduler.newCard()
-                                       + next(...) seeds the character's first ReviewCard
-                        VOCABULARY   → records the attempt only; no card rescheduling
-                        FREE         → same as legacy: just records + advances
-                      every branch bumps canvasClearKey
+                        NEW_CHARACTER/PRACTICE → gradePractice: on the final rep,
+                                       SrsScheduler.newCard() + next(...) seeds the card
+                        VOCABULARY   → gradeVocabulary: records the attempt only
+                        FREE         → no-op (FREE is driven by freeSubmit/freeRetry/
+                                       advanceToNextCharacter, not the grade buttons)
+                      each session branch records the attempt (see recordAttempt below)
+                      and bumps canvasClearKey
 
-NEXT (skip without grading; only rendered in FREE — see §7 PracticeActionBar)
-  User taps Next
-    └─► PracticeActionBar.onNext
-          └─► PracticeViewModel.advanceToNextCharacter()   (modulo wrap over freeCharacters, no-op elsewhere)
+RECORD (recordAttempt / recordWordAttempt — the scoring + persistence step)
+  Called by the session grade branches and by freeSubmit:
+    ├─ if scoringMode == OFF → clear the last-score fields and RETURN WITHOUT
+    │    persisting (no attempt row is written); SRS scheduling + vocab unlock
+    │    still run because the callers do them independently
+    ├─ SYNCHRONOUS snapshot: build PracticeAttempt (character, romaji, grade,
+    │    strokeCount, durationMs, clock.millis(), source)
+    ├─ single glyph: score ONLY when cell != null — i.e. one glyph in one 1×1
+    │    guide cell (true for the quiz, which forces PracticeLayout.SINGLE);
+    │    multi-copy 2×2/3×3 never scores (all copies' strokes flatten into one
+    │    list). Sets lastScore/lastScoredCharacter.
+    ├─ word: recordWordAttempt attributes each stroke to its kana cell via
+    │    StrokeAttribution.groupByCell (nearest cell center to the stroke
+    │    centroid) using CanvasState.kanaCellRects (threaded through pendingCells),
+    │    scores each KanaUnits unit geometry-only, persists one row per kana plus a
+    │    word-level average row, and sets lastWordScores/lastWordAverage
+    └─ persist via viewModelScope.launch { runCatching { … } }; failures LOGGED
+         (Log.w, tag HiraganaSession)
+
+SUBMIT / RETRY / NEXT (FREE two-step, mirrors the quiz)
+  User taps Submit (writing sub-state, hasInk)
+    └─► FreePracticeActionBar.onSubmit → PracticeViewModel.freeSubmit(session, cellRect, cells)
+          scores + records a PracticeSource.FREE attempt with a neutral placeholder
+          grade, KEEPS the ink (no canvasClearKey bump), sets freeSubmitted = true
+          → feedback card shown. No-op outside FREE, without ink, if already
+          submitted, or in a multi-copy repetition worksheet.
+  User taps Again (reviewing sub-state)
+    └─► FreePracticeActionBar.onRetry → PracticeViewModel.freeRetry()
+          clears feedback + freeSubmitted, bumps canvasClearKey → rewrite the SAME
+          character/word (deck position unchanged)
+  User taps Next (reviewing sub-state; or Skip on an empty canvas while writing)
+    └─► FreePracticeActionBar.onNext → PracticeViewModel.advanceToNextCharacter()
+          modulo wrap over freeCharacters, resets freeSubmitted + clears feedback,
+          bumps canvasClearKey (no-op outside FREE)
+  A multi-copy 2×2/3×3 single-character worksheet (or scoring turned Off) can't be
+  single-scored, so FreePracticeActionBar collapses the two-step to Clear · Next.
 
 START NEXT SESSION (COMPLETE summary, hidden when allCaughtUp; also legal from FREE)
   User taps "Start next session"
@@ -331,6 +383,21 @@ the COMPLETE summary's "Browse library")
   (both close the overlay, bump canvasClearKey, and abandon any in-progress
   session steps; grading in this FREE mode records PracticeSource.FREE
   attempts only — no scheduling or unlock side effects)
+
+PRACTICE SETS (user-curated lists; CRUD from the Study-scope sheet's sets manager)
+  savePracticeSet(name, type, script, members) → RoomPracticeSetRepository.createSet
+  updatePracticeSetMembers(id, members)        → replaceItems (edit membership)
+  renamePracticeSet(id, name) / deletePracticeSet(id)
+  (all fire-and-forget via viewModelScope; observeSets() re-emits into practiceSets)
+  practiceSet(id) → FREE over the set's members: a CHARACTERS set walks the glyphs
+                    (freeCharacters); a WORDS set walks the words (freeWords, freeWord
+                    at the head) — same PracticeSource.FREE, no SRS/unlock side effects
+  openQuiz(setId?) / setQuizSource(setId?) → seed/repoint the quiz at a set or the
+                    active-script scope; private buildQuizPool resolves the ordered
+                    List<QuizItem> for that source
+  closeQuiz() → clears quiz; if the closing quiz's selectedSetId != null, raises the
+                    pendingOpenSetsManager one-shot so the reopened library lands on the
+                    sets manager (LibraryScreen consumes it via consumeOpenSetsManager)
 
 LOOP-BACK (after any GRADE branch, or NEXT)
   canvasClearKey incremented in PracticeUiState
@@ -388,18 +455,30 @@ MainActivity.setContent
                │     │                       + meaning line with a "New word!" prefix
                │     │                       on fresh unlocks (VOCABULARY)
                │     │                     + "Library" TextButton (onOpenLibrary)
-               │     └─ Column: AnimatedStrokePreview (square canvas + playback
-               │                controls; falls back to the static numbered
-               │                StrokeOrderDiagram without timing data)
+               │     └─ Column: single char → AnimatedStrokePreview; whole word →
+               │                WordStrokePreview (one engine per kana unit sharing
+               │                ONE PlaybackControls row; squares sized to fit ALL
+               │                units across the strip width). Both fall back to the
+               │                static numbered StrokeOrderDiagram without timing data
                │                + "Stroke order · N" label
-               ├─ TracingCanvas            weight(0.65f)   ── middle 65%
-               │  └─ Surface (rounded, PaperWhite) → Canvas
-               │     draw order: practice grid → ghost glyph →
-               │                 completed strokes → active stroke
-               │     input: pointerInteropFilter → StrokeCapture
-               └─ PracticeActionBar        weight(0.10f)   ── bottom 10%
-                  └─ Row: Clear(w 1.1) · Again(w 1) · Hard(w 1) · Good(w 1) · Easy(w 1)
-                          · Next(w 1.1, only when showNext/FREE)
+               ├─ Box                       weight(0.65f)   ── middle 65%
+               │  ├─ TracingCanvas
+               │  │  └─ Surface (rounded, PaperWhite) → Canvas
+               │  │     draw order: practice grid → ghost glyph →
+               │  │                 completed strokes → active stroke
+               │  │     input: pointerInteropFilter → StrokeCapture
+               │  └─ score overlay (advisory, floats over the sheet):
+               │        whole word → WordScoreChips (TopCenter) + WordAverageCard
+               │                     (BottomCenter), keyed on lastWordScores
+               │        single glyph → ScoreFeedbackCard (TopCenter), keyed on lastScore
+               └─ action bar               weight(0.10f)   ── bottom 10%
+                  ├─ session phases → PracticeActionBar
+                  │     Row: Clear · Again · Hard · Good · Easy
+                  └─ FREE (isFree) → FreePracticeActionBar (two-step, mirrors the quiz)
+                        writing:   Clear · Submit  (Skip when canvas empty)
+                        reviewing: Again · Next    (freeSubmitted == true)
+                        repetition worksheet OR scoring Off → collapses to Clear · Next
+                        (single-word practice repeats one sheet → no Next)
 ```
 
 The 0.25 / 0.65 / 0.10 `Column` weights in `PracticeContent` are the layout contract of
@@ -521,9 +600,9 @@ walk into a generated session.
   inflate the gate's backlog count, or hold the gate closed forever. The generator reads
   only its parameters and writes nothing — crash-safe resumability comes for free because
   the ViewModel persists each step's outcome as it happens.
-- **Persistence — Room v1 → v2 (and later → v3)**: `HiraganaDatabase` is now
-  `version = 3`, `exportSchema = true` (schema history committed at `app/schemas/`,
-  `2.json` + `3.json`). `MIGRATION_1_2` (a real `Migration(1, 2)`, no destructive
+- **Persistence — Room v1 → v2 (and later → v3, → v4)**: `HiraganaDatabase` is now
+  `version = 4`, `exportSchema = true` (schema history committed at `app/schemas/`).
+  `MIGRATION_3_4` additively creates the two practice-set tables (§8-scoring). `MIGRATION_1_2` (a real `Migration(1, 2)`, no destructive
   fallback) renames `practice_attempts` → `practice_history`, adds its
   `source TEXT NOT NULL DEFAULT 'FREE'` column, and creates `review_cards` /
   `character_progress` / `vocabulary_progress` (schemas in docs/DATA.md §5); the later
@@ -558,7 +637,7 @@ walk into a generated session.
 
 ### Handwriting-quality scoring, quiz, and the Library chart (post-Phase-3, additive)
 
-Three later features layer on without touching the drawing pipeline or the learning
+These later features layer on without touching the drawing pipeline or the learning
 engine:
 
 - **Handwriting-quality scoring** (advisory). `domain/scoring/` is pure and Android-free
@@ -575,11 +654,91 @@ engine:
   `lastScore`/`lastScoredCharacter`/`scoreStats` in `PracticeUiState`, renders
   `presentation/components/ScoreFeedbackCard.kt`, and persists the dials onto the
   `practice_history` row via the v3 columns — **advisory only, never feeding SRS**.
+- **Scoring-UX batch** (most recent, layered on the scorer above):
+  - **Single-glyph scoring gated to a lone 1×1 cell.** `recordAttempt` scores only when
+    its `cell != null` — exactly one glyph in one 1×1 guide cell (true for the quiz,
+    which forces `PracticeLayout.SINGLE`). Multi-copy 2×2/3×3 flatten every copy's
+    strokes into one list and would score as a stroke-count mismatch, so they never score.
+  - **Per-cell word scoring.** `recordWordAttempt` attributes each stroke to its kana cell
+    via the pure/tested `domain/scoring/StrokeAttribution.groupByCell` (nearest cell
+    **center** to the stroke centroid — a stroke in the gap between cells still counts
+    toward the closer kana) using `CanvasState.kanaCellRects` (threaded from the screen
+    through the new `cells` param on `gradeCurrentCharacter`/`freeSubmit` into the
+    ViewModel's `pendingCells`). It scores each `KanaUnits` unit geometry-only, persists
+    one `practice_history` row per kana **plus** a word-level average row, and sets the
+    transient `PracticeUiState.lastWordScores: List<WordUnitScore>?` / `lastWordAverage:
+    Int?` that drive `WordScoreChips` (above the canvas) + `WordAverageCard` (below). Both
+    are reset wherever `lastScore` is, and are mutually exclusive with the single-glyph
+    `lastScore`/`lastScoredCharacter`.
+  - **Grading Off ⇒ no recording.** When `scoringMode == ScoringMode.OFF`, both
+    `recordAttempt` and `recordWordAttempt` early-return **without persisting any row**
+    (FREE and the SRS session phases alike). SRS scheduling + vocab unlock still run
+    because their callers do them independently — only the score history is dropped.
+  - **FREE two-step Submit→review flow.** `FreePracticeActionBar` (in `PracticeActionBar.kt`)
+    replaces the old grade buttons in FREE: writing → **Submit** (`freeSubmit` scores,
+    keeps the ink, no `canvasClearKey` bump, sets `freeSubmitted`) → reviewing → **Again**
+    (`freeRetry`, rewrite the same char/word) / **Next** (`advanceToNextCharacter`, resets
+    `freeSubmitted` + clears feedback). Empty canvas shows **Skip**; a multi-copy
+    worksheet or scoring-Off collapses to Clear · Next; single-word practice has no Next.
+    The FREE branch of `gradeCurrentCharacter` is now a no-op.
+  - **Word stroke-order previews.** `WordStrokePreview` (in `AnimatedStrokePreview.kt`)
+    renders one `StrokeAnimationEngine` per word unit (from `wordUnitCharacters`) sharing
+    ONE `PlaybackControls` row — `PlaybackControls` now takes a `List<StrokeAnimationEngine>`
+    and broadcasts to all; a shared `StrokeCanvas` composable was extracted. A
+    `BoxWithConstraints` sizes every kana square to `min(stripHeight, width/unitCount)`
+    so a long word (3+ kana) shows every demo at once instead of clipping trailing kana.
+  - **Library score coloring.** `presentation/theme/ScoreColors.kt`'s
+    `scoreSpectrumColor(Int)` maps 0..100 onto a red→green tint; `LibraryScreen` tints
+    chart squares / word cards / list rows by each glyph's `scoreStats` average
+    (`avgForm ?: avgFit`) with the score in the top-right corner, and its app bar was
+    reordered (Search leftmost, view toggle persists during search, `BasicTextField`
+    search field).
 - **Write-from-memory quiz.** `presentation/screens/QuizScreen.kt` + a `QuizState`
   (`QuizStage` `SETUP`/`RUNNING`/`SUMMARY`) held in `PracticeUiState.quiz`, launched from
-  the Library, overlaying whatever phase is active. Each submitted character is
+  the Library, overlaying whatever phase is active. Each submitted item is
   auto-scored (no self-grade) and recorded as `PracticeSource.QUIZ` with **no SRS or
-  unlock side effects**.
+  unlock side effects**. The quiz was later **generalized to words**: `QuizState.characters`
+  became `items: List<QuizItem>` plus a `selectedSetId: Long?`; `QuizItem` is a sealed
+  interface (`key`/`prompt`/`answer`/`glyphs`/`subtitle`) with `CharQuizItem` (romaji
+  prompt → single glyph → `recordAttempt`) and `WordQuizItem` (pronunciation prompt →
+  per-kana glyphs → `recordWordAttempt` average). A source-picker dropdown lets the quiz
+  draw from a saved practice set instead of the active-script scope (`setQuizSource`,
+  `openQuiz(setId?)`, private `buildQuizPool`), and `QuizScreen` renders word prompts with
+  the same per-kana `WordScoreChips`/`WordAverageCard` feedback the canvas uses.
+- **Practice sets** (user-curated lists). `domain/model/PracticeSet.kt` —
+  `PracticeSet(id, name, type: PracticeSetType {CHARACTERS, WORDS}, script: Script,
+  members: List<String>)` — is an explicit, hand-picked membership list (glyph strings for
+  a CHARACTERS set, word kana for a WORDS set; script-unique keys), **deliberately distinct
+  from the declarative Study-scope opt-ins** (a filter config, not a list). It persists to
+  two additive Room v4 tables via `MIGRATION_3_4`: `practice_sets` (id PK autoincrement,
+  name, type, script, createdAt) and `practice_set_items` (itemId PK, setId FK →
+  `practice_sets` `ON DELETE CASCADE`, value, position; index on setId). Entities in
+  `data/local/PracticeSetEntity.kt` (`PracticeSetEntity` + `PracticeSetItemEntity` +
+  `PracticeSetWithItems` `@Relation`), DAO `data/local/PracticeSetDao.kt` (`observeSetsWithItems`
+  Flow, `@Transaction` `createSet`/`replaceItems`, `renameSet`/`deleteSet`), interface
+  `domain/repository/PracticeSetRepository.kt`, impl `data/repository/RoomPracticeSetRepository.kt`,
+  wired as `AppContainer.practiceSetRepository` (§2). The ViewModel observes `observeSets()`
+  into `PracticeUiState.practiceSets` (carried through `rebuilt()`), CRUDs via
+  `savePracticeSet`/`updatePracticeSetMembers`/`renamePracticeSet`/`deletePracticeSet`, and
+  launches a set into FREE via `practiceSet(id)` (a WORDS set drives the new
+  `PracticeUiState.freeWords` queue) or into the quiz via `openQuiz(setId)`. The Library
+  Study-scope sheet grew a selection mode (drag-to-range-select via `detectDragGestures` +
+  edge auto-scroll through `LazyListState.scrollBy`), a sets manager, and a name dialog —
+  all in `LibraryScreen.kt`. That sheet is now `skipPartiallyExpanded = true` with its
+  content `heightIn(max = 90% screen)` + `verticalScroll` (fit-content with a scroll
+  fallback on short screens). Follow-up polish, all still in `LibraryScreen.kt`:
+  `exitSelection()` now **always** returns to the sets manager (save, cancel ✕, or Back
+  alike, new or edited set); the sets manager shows each set's average via a
+  `setAverage(set, scoreStats)` helper (mean of members' `scoreStats[member].avgScore()`
+  = `avgForm ?: avgFit` over scored members, null when none) rendered on `SetManagerRow`
+  with the same `scoreSpectrumColor` tint + corner number as char/word cards (no new
+  storage — reuses the per-glyph `scoreStats`, so scoring-off runs never contribute); the
+  selection screen (`SelectionModeContent`) gained a list⇄grid toggle (extracted
+  `SelectableList` + new `SelectableGrid`/`SelectableGridCell`, both keeping tap-toggle
+  and drag-range-select — the grid maps pointer (x,y)→item index via
+  `LazyGridState.layoutInfo` with edge auto-scroll); and the manager gained a sort menu
+  (`SetSortMenu` + `SetSort` enum `{NAME_ASC, NAME_DESC, SCORE_DESC, SCORE_ASC}`, unscored
+  sets sorting last, hand-drawn `drawSortGlyph` icon).
 - **Library chart view.** `domain/model/KanaChart.kt` (`KanaChartBuilder` +
   `TableSection`/`FlowSection`/`TableRow`) builds a gojūon-style chart from the scoped
   deck; the Library toggles between the vertical list and this grid, persisted as the
@@ -605,17 +764,18 @@ columns only).
 Paths relative to `app/src/main/java/com/hive/hiragana/` unless noted. This table
 covers the Phase 1–3 core in full; the later additive files (the katakana/opt-in seam,
 handwriting scoring, quiz, Library chart, settings) are listed as a group at the end
-rather than exhaustively re-inventoried — the `main` set is now **68 files**, the test
-set **11 files (110 tests)** (incl. the first `PracticeViewModelTest`).
+rather than exhaustively re-inventoried — the `main` set is now **76 files**, the test
+set **12 files (121 tests)** (incl. the first `PracticeViewModelTest` and
+`StrokeAttributionTest`).
 
 ### Root (2)
 
 | File | Responsibility |
 |---|---|
-| `HiraganaApplication.kt` | `Application` subclass exposing `container`; also defines `AppContainer` (lazy Room DB + `HiraganaAssetDataSource` + all four repositories). |
+| `HiraganaApplication.kt` | `Application` subclass exposing `container`; also defines `AppContainer` (lazy Room DB + `HiraganaAssetDataSource` + all repositories, incl. `practiceSetRepository`). |
 | `MainActivity.kt` | Single `ComponentActivity`; `setContent` → `HiraganaTheme` → `PracticeScreen` with `PracticeViewModel.Factory`. |
 
-### `domain` (15)
+### `domain` (17)
 
 | File | Responsibility |
 |---|---|
@@ -632,10 +792,12 @@ set **11 files (110 tests)** (incl. the first `PracticeViewModelTest`).
 | `domain/repository/PracticeRepository.kt` | `suspend recordAttempt(…)` + `observeAttempts(): Flow<…>` (still no direct UI collector). |
 | `domain/repository/LearningRepository.kt` | Phase 3: review-card CRUD + character-progress read/write (`getReviewCards`, `upsertReviewCard`, `getCharacterProgress`, `markIntroduced`, `incrementTraces`). |
 | `domain/repository/VocabularyRepository.kt` | Phase 3: `getWords`, `getProgress`, `unlock`, `recordPractice`. |
+| `domain/model/PracticeSet.kt` | User-curated list model: `PracticeSet(id, name, type: PracticeSetType {CHARACTERS, WORDS}, script, members: List<String>)` — glyph or kana keys; distinct from Study-scope opt-ins. |
+| `domain/repository/PracticeSetRepository.kt` | Practice-set persistence iface: `observeSets(): Flow`, `createSet`, `renameSet`, `deleteSet`, `updateMembers`. |
 | `domain/learning/SrsScheduler.kt` | Phase 3: pure `object` — SM-2-style grade transitions, clock-injected via `todayStartMillis` parameter. |
 | `domain/learning/LessonGenerator.kt` | Phase 3: pure `class` — assembles reviews + gated new character + vocabulary into a `StudySession`; excludes orphaned cards. |
 
-### `data` (14)
+### `data` (17)
 
 | File | Responsibility |
 |---|---|
@@ -649,7 +811,10 @@ set **11 files (110 tests)** (incl. the first `PracticeViewModelTest`).
 | `data/local/ReviewCardEntity.kt` / `ReviewCardDao.kt` | Phase 3: `review_cards` table (PK `characterId`) + `getAll`/`upsert` (REPLACE). |
 | `data/local/CharacterProgressEntity.kt` / `CharacterProgressDao.kt` | Phase 3: `character_progress` table (PK `characterId`) + `getAll`/`insert` (IGNORE)/`incrementTraces`. |
 | `data/local/VocabularyProgressEntity.kt` / `VocabularyProgressDao.kt` | Phase 3: `vocabulary_progress` table (PK `kana`) + `getAll`/`insert` (IGNORE)/`recordPractice`. |
-| `data/local/HiraganaDatabase.kt` | Room DB v3 (v1 → v2 → v3), `hiragana-practice.db`, `exportSchema = true`; `MIGRATION_1_2` (rename + Phase 3 tables) and `MIGRATION_2_3` (nullable score columns); `build(context)` factory registering both. |
+| `data/local/HiraganaDatabase.kt` | Room DB v4 (v1 → v2 → v3 → v4), `hiragana-practice.db`, `exportSchema = true`; `MIGRATION_1_2` (rename + Phase 3 tables), `MIGRATION_2_3` (nullable score columns), `MIGRATION_3_4` (practice-set tables); `build(context)` factory registering all three. |
+| `data/local/PracticeSetEntity.kt` | Room `@Entity`s for `practice_sets` (header) + `practice_set_items` (members, `ON DELETE CASCADE`, index on setId) + `PracticeSetWithItems` `@Relation`. |
+| `data/local/PracticeSetDao.kt` | `observeSetsWithItems()` Flow + `@Transaction` `createSet`/`replaceItems` (header + ordered members) + `renameSet`/`deleteSet`. |
+| `data/repository/RoomPracticeSetRepository.kt` | `PracticeSetRepository` impl over `PracticeSetDao`; entity↔`PracticeSet` mapping (`type`/`script` decoded from stored keys). |
 
 ### `drawing` (9) — untouched by Phase 3; `canvas/` rewritten by the post-Phase-3 brush rework
 
@@ -659,7 +824,7 @@ set **11 files (110 tests)** (incl. the first `PracticeViewModelTest`).
 | `drawing/stroke/UserStroke.kt` | One pen-down→pen-up stroke; `averagePressure()` (no callers since the brush rework). |
 | `drawing/stroke/DrawingSession.kt` | All strokes for the current character; `durationMillis()` extension (first→last timestamp). |
 | `drawing/stroke/StrokeCapture.kt` | Raw `MotionEvent` → `CanvasState` calls: batched historical samples, pressure coerced 0..2, single-active-pointer palm rejection, stylus + finger. |
-| `drawing/canvas/CanvasState.kt` | `@Stable` snapshot-state holder: session, completed brush-ribbon `Path`s, active path, plain-var `brushBaseWidthPx`; `clear()`; UI-thread-only. |
+| `drawing/canvas/CanvasState.kt` | `@Stable` snapshot-state holder: session, completed brush-ribbon `Path`s, active path, plain-var `brushBaseWidthPx`, plus `lastCell` (the single 1×1 guide cell for single-glyph scoring) and `kanaCellRects` (per-kana cells for word scoring, published by `TracingCanvas`); `clear()`; UI-thread-only. |
 | `drawing/canvas/StrokeRenderer.kt` | `buildBrushPath(points, baseWidthPx, taperTail)`: filled variable-width brush ribbon — per-point pressure (0.55..1.6) × speed-thinning widths, moving-average width smoothing, head/tail tapers, midpoint-bézier-smoothed edges (see docs/DRAWING.md §5). |
 | `drawing/canvas/CanvasRenderers.kt` | `DrawScope` helpers: 2×2 dashed genkouyoushi grid + font-rendered ghost glyph (native `drawText`). |
 | `drawing/animation/StrokeAnimationEngine.kt` | Phase 2 playback engine: `@Stable` snapshot-state holder; desired-state controls + single `suspend run()` driver (`Animatable`, epoch-guarded outputs, inter-stroke pauses, speed 0.25–4×, auto-repeat). |
@@ -672,14 +837,14 @@ set **11 files (110 tests)** (incl. the first `PracticeViewModelTest`).
 | `presentation/theme/Color.kt` | Palette: brand vermilion, fixed "paper" canvas colors, grade button colors including Phase 3's `GradeAgainContainer`/`GradeAgainContent`. |
 | `presentation/theme/Type.kt` | `HiraganaTypography` (76.sp `displayLarge` for the guide glyph, etc.). |
 | `presentation/theme/Theme.kt` | `HiraganaTheme` Material 3 wrapper; light + dark color schemes via `isSystemInDarkTheme()`. |
-| `presentation/viewmodels/PracticeViewModel.kt` | Phase 3 session state machine (`SessionPhase`, `PracticeUiState` via `StateFlow`): generates/walks a `StudySession`, routes grading through `SrsScheduler`, persists progress/unlocks, companion `Factory`. Post-Phase-3 API: `startNextSession()`, `openLibrary()`/`closeLibrary()`, `practiceCharacter(char)`, `practiceWord(word)`, `retrySession()`. |
+| `presentation/viewmodels/PracticeViewModel.kt` | Phase 3 session state machine (`SessionPhase`, `PracticeUiState` via `StateFlow`): generates/walks a `StudySession`, routes grading through `SrsScheduler`, persists progress/unlocks, companion `Factory`. Post-Phase-3 API: `startNextSession()`, `openLibrary()`/`closeLibrary()`, `practiceCharacter(char)`, `practiceWord(word)`, `retrySession()`. FREE two-step: `freeSubmit()` / `freeRetry()` / `advanceToNextCharacter()`. Private scoring pass `recordAttempt` (single glyph, gated to a 1×1 cell) / `recordWordAttempt` (per-kana via `StrokeAttribution`); both skip persistence when scoring is `OFF`. Practice sets: observes `observeSets()` into `practiceSets`; `savePracticeSet`/`updatePracticeSetMembers`/`renamePracticeSet`/`deletePracticeSet`, `practiceSet(id)` (FREE over a set, WORDS sets driving `freeWords`), `openQuiz(setId?)`/`setQuizSource(setId?)`/`buildQuizPool` (word-or-character `QuizItem` pool); `closeQuiz()` raises the `pendingOpenSetsManager` one-shot for set-launched quizzes, cleared by `consumeOpenSetsManager()`. |
 | `presentation/components/TracingCanvas.kt` | Drawing surface: render order grid→ghost→completed→active; publishes `brushBaseWidthPx` (20.dp × cell-proportional `brushScale(cellSide, referenceSide)` — linear below the single-char 2×2 reference cell, half-slope above it) to `CanvasState` every draw pass and fills the brush-ribbon `Path`s plain (width baked into geometry — the old 9dp × `widthScale` stroke math is gone); `pointerInteropFilter` input. |
 | `presentation/components/StrokeOrderDiagram.kt` | Static diagram: Compose `PathParser` per stroke, viewBox scaling, numbered badges at each first `MoveTo`. Fallback when a character has no `strokeAnimations`. |
-| `presentation/components/AnimatedStrokePreview.kt` | Phase 2 animated demo: preview canvas (guide → completed → active → pen dot) + playback controls (play/pause, replay, 0.5×/1×/2× speed cycle, auto-repeat); engine per character; static-diagram fallback. Untouched by Phase 3 (it is now also the Phase 3 "new character" introduction). |
-| `presentation/components/PracticeActionBar.kt` | Clear · Again · Hard · Good · Easy row, plus Next only when `showNext` (FREE); ink-gated enabling; grade button colors. |
+| `presentation/components/AnimatedStrokePreview.kt` | Phase 2 animated demo: shared `StrokeCanvas` (guide → completed → active → pen dot) + `PlaybackControls` (play/pause, replay, speed cycle, auto-repeat; now takes a `List<StrokeAnimationEngine>` and broadcasts); engine per character; static-diagram fallback. Also hosts `WordStrokePreview` — one engine per word unit sharing one controls row. |
+| `presentation/components/PracticeActionBar.kt` | `PracticeActionBar` (session phases): Clear · Again · Hard · Good · Easy; ink-gated enabling; grade button colors. Also defines `FreePracticeActionBar` — the FREE two-step (Clear · Submit/Skip → Again · Next), collapsing to Clear · Next for a multi-copy worksheet or when scoring is Off. |
 | `presentation/components/CharacterGuidePanel.kt` | Top panel: glyph + (session label or romaji/deck-position or vocabulary word+meaning+"New word!" badge) + animated stroke-order preview + count label; optional `onOpenLibrary` renders a "Library" `TextButton`. |
 | `presentation/screens/PracticeScreen.kt` | The single screen: collects `uiState`, remembers `CanvasState`, `LaunchedEffect(canvasClearKey)` clear, branches on library overlay (with `BackHandler`) / `COMPLETE` (with its three continuation buttons) vs the 0.25/0.65/0.10 `Column`, loading/error(+Retry) branches. |
-| `presentation/screens/LibraryScreen.kt` | Post-Phase-3 full-screen library overlay: `LazyColumn` of every character ("Learned"/"Not started") and every word ("Unlocked"/"Locked"), all rows tappable into FREE practice (`practiceCharacter`/`practiceWord`); closed by the back arrow or system Back. |
+| `presentation/screens/LibraryScreen.kt` | Post-Phase-3 full-screen library overlay: `LazyColumn` (or grid chart) of every character ("Learned"/"Not started") and every word ("Unlocked"/"Locked"), all rows tappable into FREE practice (`practiceCharacter`/`practiceWord`); closed by the back arrow or system Back. Tints chart squares / word cards / list rows by each glyph's `scoreStats` average (`avgForm ?: avgFit`) via `scoreSpectrumColor`, score shown top-right; app bar reordered (Search leftmost, `BasicTextField` field, view toggle persists during search). Study-scope `ModalBottomSheet` is now `skipPartiallyExpanded` + `heightIn(max 90%)` + `verticalScroll`; also hosts the practice-set selection mode (`SelectionModeContent` with a list⇄grid toggle: `SelectableList`/`SelectableGrid`/`SelectableGridCell`, both drag-to-range-select via `detectDragGestures` + edge auto-scroll), sets manager (`SetManagerRow` with per-set `setAverage` score tint, `SetSortMenu`/`SetSort` sorting, `drawSortGlyph`; `exitSelection()` always returns here), and name dialog. |
 
 ### `app/src/test/.../domain/learning` (3, Phase 3)
 
@@ -689,7 +854,7 @@ set **11 files (110 tests)** (incl. the first `PracticeViewModelTest`).
 | `LessonGeneratorTest.kt` | Mastery gate (both clauses + boundary), review cap + overdue ordering, deck-exhausted, backlog-blocked, orphaned-card exclusion, requeue semantics. |
 | `VocabularyUnlockTest.kt` | `requiredCharacters` derivation, unlock rule, learned-definition boundary (repetitions 0 vs 1), reinforcement pick order. |
 | `domain/model/{ScriptTest, KanaKindTest, KanaUnitsTest, ScriptScopeTest, KanaChartTest}.kt` | The katakana/opt-in seam and Library chart: script classification, base-vs-voiced NFD, base+small unit fusion, four-flag scope filtering, chart section/placement. |
-| `domain/scoring/{GeometryScorerTest, CharacterScoreTest}.kt` | Geometry FORM/FIT dials + tags, and `CharacterScore.combine` mode blending / recognition gate / headline caps. |
+| `domain/scoring/{GeometryScorerTest, CharacterScoreTest, StrokeAttributionTest}.kt` | Geometry FORM/FIT dials + tags, `CharacterScore.combine` mode blending / recognition gate / headline caps, and `StrokeAttribution.groupByCell` nearest-center attribution. |
 
 ### Later additive files (post-Phase-3 — grouped)
 
@@ -699,7 +864,8 @@ Paths relative to `app/src/main/java/com/hive/hiragana/`.
 |---|---|
 | Katakana / opt-in seam (domain) | `domain/model/Script.kt`, `KanaKind.kt`, `KanaUnits.kt`, `ScriptScope.kt`, `PracticeLayout.kt` |
 | Settings | `domain/repository/SettingsRepository.kt`, `data/repository/PrefsSettingsRepository.kt` |
-| Handwriting scoring | `domain/scoring/{GeometryScorer, ScoringMode, CharacterScore, CharacterScoreSummary}.kt`, `domain/repository/HandwritingRecognizer.kt`, `data/recognition/MlKitHandwritingRecognizer.kt`, `presentation/components/ScoreFeedbackCard.kt` |
+| Handwriting scoring | `domain/scoring/{GeometryScorer, ScoringMode, CharacterScore, CharacterScoreSummary, StrokeAttribution}.kt` (`StrokeAttribution.kt` also defines `WordUnitScore` + `groupByCell`), `domain/repository/HandwritingRecognizer.kt`, `data/recognition/MlKitHandwritingRecognizer.kt`, `presentation/components/ScoreFeedbackCard.kt`, `presentation/components/WordScoreDisplay.kt` (`WordScoreChips` + `WordAverageCard`), `presentation/theme/ScoreColors.kt` (`scoreSpectrumColor`) |
 | Library chart | `domain/model/KanaChart.kt` |
-| Quiz | `presentation/screens/QuizScreen.kt` (state in `PracticeViewModel.kt`) |
+| Quiz | `presentation/screens/QuizScreen.kt` (state — incl. the `QuizItem`/`selectedSetId` word generalization — in `PracticeViewModel.kt`) |
 | Ink color | `presentation/components/BrushColorPicker.kt` |
+| Practice sets | `domain/model/PracticeSet.kt`, `domain/repository/PracticeSetRepository.kt`, `data/local/PracticeSetEntity.kt`, `data/local/PracticeSetDao.kt`, `data/repository/RoomPracticeSetRepository.kt` (selection-mode / sets-manager / name-dialog composables live in `LibraryScreen.kt`) |

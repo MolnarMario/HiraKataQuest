@@ -3,6 +3,7 @@ package com.hive.hiragana.domain.learning
 import com.hive.hiragana.domain.model.Grade
 import com.hive.hiragana.domain.model.ReviewCard
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -17,6 +18,9 @@ class SrsSchedulerTest {
         private const val TODAY = 1_800_000_000_000L
         private const val DAY = 86_400_000L
         private const val DELTA = 0.0001f
+
+        /** Mirror of SrsScheduler's private interval cap (~100 years). */
+        private const val MAX_INTERVAL_DAYS = 36_500
     }
 
     private fun card(
@@ -208,5 +212,45 @@ class SrsSchedulerTest {
         val result = SrsScheduler.next(input, Grade.AGAIN, TODAY)
 
         assertEquals(TODAY, result.nextReviewDate)
+    }
+
+    // ---- interval overflow clamp -----------------------------------------------
+
+    @Test
+    fun `long run of GOOD never exceeds the cap and keeps the due date positive`() {
+        var current = card(repetitions = 0, intervalDays = 0, easeFactor = 2.5f)
+
+        repeat(100) {
+            current = SrsScheduler.next(current, Grade.GOOD, TODAY)
+            assertTrue(
+                "intervalDays ${current.intervalDays} exceeded cap $MAX_INTERVAL_DAYS",
+                current.intervalDays <= MAX_INTERVAL_DAYS,
+            )
+            assertTrue(
+                "nextReviewDate ${current.nextReviewDate} not after today $TODAY",
+                current.nextReviewDate > TODAY,
+            )
+        }
+        // After 100 GOOD grades at max ease the interval has long since saturated.
+        assertEquals(MAX_INTERVAL_DAYS, current.intervalDays)
+        assertEquals(TODAY + MAX_INTERVAL_DAYS.toLong() * DAY, current.nextReviewDate)
+    }
+
+    @Test
+    fun `long run of EASY never exceeds the cap and keeps the due date positive`() {
+        var current = card(repetitions = 0, intervalDays = 0, easeFactor = 1.7f)
+
+        repeat(100) {
+            current = SrsScheduler.next(current, Grade.EASY, TODAY)
+            assertTrue(
+                "intervalDays ${current.intervalDays} exceeded cap $MAX_INTERVAL_DAYS",
+                current.intervalDays <= MAX_INTERVAL_DAYS,
+            )
+            assertTrue(
+                "nextReviewDate ${current.nextReviewDate} not after today $TODAY",
+                current.nextReviewDate > TODAY,
+            )
+        }
+        assertEquals(MAX_INTERVAL_DAYS, current.intervalDays)
     }
 }

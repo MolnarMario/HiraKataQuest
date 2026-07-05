@@ -12,7 +12,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * spaced-repetition and vocabulary tables alongside the renamed practice
  * history table; [MIGRATION_1_2] upgrades a v1 database in place. v3
  * (handwriting quality scoring, docs/PHASE4-DESIGN.md) adds three nullable
- * score columns to practice_history; [MIGRATION_2_3] upgrades in place.
+ * score columns to practice_history; [MIGRATION_2_3] upgrades in place. v4
+ * adds the two practice-set tables (user-curated lists); [MIGRATION_3_4]
+ * upgrades in place, purely additively.
  */
 @Database(
     entities = [
@@ -20,8 +22,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReviewCardEntity::class,
         CharacterProgressEntity::class,
         VocabularyProgressEntity::class,
+        PracticeSetEntity::class,
+        PracticeSetItemEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class HiraganaDatabase : RoomDatabase() {
@@ -30,6 +34,7 @@ abstract class HiraganaDatabase : RoomDatabase() {
     abstract fun reviewCardDao(): ReviewCardDao
     abstract fun characterProgressDao(): CharacterProgressDao
     abstract fun vocabularyProgressDao(): VocabularyProgressDao
+    abstract fun practiceSetDao(): PracticeSetDao
 
     companion object {
         /**
@@ -93,13 +98,50 @@ abstract class HiraganaDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 -> v4: adds the two practice-set tables (user-curated character/
+         * word lists — the practice-sets feature). Purely additive; existing
+         * data is untouched.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `practice_sets` (
+                        `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        `name` TEXT NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `script` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `practice_set_items` (
+                        `itemId` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        `setId` INTEGER NOT NULL,
+                        `value` TEXT NOT NULL,
+                        `position` INTEGER NOT NULL,
+                        FOREIGN KEY(`setId`) REFERENCES `practice_sets`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_practice_set_items_setId` " +
+                        "ON `practice_set_items` (`setId`)"
+                )
+            }
+        }
+
         fun build(context: Context): HiraganaDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 HiraganaDatabase::class.java,
                 "hiragana-practice.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

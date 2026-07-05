@@ -100,6 +100,41 @@ class GeometryScorerTest {
     }
 
     @Test
+    fun singlePointStrokeDoesNotCrashAndFormStaysInRange() {
+        // A degenerate one-point user stroke against a real multi-point
+        // reference: normalize maps the single dot to center (0.5,0.5) and
+        // resample repeats it; the scorer must not crash and form must be a
+        // valid 0..100 dial.
+        val user = listOf(listOf(Pt(40f, 40f)))
+        val score = GeometryScorer.score(user, reference, cell = null)
+        assertTrue("form should be a valid 0..100 dial, was ${score.form}", score.form in 0..100)
+    }
+
+    @Test
+    fun singlePointStrokeWithNullCellHasNullFit() {
+        // Same degenerate single point, simple 2-point reference, no cell:
+        // fit must be null (no cell) and form must stay in range.
+        val user = listOf(listOf(Pt(10f, 10f)))
+        val simpleRef = listOf(listOf(Pt(0f, 0f), Pt(100f, 100f)))
+        val score = GeometryScorer.score(user, simpleRef, cell = null)
+        assertEquals(null, score.fit)
+        assertTrue("form should be a valid 0..100 dial, was ${score.form}", score.form in 0..100)
+    }
+
+    @Test
+    fun overfilledInkCoachesToKeepItInsideTheBox() {
+        // Ink whose longer side vastly exceeds the cell (fillRatio > 1.05):
+        // fit drops below 70 and the overfill branch adds its coaching tag.
+        val user = reference.map { stroke -> stroke.map { Pt(it.x * 5f, it.y * 5f) } }
+        val cell = CellRect(left = 0f, top = 0f, size = 100f)
+        val score = GeometryScorer.score(user, reference, cell = cell)
+        assertTrue(
+            "overfilled ink should be coached to keep it inside: ${score.tags}",
+            score.tags.any { it == "Keep it inside the box" },
+        )
+    }
+
+    @Test
     fun resampleProducesRequestedCountAndKeepsEndpoints() {
         val line = listOf(Pt(0f, 0f), Pt(10f, 0f))
         val out = GeometryScorer.resample(line, 5)

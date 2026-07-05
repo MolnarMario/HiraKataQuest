@@ -33,6 +33,14 @@ object SrsScheduler {
     private const val EASY_MULTIPLIER = 2.5f
 
     /**
+     * Upper clamp on [ReviewCard.intervalDays] (~100 years). Prevents the
+     * geometric interval growth from overflowing `Int` after a long run of
+     * consecutive GOOD/EASY grades; comfortably beyond any real schedule and
+     * small enough that `MAX_INTERVAL_DAYS.toLong() * DAY` never overflows `Long`.
+     */
+    private const val MAX_INTERVAL_DAYS = 36_500
+
+    /**
      * A brand-new [ReviewCard] for [characterId]: zero repetitions, zero
      * interval, the default ease of 1.7, and due immediately (`nextReviewDate`
      * equal to [todayStartMillis]) so it enters the very next session.
@@ -60,6 +68,10 @@ object SrsScheduler {
      *   `max(2, ceil(intervalDays * 2.5))`, ease rises by 0.15 capped at 2.5.
      *
      * In every case `nextReviewDate' = todayStartMillis + intervalDays' * DAY`.
+     *
+     * Grown intervals are capped at [MAX_INTERVAL_DAYS] so a long run of
+     * consecutive GOOD/EASY grades can never overflow the interval (and hence
+     * the due date) into a negative/nonsense value.
      */
     fun next(card: ReviewCard, grade: Grade, todayStartMillis: Long): ReviewCard {
         val (repetitions, intervalDays, easeFactor) = when (grade) {
@@ -88,7 +100,14 @@ object SrsScheduler {
         )
     }
 
-    /** `max(minimum, ceil(intervalDays * multiplier))`, as whole days. */
+    /**
+     * `ceil(intervalDays * multiplier)`, as whole days, coerced into
+     * `[minimum, MAX_INTERVAL_DAYS]`. The multiply is done in `Double` so a
+     * large interval saturates to [MAX_INTERVAL_DAYS] instead of overflowing
+     * `Int` and wrapping negative.
+     */
     private fun growInterval(intervalDays: Int, multiplier: Float, minimum: Int): Int =
-        maxOf(minimum, ceil(intervalDays * multiplier).toInt())
+        ceil(intervalDays.toDouble() * multiplier)
+            .coerceIn(minimum.toDouble(), MAX_INTERVAL_DAYS.toDouble())
+            .toInt()
 }

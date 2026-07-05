@@ -29,21 +29,19 @@ import com.hive.hiragana.presentation.theme.GradeOkayContent
 private val CompactPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
 
 /**
- * Bottom action row (10% of the screen):
- * Clear · Again · Hard · Good · Easy · (Next).
+ * Bottom action row (10% of the screen) for the SRS session phases:
+ * Clear · Again · Hard · Good · Easy.
  *
- * Clear and the grade buttons only enable once something is drawn. Next is
- * only rendered when [showNext] is true (the free-practice loop, Phase 3
- * §6) — during session phases the lesson generator decides what comes next,
- * so there is nothing to skip to.
+ * Clear and the grade buttons only enable once something is drawn. FREE
+ * practice uses [FreePracticeActionBar] instead (a two-step Submit→Next
+ * flow) — during session phases the lesson generator decides what comes
+ * next, so there is nothing to skip to.
  */
 @Composable
 fun PracticeActionBar(
     hasInk: Boolean,
     onClear: () -> Unit,
     onGrade: (Grade) -> Unit,
-    onNext: () -> Unit,
-    showNext: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -77,14 +75,104 @@ fun PracticeActionBar(
                 BarLabel(grade.label)
             }
         }
+    }
+}
 
-        if (showNext) {
-            Button(
-                onClick = onNext,
-                modifier = Modifier.weight(1.1f),
+/**
+ * FREE-practice action row (10% of the screen) — a two-step flow mirroring
+ * the quiz: write → **Submit** (scores + shows the result, keeps the ink) →
+ * **Again** (rewrite the SAME character) / **Next** (advance to the next).
+ * Before submitting, an empty canvas offers **Skip** for the character deck.
+ *
+ * @param submitted false = writing sub-state (Clear · Submit/Skip), true =
+ * reviewing the just-scored attempt (Again · Next).
+ * @param canAdvance true for the character deck (Next/Skip cycle through it);
+ * false for single-word practice, which repeats one sheet and has no Next.
+ * @param repetitionMode true for a single character in a multi-copy 2×2/3×3
+ * layout — a repetition worksheet that can't be meaningfully single-scored, so
+ * the two-step collapses to **Clear · Next** (no Submit, no score).
+ * @param scoringEnabled false when the learner turned scoring **Off** (Study
+ * Scope → "Score my writing" = Off): there is no score to earn, so the
+ * two-step likewise collapses to **Clear · Next** — no Submit, no result.
+ */
+@Composable
+fun FreePracticeActionBar(
+    hasInk: Boolean,
+    submitted: Boolean,
+    canAdvance: Boolean,
+    repetitionMode: Boolean,
+    scoringEnabled: Boolean,
+    onClear: () -> Unit,
+    onSubmit: () -> Unit,
+    onRetry: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (repetitionMode || !scoringEnabled) {
+            // No single-character score to give — either a multi-copy
+            // worksheet, or scoring turned Off in Study Scope. Skip the
+            // Submit/Again step: just Clear and move on. Next exists only for
+            // the character deck; single-word practice has nothing to advance
+            // to, so its lone Clear fills the row.
+            OutlinedButton(
+                onClick = onClear,
+                enabled = hasInk,
+                modifier = Modifier.weight(1f),
                 contentPadding = CompactPadding,
             ) {
-                BarLabel("Next")
+                BarLabel("Clear")
+            }
+            if (canAdvance) {
+                Button(
+                    onClick = onNext,
+                    modifier = Modifier.weight(2f),
+                    contentPadding = CompactPadding,
+                ) {
+                    BarLabel("Next")
+                }
+            }
+        } else if (!submitted) {
+            OutlinedButton(
+                onClick = onClear,
+                enabled = hasInk,
+                modifier = Modifier.weight(1f),
+                contentPadding = CompactPadding,
+            ) {
+                BarLabel("Clear")
+            }
+            Button(
+                onClick = { if (hasInk) onSubmit() else onNext() },
+                enabled = hasInk || canAdvance,
+                modifier = Modifier.weight(2f),
+                contentPadding = CompactPadding,
+            ) {
+                BarLabel(if (!hasInk && canAdvance) "Skip" else "Submit")
+            }
+        } else {
+            // A single weighted child fills the row, so Again alone (word
+            // practice) spans full width; with Next it takes a third.
+            OutlinedButton(
+                onClick = onRetry,
+                modifier = Modifier.weight(1f),
+                contentPadding = CompactPadding,
+            ) {
+                BarLabel("Again")
+            }
+            if (canAdvance) {
+                Button(
+                    onClick = onNext,
+                    modifier = Modifier.weight(2f),
+                    contentPadding = CompactPadding,
+                ) {
+                    BarLabel("Next")
+                }
             }
         }
     }

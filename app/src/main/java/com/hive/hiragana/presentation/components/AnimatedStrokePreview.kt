@@ -2,9 +2,11 @@ package com.hive.hiragana.presentation.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -17,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -108,10 +111,114 @@ fun AnimatedStrokePreview(
     LaunchedEffect(engine) { engine.run() }
     LaunchedEffect(engine) { if (autoPlay) engine.play() }
 
-    // The static guide geometry never changes for a given character, so it
-    // is parsed once per character, not per frame. Unparseable strokes are
-    // skipped (same tolerance as StrokeOrderDiagram) — the animation still
-    // plays from the timed data.
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        StrokeCanvas(
+            engine = engine,
+            character = character,
+            modifier = Modifier
+                .weight(1f)
+                .aspectRatio(1f),
+        )
+        PlaybackControls(engines = listOf(engine))
+    }
+}
+
+/**
+ * The animated stroke-order demo for a whole WORD: one [StrokeCanvas] per kana
+ * reading unit, laid side-by-side, sharing a single [PlaybackControls] row so
+ * play/pause, replay, speed, and auto-repeat drive every kana together (the
+ * same controls a single character gets, §user request). Units without timed
+ * data fall back to the static numbered [StrokeOrderDiagram]. Every kana square
+ * is sized to fit the whole word across the strip's width, so a long word shows
+ * all its demos at once rather than clipping the trailing kana.
+ */
+@Composable
+fun WordStrokePreview(
+    characters: List<HiraganaCharacter>,
+    modifier: Modifier = Modifier,
+    autoPlay: Boolean = true,
+) {
+    // One engine per kana that has timed data (null = static-diagram fallback,
+    // e.g. the long-vowel mark ー). Keyed on the word so switching words rebuilds.
+    val engines = remember(characters.joinToString("|") { it.character }) {
+        characters.map { unit ->
+            if (unit.strokeAnimations.isNotEmpty()) StrokeAnimationEngine(unit.strokeAnimations) else null
+        }
+    }
+    val active = engines.filterNotNull()
+    // key(engine) pins each engine's effects to its identity rather than its
+    // position in the loop, so they stay correct even if a future change makes
+    // the list length vary within a composition.
+    active.forEach { engine ->
+        key(engine) {
+            LaunchedEffect(engine) { engine.run() }
+            LaunchedEffect(engine) { if (autoPlay) engine.play() }
+        }
+    }
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            // Size every kana square to the largest side that fits ALL units
+            // across the available width (never taller than the strip), so a
+            // 3+ kana word shows every demo at once. Sizing off height alone
+            // (fillMaxHeight + aspectRatio) made each square as tall as the
+            // strip, so a long word overflowed and clipped its trailing kana
+            // off the right edge into a non-obvious horizontal scroll.
+            val gap = 6.dp
+            val n = characters.size
+            val side = minOf(maxHeight, (maxWidth - gap * (n - 1)) / n)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                characters.forEachIndexed { index, unit ->
+                    val engine = engines[index]
+                    if (engine != null) {
+                        StrokeCanvas(
+                            engine = engine,
+                            character = unit,
+                            modifier = Modifier.size(side),
+                        )
+                    } else {
+                        StrokeOrderDiagram(
+                            character = unit,
+                            modifier = Modifier.size(side),
+                        )
+                    }
+                }
+            }
+        }
+        if (active.isNotEmpty()) {
+            PlaybackControls(engines = active)
+        }
+    }
+}
+
+/**
+ * Draws one glyph's stroke animation: the faint full-character guide, the
+ * completed/active strokes on top in the diagram color, and the pen-tip dot
+ * (hidden between strokes to show the lift). Pure rendering off [engine]'s
+ * snapshot state — no controls, no engine lifecycle; callers own both.
+ */
+@Composable
+private fun StrokeCanvas(
+    engine: StrokeAnimationEngine,
+    character: HiraganaCharacter,
+    modifier: Modifier = Modifier,
+) {
+    // The static guide geometry never changes for a given character, so it is
+    // parsed once per character, not per frame. Unparseable strokes are skipped.
     val guidePaths = remember(character.character) {
         character.strokes.mapNotNull { pathData ->
             runCatching { PathParser().parsePathString(pathData).toPath() }.getOrNull()
@@ -119,48 +226,37 @@ fun AnimatedStrokePreview(
     }
     val penColor = MaterialTheme.colorScheme.primary
 
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Canvas(
-            modifier = Modifier
-                .weight(1f)
-                .aspectRatio(1f),
-        ) {
-            val scale = size.minDimension / character.viewBox
-            val strokeStyle = Stroke(
-                width = 3.5.dp.toPx() / scale,
-                cap = StrokeCap.Round,
-                join = StrokeJoin.Round,
-            )
+    Canvas(modifier = modifier) {
+        val scale = size.minDimension / character.viewBox
+        val strokeStyle = Stroke(
+            width = 3.5.dp.toPx() / scale,
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round,
+        )
 
-            // Engine outputs are snapshot state: reading them here makes the
-            // canvas redraw (not recompose) on every animation frame.
-            withTransform({ scale(scale, scale, Offset.Zero) }) {
-                guidePaths.forEach { path ->
-                    drawPath(path = path, color = GuideStrokeColor, style = strokeStyle)
-                }
-                engine.completedPaths.forEach { path ->
-                    drawPath(path = path, color = DiagramStroke, style = strokeStyle)
-                }
-                engine.activePath?.let { path ->
-                    drawPath(path = path, color = DiagramStroke, style = strokeStyle)
-                }
+        // Engine outputs are snapshot state: reading them here makes the
+        // canvas redraw (not recompose) on every animation frame.
+        withTransform({ scale(scale, scale, Offset.Zero) }) {
+            guidePaths.forEach { path ->
+                drawPath(path = path, color = GuideStrokeColor, style = strokeStyle)
             }
-
-            // Pen tip, hidden while the pen is lifted (penPosition == null) —
-            // its disappearing between strokes is what makes lifts visible.
-            engine.penPosition?.let { pen ->
-                drawCircle(
-                    color = penColor,
-                    radius = size.minDimension * PenDotRadiusFraction,
-                    center = Offset(pen.x * scale, pen.y * scale),
-                )
+            engine.completedPaths.forEach { path ->
+                drawPath(path = path, color = DiagramStroke, style = strokeStyle)
+            }
+            engine.activePath?.let { path ->
+                drawPath(path = path, color = DiagramStroke, style = strokeStyle)
             }
         }
 
-        PlaybackControls(engine = engine)
+        // Pen tip, hidden while the pen is lifted (penPosition == null) —
+        // its disappearing between strokes is what makes lifts visible.
+        engine.penPosition?.let { pen ->
+            drawCircle(
+                color = penColor,
+                radius = size.minDimension * PenDotRadiusFraction,
+                center = Offset(pen.x * scale, pen.y * scale),
+            )
+        }
     }
 }
 
@@ -176,18 +272,24 @@ fun AnimatedStrokePreview(
  */
 @Composable
 private fun PlaybackControls(
-    engine: StrokeAnimationEngine,
+    engines: List<StrokeAnimationEngine>,
     modifier: Modifier = Modifier,
 ) {
+    // One control row drives every engine together (a word's kana, or the
+    // single character). The play/pause button state is aggregated across
+    // engines (any-playing) so it stays truthful when kana of unequal
+    // duration finish at different times; speed and auto-repeat mirror the
+    // first engine (both are settings always applied to all via forEach).
+    val primary = engines.firstOrNull() ?: return
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val playing = engine.playbackState == PlaybackState.Playing
+        val playing = engines.any { it.playbackState == PlaybackState.Playing }
 
         IconButton(
-            onClick = { if (playing) engine.pause() else engine.play() },
+            onClick = { if (playing) engines.forEach { it.pause() } else engines.forEach { it.play() } },
             modifier = Modifier.size(ControlButtonSize),
         ) {
             if (playing) {
@@ -207,7 +309,7 @@ private fun PlaybackControls(
         }
 
         IconButton(
-            onClick = engine::replay,
+            onClick = { engines.forEach { it.replay() } },
             modifier = Modifier.size(ControlButtonSize),
         ) {
             Icon(
@@ -218,11 +320,14 @@ private fun PlaybackControls(
         }
 
         IconButton(
-            onClick = { engine.setSpeed(nextSpeed(engine.speedMultiplier)) },
+            onClick = {
+                val next = nextSpeed(primary.speedMultiplier)
+                engines.forEach { it.setSpeed(next) }
+            },
             modifier = Modifier.size(ControlButtonSize),
         ) {
             Text(
-                text = speedLabel(engine.speedMultiplier),
+                text = speedLabel(primary.speedMultiplier),
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
             )
@@ -231,14 +336,14 @@ private fun PlaybackControls(
         // Filled toggle so on/off reads at a glance: checked fills the
         // button with the primary color, unchecked stays a neutral disc.
         FilledIconToggleButton(
-            checked = engine.autoRepeat,
-            onCheckedChange = engine::setAutoRepeat,
+            checked = primary.autoRepeat,
+            onCheckedChange = { on -> engines.forEach { it.setAutoRepeat(on) } },
             modifier = Modifier.size(ControlButtonSize),
         ) {
             val glyphColor = LocalContentColor.current
             Canvas(
                 modifier = Modifier.size(16.dp),
-                contentDescription = if (engine.autoRepeat) "Auto-repeat on" else "Auto-repeat off",
+                contentDescription = if (primary.autoRepeat) "Auto-repeat on" else "Auto-repeat off",
             ) {
                 drawRepeatGlyph(glyphColor)
             }

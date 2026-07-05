@@ -177,6 +177,18 @@ fun TracingCanvas(
                 null
             }
 
+            // Publish the per-kana cells (in glyph order) for per-character
+            // scoring of a whole word. Only the single-copy sheet has
+            // unambiguous cells — a multi-copy 2×2/3×3 layout repeats the row,
+            // so its ink can't be attributed to one kana; leave it empty there.
+            canvasState.kanaCellRects = if (repetitions == 1) {
+                (0 until cellCount).map { index ->
+                    CellRect(left = left + index * (side + cellGap), top = top, size = side)
+                }
+            } else {
+                emptyList()
+            }
+
             // Brush geometry is built in pixels at input time, so the ink
             // width must be published before the next stroke starts — every
             // draw pass refreshes it (cheap plain-field write). Anything
@@ -193,8 +205,15 @@ fun TracingCanvas(
                 (minOf(availWidth, availHeight) - slotGap).coerceAtLeast(1f) / 2f
             val glyphFit = characters.filter { it.isNotEmpty() }
                 .minOfOrNull { ghostFitScale(ghostPaint, it, side) } ?: 1f
+            // Clamp to a sane band around the base width: on a degenerate or
+            // transient layout (near-zero canvas) referenceSide hits its 1f/2f
+            // floor and brushScale can return a huge ratio, which would bake a
+            // giant ink blob into the next stroke. The bounds are wide enough
+            // that normal 1×1..3×3 layouts (brushScale ~0.x..1.5×) are untouched.
+            val baseWidthPx = BrushBaseWidth.toPx()
             canvasState.brushBaseWidthPx =
-                BrushBaseWidth.toPx() * brushScale(side * glyphFit, referenceSide)
+                (baseWidthPx * brushScale(side * glyphFit, referenceSide))
+                    .coerceIn(baseWidthPx * 0.3f, baseWidthPx * 2f)
 
             // 3. completed strokes — filled brush ribbons, width baked in
             canvasState.completedPaths.forEach { path ->

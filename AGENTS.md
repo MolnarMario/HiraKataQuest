@@ -90,8 +90,9 @@ app/src/main/java/com/hive/hiragana/
                                            StrokeFramePath (timed frames -> partial Path + pen tip)
   presentation/screens/PracticeScreen.kt   the single screen; Column weights 0.25/0.65/0.10
   presentation/components/                 CharacterGuidePanel (+ Phase 3 session label / vocabulary
-                                           word header; controls row incl. a brush-color swatch),
-                                           BrushColorPicker (HSV ink-color dialog, no new deps),
+                                           word header + controls row),
+                                           BrushColorPicker (HSV ink-color dialog, no new deps;
+                                           opened from the Library app-bar swatch),
                                            AnimatedStrokePreview (Phase 2 demo
                                            + playback controls), StrokeOrderDiagram (static fallback),
                                            TracingCanvas (inkColor param colors user ink at draw
