@@ -5,13 +5,17 @@ package com.hive.hiragana.domain.model
  * docs/PHASE3-DESIGN.md §2). Persisted in the `review_cards` table.
  *
  * @param characterId    [HiraganaCharacter.id] this card schedules
- * @param repetitions    successful reviews in a row; [Grade.AGAIN] resets to 0
+ * @param repetitions    consecutive non-lapse reviews; [Grade.AGAIN] resets to
+ *                       0, [Grade.HARD] preserves it (a card counts as
+ *                       'learned'/gate-open at repetitions >= 1)
  * @param intervalDays   current inter-review interval in whole days
  * @param easeFactor     the [Grade.GOOD] interval multiplier; starts at 1.7,
  *                       adjusted by HARD (−0.15, floor 1.3) and EASY
  *                       (+0.15, cap 2.5)
  * @param nextReviewDate epoch millis of the local start-of-day the card
- *                       becomes due; due when `nextReviewDate <= now`
+ *                       becomes due; due when `nextReviewDate <= now` (the
+ *                       LessonGenerator applies this at day granularity — due
+ *                       when `nextReviewDate < todayStart + one day`)
  */
 data class ReviewCard(
     val characterId: String,

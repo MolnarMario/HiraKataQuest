@@ -2,6 +2,7 @@ package com.hive.hiragana.presentation.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,9 +16,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Search
@@ -25,12 +32,15 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -40,16 +50,17 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,26 +69,30 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
@@ -86,10 +101,39 @@ import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.KanaChartBuilder
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.scoring.CharacterScoreSummary
+import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.model.ScriptScope
 import com.hive.hiragana.domain.model.TableRow
 import com.hive.hiragana.domain.model.TableSection
 import com.hive.hiragana.domain.model.VocabularyWord
+import com.hive.hiragana.domain.model.PracticeSet
+import com.hive.hiragana.domain.model.PracticeSetType
+import com.hive.hiragana.presentation.components.BrushColorPicker
+import com.hive.hiragana.presentation.theme.scoreSpectrumColor
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
+
+/** The score used to color a cell/row: average form, falling back to average fit. */
+private fun CharacterScoreSummary?.avgScore(): Int? = this?.avgForm ?: this?.avgFit
 
 /**
  * Browsable library of every character and vocabulary word (Phase 3.1),
@@ -127,6 +171,16 @@ import com.hive.hiragana.domain.model.VocabularyWord
  * visibility are transient overlay-local UI state ([rememberSaveable]d
  * here, never in the ViewModel).
  *
+ * **Practice sets** (hand-picked character/word lists, distinct from the
+ * declarative scope opt-ins) are managed from the scope sheet's "Practice
+ * sets" section: "Add practice set" enters a [SelectionModeContent] over the
+ * current tab's FULL unscoped list (tap-toggle + drag-range select, list⇄grid
+ * toggle), and "See existing practice sets" opens [SetsManagerContent] (sort
+ * menu, per-set average-score badge, and Quiz/Practice/Edit/Rename/Delete per
+ * set). Selection and manager visibility are overlay-local; saving a set, and
+ * finishing a set-launched quiz ([PracticeViewModel.pendingOpenSetsManager]),
+ * both land back on the manager rather than the browse view.
+ *
  * Rendered as a full-screen overlay above whatever phase is active; Back
  * (or the arrow) closes it — except while searching, when Back just
  * collapses the search field.
@@ -154,12 +208,77 @@ fun LibraryScreen(
     isGridView: Boolean = false,
     onSetGridView: (Boolean) -> Unit = {},
     pronunciation: (VocabularyWord) -> String = { "" },
+    brushInkColor: Int = 0xFF20222E.toInt(),
+    onSelectBrushColor: (Int) -> Unit = {},
+    scoringMode: ScoringMode = ScoringMode.FORM,
+    onSetScoringMode: (ScoringMode) -> Unit = {},
+    practiceSets: List<PracticeSet> = emptyList(),
+    onSaveSet: (String, PracticeSetType, Script, List<String>) -> Unit = { _, _, _, _ -> },
+    onUpdateSetMembers: (Long, List<String>) -> Unit = { _, _ -> },
+    onRenameSet: (Long, String) -> Unit = { _, _ -> },
+    onDeleteSet: (Long) -> Unit = {},
+    onLaunchSetQuiz: (Long) -> Unit = {},
+    onPracticeSet: (Long) -> Unit = {},
+    openSetsManagerSignal: Boolean = false,
+    onConsumeOpenSetsManager: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var showScopeSheet by rememberSaveable { mutableStateOf(false) }
+
+    // ---- Practice-set editing state (overlay-local, transient) ----
+    // Selection mode presents the FULL list for one tab+script (ignoring the
+    // Study Scope opt-ins) with multi-select; the sets manager lists saved sets.
+    val selectedValues = remember { mutableStateListOf<String>() }
+    var selectionMode by remember { mutableStateOf(false) }
+    var editingSetId by remember { mutableStateOf<Long?>(null) }
+    var selectionType by remember { mutableStateOf(PracticeSetType.CHARACTERS) }
+    var selectionScript by remember { mutableStateOf(activeScript) }
+    var showSetsManager by remember { mutableStateOf(false) }
+    var showNameDialog by remember { mutableStateOf(false) }
+
+    fun startNewSet() {
+        selectionType = if (selectedTab == 0) PracticeSetType.CHARACTERS else PracticeSetType.WORDS
+        selectionScript = activeScript
+        selectedValues.clear()
+        editingSetId = null
+        showScopeSheet = false
+        showSetsManager = false
+        selectionMode = true
+    }
+
+    fun startEditSet(set: PracticeSet) {
+        selectionType = set.type
+        selectionScript = set.script
+        selectedValues.clear()
+        selectedValues.addAll(set.members)
+        editingSetId = set.id
+        showSetsManager = false
+        selectionMode = true
+    }
+
+    fun exitSelection() {
+        // Any exit from selection — save, cancel (✕), or Back — lands on the
+        // Practice sets manager rather than the Library browse page, whether the
+        // set was new or edited.
+        selectionMode = false
+        editingSetId = null
+        selectedValues.clear()
+        showNameDialog = false
+        showSetsManager = true
+    }
+
+    // When a set-launched quiz closes, the ViewModel raises a one-shot so the
+    // library reopens the sets manager (the quiz decomposed this screen, losing
+    // its local showSetsManager). Act on it once, then clear it.
+    LaunchedEffect(openSetsManagerSignal) {
+        if (openSetsManagerSignal) {
+            showSetsManager = true
+            onConsumeOpenSetsManager()
+        }
+    }
 
     // While searching, system Back collapses the field instead of closing
     // the whole overlay (registered after PracticeScreen's close handler, so
@@ -168,26 +287,46 @@ fun LibraryScreen(
         searching = false
         query = ""
     }
+    // Selection mode / sets manager each capture Back to step back out of
+    // themselves rather than closing the whole library (LIFO — enabled only in
+    // their own state).
+    BackHandler(enabled = selectionMode) { exitSelection() }
+    BackHandler(enabled = showSetsManager) { showSetsManager = false }
 
     // Scope to the active script and the three opt-ins first (the selector +
     // toggles are the "what am I studying" controls), then apply the free-text
     // search on top. Both narrowings feed the tab match-count labels below.
-    val scriptCharacters = ScriptScope.scopedCharacters(
+    // Memoized: scoping walks the full merged deck applying per-glyph NFD/kind/
+    // yōon classification, so recomputing it on every recomposition (each scroll
+    // frame, each keystroke) is wasted main-thread work. Key on the actual inputs.
+    val scriptCharacters = remember(
         characters, activeScript, includeDiacritics, includeYoon, includeExtended,
-    )
-    val scriptWords = ScriptScope.scopedWords(
-        words, activeScript, includeDiacritics, includeYoon, includeExtended,
-    )
-    val trimmedQuery = query.trim()
-    val filteredCharacters = if (trimmedQuery.isEmpty()) {
-        scriptCharacters
-    } else {
-        scriptCharacters.filter { it.matches(trimmedQuery) }
+    ) {
+        ScriptScope.scopedCharacters(
+            characters, activeScript, includeDiacritics, includeYoon, includeExtended,
+        )
     }
-    val filteredWords = if (trimmedQuery.isEmpty()) {
-        scriptWords
-    } else {
-        scriptWords.filter { it.matches(trimmedQuery) }
+    val scriptWords = remember(
+        words, activeScript, includeDiacritics, includeYoon, includeExtended,
+    ) {
+        ScriptScope.scopedWords(
+            words, activeScript, includeDiacritics, includeYoon, includeExtended,
+        )
+    }
+    val trimmedQuery = query.trim()
+    val filteredCharacters = remember(scriptCharacters, trimmedQuery) {
+        if (trimmedQuery.isEmpty()) {
+            scriptCharacters
+        } else {
+            scriptCharacters.filter { it.matches(trimmedQuery) }
+        }
+    }
+    val filteredWords = remember(scriptWords, trimmedQuery) {
+        if (trimmedQuery.isEmpty()) {
+            scriptWords
+        } else {
+            scriptWords.filter { it.matches(trimmedQuery) }
+        }
     }
 
     // A dot on the Filter icon whenever scope differs from the beginner
@@ -204,7 +343,56 @@ fun LibraryScreen(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        when {
+            selectionMode -> SelectionModeContent(
+                type = selectionType,
+                editing = editingSetId != null,
+                characters = remember(characters, selectionScript) {
+                    characters.filter { it.script == selectionScript }
+                },
+                words = remember(words, selectionScript) {
+                    words.filter { it.script == selectionScript }
+                },
+                selectedValues = selectedValues,
+                onToggle = { value ->
+                    if (value in selectedValues) selectedValues.remove(value)
+                    else selectedValues.add(value)
+                },
+                onSetSelected = { value, selected ->
+                    if (selected) {
+                        if (value !in selectedValues) selectedValues.add(value)
+                    } else {
+                        selectedValues.remove(value)
+                    }
+                },
+                onSelectAll = { all ->
+                    selectedValues.clear()
+                    selectedValues.addAll(all)
+                },
+                onDeselectAll = { selectedValues.clear() },
+                onSave = { showNameDialog = true },
+                onCancel = { exitSelection() },
+            )
+
+            showSetsManager -> SetsManagerContent(
+                practiceSets = practiceSets,
+                scoreStats = scoreStats,
+                onClose = { showSetsManager = false },
+                onAddSet = { startNewSet() },
+                onEdit = { startEditSet(it) },
+                onRename = onRenameSet,
+                onDelete = onDeleteSet,
+                onQuiz = { id ->
+                    showSetsManager = false
+                    onLaunchSetQuiz(id)
+                },
+                onPractice = { id ->
+                    showSetsManager = false
+                    onPracticeSet(id)
+                },
+            )
+
+            else -> Column(modifier = Modifier.fillMaxSize()) {
             LibraryTopBar(
                 searching = searching,
                 query = query,
@@ -221,9 +409,11 @@ fun LibraryScreen(
                 onOpenScope = { showScopeSheet = true },
                 onStartQuiz = onStartQuiz,
                 onClose = onClose,
-                showViewToggle = !searching,
+                showViewToggle = true,
                 isGridView = isGridView,
                 onToggleView = { onSetGridView(!isGridView) },
+                brushInkColor = brushInkColor,
+                onSelectBrushColor = onSelectBrushColor,
             )
 
             TabRow(selectedTabIndex = selectedTab) {
@@ -243,11 +433,13 @@ fun LibraryScreen(
                 gridMode && selectedTab == 0 -> CharacterChart(
                     characters = filteredCharacters,
                     learnedCharacterIds = learnedCharacterIds,
+                    scoreStats = scoreStats,
                     onPracticeCharacter = onPracticeCharacter,
                 )
                 gridMode -> WordGrid(
                     words = filteredWords,
                     unlockedWordKana = unlockedWordKana,
+                    scoreStats = scoreStats,
                     pronunciation = pronunciation,
                     onPracticeWord = onPracticeWord,
                 )
@@ -277,13 +469,14 @@ fun LibraryScreen(
                                     "Not started"
                                 },
                                 statusHighlighted = character.id in learnedCharacterIds,
+                                score = scoreStats[character.character].avgScore(),
                             )
                         }
                         if (filteredCharacters.isEmpty()) {
                             item { NoMatchesMessage(trimmedQuery, "characters") }
                         }
                     } else {
-                        items(filteredWords, key = { it.kana }) { word ->
+                        items(filteredWords, key = { "${it.kana} ${it.meaning}" }) { word ->
                             LibraryRow(
                                 onClick = { onPracticeWord(word) },
                                 glyph = word.kana,
@@ -291,6 +484,7 @@ fun LibraryScreen(
                                 subtitle = pronunciation(word),
                                 status = if (word.kana in unlockedWordKana) "Unlocked" else "Locked",
                                 statusHighlighted = word.kana in unlockedWordKana,
+                                score = scoreStats[word.kana].avgScore(),
                             )
                         }
                         if (filteredWords.isEmpty()) {
@@ -309,12 +503,16 @@ fun LibraryScreen(
                     }
                 }
             }
+            }
         }
 
         if (showScopeSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showScopeSheet = false },
-                sheetState = rememberModalBottomSheetState(),
+                // Open straight to full content height (fit-content) instead of
+                // the half-expanded default that needed a drag/scroll to reveal
+                // everything; the content still caps at ~90% height with scroll.
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             ) {
                 ScopeSheetContent(
                     activeScript = activeScript,
@@ -325,8 +523,38 @@ fun LibraryScreen(
                     onToggleYoon = onToggleYoon,
                     includeExtended = includeExtended,
                     onToggleExtended = onToggleExtended,
+                    scoringMode = scoringMode,
+                    onSetScoringMode = onSetScoringMode,
+                    practiceSetCount = practiceSets.size,
+                    onAddPracticeSet = { startNewSet() },
+                    onSeePracticeSets = {
+                        showScopeSheet = false
+                        showSetsManager = true
+                    },
                 )
             }
+        }
+
+        if (showNameDialog) {
+            SetNameDialog(
+                initialName = editingSetId
+                    ?.let { id -> practiceSets.firstOrNull { it.id == id }?.name }
+                    .orEmpty(),
+                itemCount = selectedValues.size,
+                onConfirm = { name ->
+                    val members = selectedValues.toList()
+                    val id = editingSetId
+                    if (id == null) {
+                        onSaveSet(name, selectionType, selectionScript, members)
+                    } else {
+                        onUpdateSetMembers(id, members)
+                        onRenameSet(id, name)
+                    }
+                    // exitSelection() returns to the sets manager.
+                    exitSelection()
+                },
+                onDismiss = { showNameDialog = false },
+            )
         }
     }
 }
@@ -352,11 +580,17 @@ private fun LibraryTopBar(
     showViewToggle: Boolean,
     isGridView: Boolean,
     onToggleView: () -> Unit,
+    brushInkColor: Int,
+    onSelectBrushColor: (Int) -> Unit,
 ) {
     TopAppBar(
         windowInsets = WindowInsets(0, 0, 0, 0),
         navigationIcon = {
-            IconButton(onClick = onClose) {
+            // The 48dp IconButton centres its 24dp glyph, so the arrow tip sits
+            // ~20dp from the screen edge — further in than the trailing "Quiz
+            // me!" button's right edge. Nudge it left (fixed dp = same on every
+            // screen/density) so both edge insets read symmetric.
+            IconButton(onClick = onClose, modifier = Modifier.offset(x = BackArrowNudge)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Close library",
@@ -367,79 +601,144 @@ private fun LibraryTopBar(
             if (searching) {
                 val focusRequester = remember { FocusRequester() }
                 LaunchedEffect(Unit) { focusRequester.requestFocus() }
-                TextField(
+                // BasicTextField (not Material TextField) so the input is a
+                // single text-height line vertically centered like the title
+                // text and the action icons — the Material field reserves label
+                // space that pushed the text below the icon centers.
+                BasicTextField(
                     value = query,
                     onValueChange = onQueryChange,
                     modifier = Modifier
                         .fillMaxWidth()
+                        // Pull the "Search" text close to the arrow (same as "Library").
+                        .offset(x = TitleNudge)
                         .focusRequester(focusRequester),
-                    placeholder = { Text("Search romaji, kana, or meaning") },
                     singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
+                    textStyle = LocalTextStyle.current.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
                     ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorationBox = { innerTextField ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (query.isEmpty()) {
+                                Text(
+                                    text = "Search",
+                                    maxLines = 1,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            innerTextField()
+                        }
+                    },
                 )
             } else {
-                Text("Library")
+                // Shifted left by the same nudge as the back arrow so the gap
+                // between the arrow and "Library" is as tight as before the
+                // arrow moved. One line, never wrapped (ellipsizes on a very
+                // narrow device rather than stealing a second row).
+                Text(
+                    "Library",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.offset(x = TitleNudge),
+                )
             }
         },
+        // Compact the action cluster so the "Library" title keeps its room:
+        // drop the 48dp min-touch enforcement and size each icon button to
+        // 40dp (−8dp apiece), and give "Quiz me!" tighter padding. This frees
+        // ~40dp of title width, enough for "Library" on a normal phone; the
+        // title's ellipsis (above) covers the narrowest screens gracefully.
+        // Purely spacing — every action stays comfortably tappable at 40dp.
         actions = {
-            // List ⇄ chart(grid) view toggle. Shows the icon of the mode you'd
-            // switch TO; hidden while the search field is open (search is a list).
-            if (showViewToggle) {
-                IconButton(onClick = onToggleView) {
-                    if (isGridView) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.List,
-                            contentDescription = "List view",
-                        )
-                    } else {
-                        val glyphColor = LocalContentColor.current
-                        Canvas(
-                            modifier = Modifier.size(24.dp),
-                            contentDescription = "Chart view",
-                        ) {
-                            drawGridViewGlyph(glyphColor)
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                // Search FIRST (leftmost action): expanding the field replaces
+                // only the "Library" title text, and its close (✕) sits right
+                // beside the field. Keeping the view toggle to its right means
+                // search no longer swallows the grid/list selector.
+                IconButton(onClick = onToggleSearch, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = if (searching) Icons.Filled.Close else Icons.Filled.Search,
+                        contentDescription = if (searching) "Close search" else "Search",
+                    )
+                }
+                // List ⇄ chart(grid) view toggle. Shows the icon of the mode
+                // you'd switch TO; stays visible during search (search only
+                // covers the title text, not this selector).
+                if (showViewToggle) {
+                    IconButton(onClick = onToggleView, modifier = Modifier.size(40.dp)) {
+                        if (isGridView) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.List,
+                                contentDescription = "List view",
+                            )
+                        } else {
+                            val glyphColor = LocalContentColor.current
+                            Canvas(
+                                modifier = Modifier.size(24.dp),
+                                contentDescription = "Chart view",
+                            ) {
+                                drawGridViewGlyph(glyphColor)
+                            }
                         }
                     }
                 }
-            }
-            IconButton(onClick = onToggleSearch) {
-                Icon(
-                    imageVector = if (searching) Icons.Filled.Close else Icons.Filled.Search,
-                    contentDescription = if (searching) "Close search" else "Search",
-                )
-            }
-            BadgedBox(
-                badge = { if (scopeIsNonDefault) Badge() },
-            ) {
-                IconButton(onClick = onOpenScope) {
-                    val tuneColor = LocalContentColor.current
+                // Brush ink-color swatch → opens the HSV picker. A purely-visual
+                // personalization affordance; it lives here (not on the practice
+                // canvas chrome) so the drawing controls stay focused on drawing.
+                var showColorPicker by remember { mutableStateOf(false) }
+                IconButton(onClick = { showColorPicker = true }, modifier = Modifier.size(40.dp)) {
+                    val ink = Color(brushInkColor)
+                    val outline = LocalContentColor.current
                     Canvas(
-                        modifier = Modifier.size(24.dp),
-                        contentDescription = "Study scope",
+                        modifier = Modifier.size(22.dp),
+                        contentDescription = "Brush colour",
                     ) {
-                        drawTuneGlyph(tuneColor)
+                        drawCircle(ink)
+                        drawCircle(outline, style = Stroke(1.dp.toPx()))
                     }
                 }
-            }
-            // Entry to the write-from-memory quiz — it lives in the library
-            // because that's the ungated browse-anything space.
-            FilledTonalButton(
-                onClick = onStartQuiz,
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                modifier = Modifier.padding(end = 8.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Create,
-                    contentDescription = null,
-                    modifier = Modifier.size(ButtonDefaults.IconSize),
-                )
-                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                Text("Quiz me!")
+                if (showColorPicker) {
+                    BrushColorPicker(
+                        initial = Color(brushInkColor),
+                        onPick = {
+                            onSelectBrushColor(it.toArgb())
+                            showColorPicker = false
+                        },
+                        onDismiss = { showColorPicker = false },
+                    )
+                }
+                BadgedBox(
+                    badge = { if (scopeIsNonDefault) Badge() },
+                ) {
+                    IconButton(onClick = onOpenScope, modifier = Modifier.size(40.dp)) {
+                        val tuneColor = LocalContentColor.current
+                        Canvas(
+                            modifier = Modifier.size(24.dp),
+                            contentDescription = "Study scope",
+                        ) {
+                            drawTuneGlyph(tuneColor)
+                        }
+                    }
+                }
+                // Entry to the write-from-memory quiz — it lives in the library
+                // because that's the ungated browse-anything space.
+                FilledTonalButton(
+                    onClick = onStartQuiz,
+                    // More end than start padding so "Quiz me!" isn't crammed
+                    // against the button's right edge; a tighter icon→text gap
+                    // keeps the label close to the pencil.
+                    contentPadding = PaddingValues(start = 10.dp, end = 16.dp),
+                    modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Create,
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.IconSize),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Quiz me!")
+                }
             }
         },
     )
@@ -461,10 +760,21 @@ private fun ScopeSheetContent(
     onToggleYoon: (Boolean) -> Unit,
     includeExtended: Boolean,
     onToggleExtended: (Boolean) -> Unit,
+    scoringMode: ScoringMode,
+    onSetScoringMode: (ScoringMode) -> Unit,
+    practiceSetCount: Int,
+    onAddPracticeSet: () -> Unit,
+    onSeePracticeSets: () -> Unit,
 ) {
+    // Cap at ~90% of the screen and make the body scroll only if it overflows
+    // (short devices). On a normal screen the sheet — opened skipPartiallyExpanded
+    // — shows every option at once with no scrolling needed.
+    val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * 0.9f).dp
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(max = maxSheetHeight)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -508,8 +818,86 @@ private fun ScopeSheetContent(
             label = "Extended kana (っ ァ)",
             hint = "っ, ファ, ティ …",
         )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // How practice writing is judged (also used by the quiz). This is the
+        // one global scoring setting; the quiz setup card shows the same picker.
+        // "Off" means no score — and in FREE practice it drops the Submit step,
+        // leaving just Clear · Next (see FreePracticeActionBar).
+        Text(
+            text = "Score my writing",
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = "Form rewards correct shape and stroke order; Fit rewards " +
+                "filling the box. Off skips scoring (no Submit in practice).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SCORING_CHOICES.forEachIndexed { index, (mode, label) ->
+                SegmentedButton(
+                    selected = mode == scoringMode,
+                    onClick = { onSetScoringMode(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = SCORING_CHOICES.size,
+                    ),
+                    icon = {},
+                    label = { Text(label) },
+                )
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // Practice sets are hand-picked lists (an explicit membership), kept
+        // visually + conceptually separate from the declarative scope toggles
+        // above. "Add" enters selection mode on the current tab; "See existing"
+        // opens the manager.
+        Text(
+            text = "Practice sets",
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = "Save a hand-picked list of characters or words to quiz or " +
+                "practice later — separate from the scope filters above.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                onClick = onAddPracticeSet,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Add practice set")
+            }
+            OutlinedButton(
+                onClick = onSeePracticeSets,
+                enabled = practiceSetCount > 0,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    text = if (practiceSetCount > 0) "See sets ($practiceSetCount)" else "See sets",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
+
+/** The "Score my writing" choices, shown here and on the quiz setup card. */
+private val SCORING_CHOICES = listOf(
+    ScoringMode.FORM to "Form",
+    ScoringMode.FIT to "Fit",
+    ScoringMode.BOTH to "Both",
+    ScoringMode.OFF to "Off",
+)
 
 /** One opt-in: label + hint on the left, a [Switch] on the right. */
 @Composable
@@ -569,6 +957,28 @@ private fun DrawScope.drawTuneGlyph(color: Color) {
     drawCircle(color, knob, Offset(w * 0.64f, yBot))
 }
 
+/**
+ * A hand-drawn "sort" glyph — three left-aligned rounded lines of decreasing
+ * length — for the sets-manager sort menu (same hand-drawn-glyph convention as
+ * the tune/grid icons; avoids depending on `material-icons-extended`).
+ */
+private fun DrawScope.drawSortGlyph(color: Color) {
+    val x0 = size.width * 0.14f
+    val maxLen = size.width * 0.72f
+    val stroke = size.minDimension * 0.12f
+    val fractions = listOf(1f, 0.66f, 0.33f)
+    listOf(0.26f, 0.5f, 0.74f).forEachIndexed { i, yf ->
+        val y = size.height * yf
+        drawLine(
+            color = color,
+            start = Offset(x0, y),
+            end = Offset(x0 + maxLen * fractions[i], y),
+            strokeWidth = stroke,
+            cap = StrokeCap.Round,
+        )
+    }
+}
+
 /** A hand-drawn 2×2-squares glyph for the chart-view toggle (same convention). */
 private fun DrawScope.drawGridViewGlyph(color: Color) {
     val gap = size.minDimension * 0.16f
@@ -603,6 +1013,7 @@ private val ChartRowLabelWidth = 22.dp
 private fun CharacterChart(
     characters: List<HiraganaCharacter>,
     learnedCharacterIds: Set<String>,
+    scoreStats: Map<String, CharacterScoreSummary>,
     onPracticeCharacter: (HiraganaCharacter) -> Unit,
 ) {
     val chart = remember(characters) { KanaChartBuilder.build(characters) }
@@ -626,11 +1037,11 @@ private fun CharacterChart(
                     is TableSection -> {
                         item { ChartColumnLabels(section.columnLabels, cellSize) }
                         items(section.rows) { row ->
-                            ChartTableRow(row, cellSize, learnedCharacterIds, onPracticeCharacter)
+                            ChartTableRow(row, cellSize, learnedCharacterIds, scoreStats, onPracticeCharacter)
                         }
                     }
                     is FlowSection -> item {
-                        ChartCellFlow(section.cells, cellSize, learnedCharacterIds, onPracticeCharacter)
+                        ChartCellFlow(section.cells, cellSize, learnedCharacterIds, scoreStats, onPracticeCharacter)
                     }
                 }
             }
@@ -681,6 +1092,7 @@ private fun ChartTableRow(
     row: TableRow,
     cellSize: Dp,
     learnedCharacterIds: Set<String>,
+    scoreStats: Map<String, CharacterScoreSummary>,
     onPracticeCharacter: (HiraganaCharacter) -> Unit,
 ) {
     Row(
@@ -700,6 +1112,7 @@ private fun ChartTableRow(
                 ChartCell(
                     character = character,
                     learned = character.id in learnedCharacterIds,
+                    score = scoreStats[character.character].avgScore(),
                     onClick = { onPracticeCharacter(character) },
                     modifier = Modifier.size(cellSize),
                 )
@@ -721,6 +1134,7 @@ private fun ChartCellFlow(
     cells: List<HiraganaCharacter>,
     cellSize: Dp,
     learnedCharacterIds: Set<String>,
+    scoreStats: Map<String, CharacterScoreSummary>,
     onPracticeCharacter: (HiraganaCharacter) -> Unit,
 ) {
     FlowRow(
@@ -734,6 +1148,7 @@ private fun ChartCellFlow(
             ChartCell(
                 character = character,
                 learned = character.id in learnedCharacterIds,
+                score = scoreStats[character.character].avgScore(),
                 onClick = { onPracticeCharacter(character) },
                 modifier = Modifier.size(cellSize),
             )
@@ -741,136 +1156,221 @@ private fun ChartCellFlow(
     }
 }
 
+/**
+ * Insets for the TOP-RIGHT corner score (the other corners hold the glyph,
+ * wide for words / composite kana). The top is smaller than the end to
+ * visually balance the digits' font padding — text sits below its layout-box
+ * top and has side bearing — so it reads as equally spaced from both edges.
+ */
+private val ScoreInsetTop = 3.dp
+private val ScoreInsetEnd = 5.dp
+
+/**
+ * Leftward nudge for the app-bar back arrow so its visible tip is the same
+ * distance from the screen edge as the trailing "Quiz me!" button's right edge.
+ * A fixed dp (density-independent), so the symmetry holds on every screen.
+ */
+private val BackArrowNudge = (-7).dp
+
+/**
+ * Leftward offset for the title ("Library" / "Search") — larger than
+ * [BackArrowNudge] so the title sits closer to the arrow than the default
+ * nav-icon slot allows, roughly halving the arrow→text gap. Fixed dp, so the
+ * spacing is the same on every screen. The arrow keeps its own (smaller) nudge
+ * so its edge inset stays symmetric with the trailing button.
+ */
+private val TitleNudge = (-15).dp
+
+/**
+ * The corner score's text style with [includeFontPadding] off, so the text box
+ * hugs the digits (no reserved line ascent/descent). That makes an equal
+ * top/right inset read as visually equal — otherwise the built-in font padding
+ * adds an invisible band above the digits and the score looks top-heavy.
+ */
+private val ScoreTextStyle = TextStyle(
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+)
+
 /** One chart cell: glyph over tiny romaji, tinted when learned; taps to practice. */
 @Composable
 private fun ChartCell(
     character: HiraganaCharacter,
     learned: Boolean,
+    score: Int?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val container = if (learned) {
+    // Score tint takes precedence; otherwise keep the learned/unlearned tint.
+    val container = score?.let { scoreSpectrumColor(it) } ?: if (learned) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
         MaterialTheme.colorScheme.surfaceVariant
     }
-    Column(
+    Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(container)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 3.dp, vertical = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .clickable(onClick = onClick),
     ) {
-        Text(
-            // 2-codepoint kana (きゃ, ファ) get a smaller size so they fit the
-            // fixed cell without clipping.
-            text = character.character,
-            fontSize = if (character.character.length > 1) 16.sp else 22.sp,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = character.romaji,
-            fontSize = 9.sp,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 3.dp, vertical = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                // 2-codepoint kana (きゃ, ファ) get a smaller size so they fit the
+                // fixed cell without clipping.
+                text = character.character,
+                fontSize = if (character.character.length > 1) 16.sp else 22.sp,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = character.romaji,
+                fontSize = 11.sp,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (score != null) {
+            Text(
+                text = "$score",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = ScoreTextStyle,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = ScoreInsetTop, end = ScoreInsetEnd),
+            )
+        }
     }
 }
 
 /**
- * The Words grid: a wrapping [FlowRow] of content-sized cards, so a long word
- * (ありがとう / パーティー) simply takes the width it needs and wraps — no fixed
- * grid squares to clip it. Unlocked words are tinted; every card taps into
- * free practice.
+ * The Words grid: a [LazyVerticalGrid] of adaptive-width cards, so a long word
+ * (ありがとう / パーティー) fits its cell and the grid only composes/measures the
+ * cards actually on screen (vs. building all ~250 up front — the old eager
+ * [FlowRow] stuttered while scrolling). Unlocked words are tinted; every card
+ * taps into free practice.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WordGrid(
     words: List<VocabularyWord>,
     unlockedWordKana: Set<String>,
+    scoreStats: Map<String, CharacterScoreSummary>,
     pronunciation: (VocabularyWord) -> String,
     onPracticeWord: (VocabularyWord) -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-    ) {
-        if (words.isEmpty()) {
+    if (words.isEmpty()) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             NoMatchesMessage("", "words")
-            return@Column
         }
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            words.forEach { word ->
-                WordCard(
-                    word = word,
-                    romaji = pronunciation(word),
-                    unlocked = word.kana in unlockedWordKana,
-                    onClick = { onPracticeWord(word) },
-                )
-            }
+        return
+    }
+    // Precompute the reading for every word ONCE per list, off the scroll hot
+    // path. Keyed on `words` ONLY: `pronunciation` is a fresh method reference
+    // (uiState::pronunciationOf) each recomposition, so keying on it would defeat
+    // the memo and re-run this whole O(words) build on every recomposition.
+    val romajiByKana = remember(words) {
+        words.associate { it.kana to pronunciation(it) }
+    }
+    // Adaptive columns reproduce the old FlowRow wrapping; 84.dp ≈ the cards'
+    // 76.dp min width plus breathing room.
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 84.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        gridItems(words, key = { "${it.kana} ${it.meaning}" }, contentType = { "wordCard" }) { word ->
+            WordCard(
+                kana = word.kana,
+                meaning = word.meaning,
+                romaji = romajiByKana[word.kana].orEmpty(),
+                unlocked = word.kana in unlockedWordKana,
+                score = scoreStats[word.kana].avgScore(),
+                onClick = { onPracticeWord(word) },
+            )
         }
-        Text(
-            text = "Tap any word to practice it freely — grades here don't " +
-                "affect your review schedule.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 12.dp),
-        )
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text(
+                text = "Tap any word to practice it freely — grades here don't " +
+                    "affect your review schedule.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
     }
 }
 
 @Composable
 private fun WordCard(
-    word: VocabularyWord,
+    kana: String,
+    meaning: String,
     romaji: String,
     unlocked: Boolean,
+    score: Int?,
     onClick: () -> Unit,
 ) {
-    val container = if (unlocked) {
+    // Score tint takes precedence; otherwise keep the unlocked/locked tint.
+    val container = score?.let { scoreSpectrumColor(it) } ?: if (unlocked) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
         MaterialTheme.colorScheme.surfaceVariant
     }
-    Column(
+    Box(
         modifier = Modifier
+            .fillMaxWidth()
             .defaultMinSize(minWidth = 76.dp)
             .heightIn(min = 72.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(container)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.Center,
+            .clickable(onClick = onClick),
     ) {
-        Text(
-            text = word.kana,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        // Reading between the kana and the meaning (e.g. かう / ka u / to buy).
-        Text(
-            text = romaji,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = word.meaning,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text(
+                text = kana,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            // Reading between the kana and the meaning (e.g. かう / ka u / to buy).
+            Text(
+                text = romaji,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = meaning,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        if (score != null) {
+            Text(
+                text = "$score",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = ScoreTextStyle,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = ScoreInsetTop, end = ScoreInsetEnd),
+            )
+        }
     }
 }
 
@@ -913,8 +1413,13 @@ private fun LibraryRow(
     subtitle: String,
     status: String,
     statusHighlighted: Boolean,
+    score: Int?,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    // Tint the whole row by score when available; otherwise the default card color.
+    val cardColors = score?.let {
+        CardDefaults.cardColors(containerColor = scoreSpectrumColor(it))
+    } ?: CardDefaults.cardColors()
+    Card(modifier = Modifier.fillMaxWidth(), colors = cardColors) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -955,4 +1460,671 @@ private fun LibraryRow(
             )
         }
     }
+}
+
+// ---- Practice-set selection mode & manager -----------------------------
+
+/** One selectable entry (character glyph or word kana) shown during selection. */
+private data class SelectionRow(val value: String, val glyph: String, val label: String)
+
+/**
+ * Selection mode: the FULL list for one tab+script (ignoring the Study Scope
+ * opt-ins), with a selection header bar (live count, Select all / Deselect all
+ * / Save) replacing the normal chrome. A plain tap toggles a row; a drag across
+ * rows toggles a range immediately (no hold delay) and auto-scrolls near the
+ * edges so long lists stay reachable in one gesture.
+ */
+@Composable
+private fun SelectionModeContent(
+    type: PracticeSetType,
+    editing: Boolean,
+    characters: List<HiraganaCharacter>,
+    words: List<VocabularyWord>,
+    selectedValues: List<String>,
+    onToggle: (String) -> Unit,
+    onSetSelected: (String, Boolean) -> Unit,
+    onSelectAll: (List<String>) -> Unit,
+    onDeselectAll: () -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val rows = remember(type, characters, words) {
+        if (type == PracticeSetType.CHARACTERS) {
+            characters.map { SelectionRow(it.character, it.character, it.romaji) }
+        } else {
+            words.map { SelectionRow(it.kana, it.kana, it.meaning) }
+        }
+    }
+    // O(1) membership for the rows (the backing list's .contains is O(n)); this
+    // read also subscribes the list to selection changes so rows recompose.
+    val selectedSet = selectedValues.toSet()
+    val noun = if (type == PracticeSetType.CHARACTERS) "characters" else "words"
+
+    var gridView by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            IconButton(onClick = onCancel) {
+                Icon(imageVector = Icons.Filled.Close, contentDescription = "Cancel selection")
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    // Up to two lines so the title is always fully visible even
+                    // when the toolbar actions squeeze the column; the "N selected"
+                    // line below carries the count.
+                    text = if (editing) "Edit $noun" else "Select $noun",
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${selectedValues.size} selected",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // List ⇄ grid toggle for the selectable items (shows the mode you'd
+            // switch TO, same convention as the Library's view toggle). Tap and
+            // drag-select behave identically in both layouts.
+            IconButton(onClick = { gridView = !gridView }, modifier = Modifier.size(40.dp)) {
+                if (gridView) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.List,
+                        contentDescription = "List view",
+                    )
+                } else {
+                    val glyphColor = LocalContentColor.current
+                    Canvas(modifier = Modifier.size(22.dp), contentDescription = "Grid view") {
+                        drawGridViewGlyph(glyphColor)
+                    }
+                }
+            }
+            TextButton(
+                onClick = { onSelectAll(rows.map { it.value }) },
+                contentPadding = PaddingValues(horizontal = 8.dp),
+            ) { Text("All") }
+            TextButton(
+                onClick = onDeselectAll,
+                contentPadding = PaddingValues(horizontal = 8.dp),
+            ) { Text("None") }
+            Button(
+                onClick = onSave,
+                enabled = selectedValues.isNotEmpty(),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+            ) { Text("Save") }
+        }
+        HorizontalDivider()
+        if (gridView) {
+            SelectableGrid(rows, selectedSet, onToggle, onSetSelected)
+        } else {
+            SelectableList(rows, selectedSet, onToggle, onSetSelected)
+        }
+    }
+}
+
+/**
+ * The list layout for selection mode: one full-width [SelectableRow] per item.
+ * Tap toggles; a vertical drag toggles a range immediately (no hold delay) and
+ * auto-scrolls near the top/bottom edge so long lists stay reachable.
+ */
+@Composable
+private fun SelectableList(
+    rows: List<SelectionRow>,
+    selectedSet: Set<String>,
+    onToggle: (String) -> Unit,
+    onSetSelected: (String, Boolean) -> Unit,
+) {
+    val listState = rememberLazyListState()
+    // pointerInput is keyed only on `rows` (re-keying on the selection would cancel an
+    // in-progress drag), so read the selection through rememberUpdatedState to avoid a
+    // stale closure inverting drag-to-deselect after the first selection.
+    val liveSelected by rememberUpdatedState(selectedSet)
+    var dragTarget by remember { mutableStateOf(true) }
+    var dragActive by remember { mutableStateOf(false) }
+    var lastDragIndex by remember { mutableStateOf(-1) }
+    var pointerY by remember { mutableStateOf(0f) }
+    var viewportHeight by remember { mutableStateOf(0) }
+
+    fun indexAt(y: Float): Int? =
+        listState.layoutInfo.visibleItemsInfo
+            .firstOrNull { y >= it.offset && y <= it.offset + it.size }?.index
+
+    fun applyRange(toIndex: Int) {
+        if (toIndex < 0 || toIndex >= rows.size) return
+        val from = if (lastDragIndex < 0) toIndex else lastDragIndex
+        val range = if (toIndex >= from) from..toIndex else toIndex..from
+        for (i in range) onSetSelected(rows[i].value, dragTarget)
+        lastDragIndex = toIndex
+    }
+
+    LaunchedEffect(dragActive) {
+        if (!dragActive) return@LaunchedEffect
+        while (dragActive) {
+            val h = viewportHeight.toFloat()
+            if (h > 0f) {
+                val delta = when {
+                    pointerY < h * 0.12f -> -h * 0.03f
+                    pointerY > h * 0.88f -> h * 0.03f
+                    else -> 0f
+                }
+                if (delta != 0f) {
+                    listState.scrollBy(delta)
+                    indexAt(pointerY)?.let { applyRange(it) }
+                }
+            }
+            withFrameNanos { }
+        }
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { viewportHeight = it.height }
+            .pointerInput(rows) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val idx = indexAt(offset.y)
+                        if (idx != null) {
+                            dragTarget = rows[idx].value !in liveSelected
+                            lastDragIndex = -1
+                            pointerY = offset.y
+                            dragActive = true
+                            applyRange(idx)
+                        }
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        pointerY = change.position.y
+                        indexAt(change.position.y)?.let { applyRange(it) }
+                    },
+                    onDragEnd = { dragActive = false; lastDragIndex = -1 },
+                    onDragCancel = { dragActive = false; lastDragIndex = -1 },
+                )
+            },
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(rows, key = { "${it.value} ${it.label}" }) { row ->
+            SelectableRow(
+                glyph = row.glyph,
+                label = row.label,
+                selected = row.value in selectedSet,
+                onClick = { onToggle(row.value) },
+            )
+        }
+    }
+}
+
+/**
+ * The grid layout for selection mode: compact square cells that wrap. Tap
+ * toggles; a drag sweeps a range (in reading order) immediately, with the same
+ * edge auto-scroll as the list.
+ */
+@Composable
+private fun SelectableGrid(
+    rows: List<SelectionRow>,
+    selectedSet: Set<String>,
+    onToggle: (String) -> Unit,
+    onSetSelected: (String, Boolean) -> Unit,
+) {
+    val gridState = rememberLazyGridState()
+    // pointerInput is keyed only on `rows` (re-keying on the selection would cancel an
+    // in-progress drag), so read the selection through rememberUpdatedState to avoid a
+    // stale closure inverting drag-to-deselect after the first selection.
+    val liveSelected by rememberUpdatedState(selectedSet)
+    var dragTarget by remember { mutableStateOf(true) }
+    var dragActive by remember { mutableStateOf(false) }
+    var lastDragIndex by remember { mutableStateOf(-1) }
+    var pointerX by remember { mutableStateOf(0f) }
+    var pointerY by remember { mutableStateOf(0f) }
+    var viewportHeight by remember { mutableStateOf(0) }
+
+    fun indexAt(x: Float, y: Float): Int? =
+        gridState.layoutInfo.visibleItemsInfo.firstOrNull { info ->
+            x >= info.offset.x && x <= info.offset.x + info.size.width &&
+                y >= info.offset.y && y <= info.offset.y + info.size.height
+        }?.index
+
+    fun applyRange(toIndex: Int) {
+        if (toIndex < 0 || toIndex >= rows.size) return
+        val from = if (lastDragIndex < 0) toIndex else lastDragIndex
+        val range = if (toIndex >= from) from..toIndex else toIndex..from
+        for (i in range) onSetSelected(rows[i].value, dragTarget)
+        lastDragIndex = toIndex
+    }
+
+    LaunchedEffect(dragActive) {
+        if (!dragActive) return@LaunchedEffect
+        while (dragActive) {
+            val h = viewportHeight.toFloat()
+            if (h > 0f) {
+                val delta = when {
+                    pointerY < h * 0.12f -> -h * 0.03f
+                    pointerY > h * 0.88f -> h * 0.03f
+                    else -> 0f
+                }
+                if (delta != 0f) {
+                    gridState.scrollBy(delta)
+                    indexAt(pointerX, pointerY)?.let { applyRange(it) }
+                }
+            }
+            withFrameNanos { }
+        }
+    }
+
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 68.dp),
+        state = gridState,
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { viewportHeight = it.height }
+            .pointerInput(rows) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val idx = indexAt(offset.x, offset.y)
+                        if (idx != null) {
+                            dragTarget = rows[idx].value !in liveSelected
+                            lastDragIndex = -1
+                            pointerX = offset.x
+                            pointerY = offset.y
+                            dragActive = true
+                            applyRange(idx)
+                        }
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        pointerX = change.position.x
+                        pointerY = change.position.y
+                        indexAt(change.position.x, change.position.y)?.let { applyRange(it) }
+                    },
+                    onDragEnd = { dragActive = false; lastDragIndex = -1 },
+                    onDragCancel = { dragActive = false; lastDragIndex = -1 },
+                )
+            },
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        gridItems(rows, key = { "${it.value} ${it.label}" }) { row ->
+            SelectableGridCell(
+                glyph = row.glyph,
+                label = row.label,
+                selected = row.value in selectedSet,
+                onClick = { onToggle(row.value) },
+            )
+        }
+    }
+}
+
+/** One selectable grid cell: glyph over tiny label, tinted + checked when selected. */
+@Composable
+private fun SelectableGridCell(
+    glyph: String,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val container = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(8.dp))
+            .background(container)
+            .clickable(onClick = onClick),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 3.dp, vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = glyph,
+                fontSize = if (glyph.length > 1) 18.sp else 24.sp,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(2.dp)
+                    .size(16.dp),
+            )
+        }
+    }
+}
+
+/** One row in selection mode: a checkbox, the glyph, and its reading/meaning. */
+@Composable
+private fun SelectableRow(
+    glyph: String,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val container = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = container),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Checkbox(checked = selected, onCheckedChange = { onClick() })
+            Text(
+                text = glyph,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/**
+ * The saved-sets manager: list every set with actions to quiz it, practice it
+ * (no scoring side effects), edit its membership, rename, or delete.
+ */
+@Composable
+private fun SetsManagerContent(
+    practiceSets: List<PracticeSet>,
+    scoreStats: Map<String, CharacterScoreSummary>,
+    onClose: () -> Unit,
+    onAddSet: () -> Unit,
+    onEdit: (PracticeSet) -> Unit,
+    onRename: (Long, String) -> Unit,
+    onDelete: (Long) -> Unit,
+    onQuiz: (Long) -> Unit,
+    onPractice: (Long) -> Unit,
+) {
+    var sortMode by remember { mutableStateOf(SetSort.NAME_ASC) }
+    // Each set's average score (null = no scored members), computed once and
+    // reused for both sorting and the per-row badge.
+    val scoreOf = remember(practiceSets, scoreStats) {
+        practiceSets.associate { it.id to setAverage(it, scoreStats) }
+    }
+    val sortedSets = remember(practiceSets, sortMode, scoreOf) {
+        when (sortMode) {
+            SetSort.NAME_ASC -> practiceSets.sortedBy { it.name.lowercase() }
+            SetSort.NAME_DESC -> practiceSets.sortedByDescending { it.name.lowercase() }
+            // Unscored sets sort to the end in both directions.
+            SetSort.SCORE_DESC -> practiceSets.sortedByDescending { scoreOf[it.id] ?: Int.MIN_VALUE }
+            SetSort.SCORE_ASC -> practiceSets.sortedBy { scoreOf[it.id] ?: Int.MAX_VALUE }
+        }
+    }
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                )
+            }
+            Text(
+                text = "Practice sets",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.weight(1f),
+            )
+            if (practiceSets.size > 1) {
+                SetSortMenu(sortMode = sortMode, onSelect = { sortMode = it })
+            }
+            TextButton(onClick = onAddSet) {
+                Text("New", style = MaterialTheme.typography.titleMedium)
+            }
+        }
+        HorizontalDivider()
+        if (practiceSets.isEmpty()) {
+            Text(
+                text = "No saved sets yet. Tap “New”, or open a tab and use " +
+                    "“Add practice set” in the Study scope sheet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(16.dp),
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(sortedSets, key = { it.id }) { set ->
+                    SetManagerRow(
+                        set = set,
+                        score = scoreOf[set.id],
+                        onEdit = { onEdit(set) },
+                        onRename = { name -> onRename(set.id, name) },
+                        onDelete = { onDelete(set.id) },
+                        onQuiz = { onQuiz(set.id) },
+                        onPractice = { onPractice(set.id) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Sort orders for the practice-sets manager. */
+private enum class SetSort { NAME_ASC, NAME_DESC, SCORE_DESC, SCORE_ASC }
+
+/**
+ * Average of a set's members' scored history (avgForm ?: avgFit), over members
+ * that have any scored attempt; null when none are scored. Same source as the
+ * char/word cards, so scoring-off runs (which record nothing) never contribute.
+ */
+private fun setAverage(set: PracticeSet, scoreStats: Map<String, CharacterScoreSummary>): Int? =
+    set.members.mapNotNull { scoreStats[it].avgScore() }
+        .let { if (it.isEmpty()) null else it.average().roundToInt() }
+
+/** The sort icon + dropdown of the four orders, with a check on the active one. */
+@Composable
+private fun SetSortMenu(sortMode: SetSort, onSelect: (SetSort) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.size(40.dp)) {
+            val color = LocalContentColor.current
+            Canvas(modifier = Modifier.size(22.dp), contentDescription = "Sort sets") {
+                drawSortGlyph(color)
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            SET_SORT_OPTIONS.forEach { (mode, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        onSelect(mode)
+                        expanded = false
+                    },
+                    trailingIcon = if (mode == sortMode) {
+                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                    } else {
+                        null
+                    },
+                )
+            }
+        }
+    }
+}
+
+private val SET_SORT_OPTIONS = listOf(
+    SetSort.NAME_ASC to "Name: A → Z",
+    SetSort.NAME_DESC to "Name: Z → A",
+    SetSort.SCORE_DESC to "Score: High → Low",
+    SetSort.SCORE_ASC to "Score: Low → High",
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SetManagerRow(
+    set: PracticeSet,
+    score: Int?,
+    onEdit: () -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit,
+    onQuiz: () -> Unit,
+    onPractice: () -> Unit,
+) {
+    var showRename by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val kindLabel = if (set.type == PracticeSetType.WORDS) "words" else "characters"
+    // Tint the whole card by the set's average score, matching the char/word cards.
+    val cardColors = score?.let {
+        CardDefaults.cardColors(containerColor = scoreSpectrumColor(it))
+    } ?: CardDefaults.cardColors()
+    Card(modifier = Modifier.fillMaxWidth(), colors = cardColors) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = set.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    // Leave room for the corner score so a long name can't collide.
+                    modifier = Modifier.padding(end = 28.dp),
+                )
+                Text(
+                    text = "${set.members.size} $kindLabel · ${set.script.displayLabel}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onQuiz) { Text("Quiz") }
+                    TextButton(onClick = onPractice) { Text("Practice") }
+                    TextButton(onClick = onEdit) { Text("Edit") }
+                    TextButton(onClick = { showRename = true }) { Text("Rename") }
+                    TextButton(onClick = { showDeleteConfirm = true }) { Text("Delete") }
+                }
+            }
+            if (score != null) {
+                Text(
+                    text = "$score",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = ScoreTextStyle,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 12.dp, end = 16.dp),
+                )
+            }
+        }
+    }
+
+    if (showRename) {
+        SetNameDialog(
+            initialName = set.name,
+            itemCount = set.members.size,
+            onConfirm = { name ->
+                onRename(name)
+                showRename = false
+            },
+            onDismiss = { showRename = false },
+        )
+    }
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete “${set.name}”?") },
+            text = { Text("This removes the saved set. Your practice history isn't affected.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete()
+                    },
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+/** Prompts for a set name on save (new set) or rename (existing set). */
+@Composable
+private fun SetNameDialog(
+    initialName: String,
+    itemCount: Int,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf(initialName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initialName.isEmpty()) "Name this set" else "Save set") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Set name") },
+                    singleLine = true,
+                )
+                Text(
+                    text = "$itemCount item${if (itemCount == 1) "" else "s"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
+                enabled = name.isNotBlank(),
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }

@@ -33,15 +33,17 @@ Since the post-Phase-3 stroke rework, the `strokes[]` geometry in those assets i
 <http://kanjivg.tagaini.net>) rather than hand-authored — see the import
 pipeline in §1; yōon and extended-katakana composites have no single KanjiVG
 file, so their strokes are **composed** from the base kana + a small kana. Room
-is **v3** and **unchanged by the content additions above**: those characters
+is **v4** and **unchanged by the content additions above**: those characters
 (ids like `kata_a`, `ga`, `kya`, `kata_fu_a`, `sokuon`) and words are just new
-rows in the existing tables — no migration. The schema itself grew twice: the
+rows in the existing tables — no migration. The schema itself grew three times: the
 Phase 3 v1→v2 migration renamed the original graded-attempts table to
 `practice_history` and added three tables for spaced-repetition state,
 introduction progress, and vocabulary unlocks; a later v2→v3 migration added
-three nullable handwriting-score columns to `practice_history` (§5). No network,
-no user-editable data; the two migrations (`MIGRATION_1_2`, `MIGRATION_2_3`) are
-the project's only ones.
+three nullable handwriting-score columns to `practice_history`; and a v3→v4
+migration added two tables for **practice sets** — user-curated lists of
+characters or words (§5). No network, no user-editable *asset* data; the three
+migrations (`MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`) are the project's
+only ones.
 
 [Script]: ../app/src/main/java/com/hive/hiragana/domain/model/Script.kt
 [KanaKind]: ../app/src/main/java/com/hive/hiragana/domain/model/KanaKind.kt
@@ -419,21 +421,22 @@ and `vocabulary_progress` tables one-for-one (§5).
 
 ## 5. Room persistence
 
-All in `app/src/main/java/com/hive/hiragana/data/local/`. The schema is at **v3**.
+All in `app/src/main/java/com/hive/hiragana/data/local/`. The schema is at **v4**.
 **Phase 3 upgraded the database from v1 to v2** — additive changes plus one rename,
-via a real `Migration`, no destructive fallback — and a later handwriting-scoring
-change upgraded **v2 to v3**, purely additive (three nullable columns).
+via a real `Migration`, no destructive fallback — a later handwriting-scoring
+change upgraded **v2 to v3**, purely additive (three nullable columns), and the
+practice-sets feature upgraded **v3 to v4**, purely additive (two new tables).
 
 ### Database
 
-`HiraganaDatabase` — `version = 3` (was 1, then 2), **`exportSchema = true`** (was
+`HiraganaDatabase` — `version = 4` (was 1, then 2, then 3), **`exportSchema = true`** (was
 `false` — this closes a wart §7 had flagged since Phase 1), file name
 `"hiragana-practice.db"` (unchanged), built via the `HiraganaDatabase.build(context)`
-companion helper (`Room.databaseBuilder(...).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()`).
+companion helper (`Room.databaseBuilder(...).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()`).
 Instantiated lazily in `AppContainer`. The exported schema history is committed at
-`app/schemas/com.hive.hiragana.data.local.HiraganaDatabase/` — both `2.json` and
-`3.json` exist; future schema changes must add a new numbered file here via a real
-`Migration`, never a destructive fallback.
+`app/schemas/com.hive.hiragana.data.local.HiraganaDatabase/` — `2.json`, `3.json`,
+and `4.json` all exist; future schema changes must add a new numbered file here via a
+real `Migration`, never a destructive fallback.
 
 ### `MIGRATION_1_2`
 
@@ -489,11 +492,47 @@ ALTER TABLE practice_history ADD COLUMN recognition_score REAL;
 ```
 
 The columns are **nullable with no default**, so every existing row (and every future
-row where scoring was off, unavailable, or the attempt was a whole word rather than a
-single character) reads back as "unscored" (`NULL`). These persist the advisory
+unscored row — a multi-copy 2×2/3×3 layout, or the unscorable-word fallback row) reads
+back as "unscored" (`NULL`). Scored single-character rows and, since the per-kana word
+change, both the per-kana word rows and the word-level average row carry non-null
+form/fit (see §6). These persist the advisory
 handwriting score alongside each attempt (§4/§5 entity below); they never feed the SRS
 scheduler or any gate — the score is coaching feedback only. `HiraganaDatabase.build`
-registers both migrations (`.addMigrations(MIGRATION_1_2, MIGRATION_2_3)`).
+registers all three migrations (`.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)`).
+
+### `MIGRATION_3_4`
+
+A single `Migration(3, 4)` object (the **practice-sets** feature — user-curated lists
+of characters or words), **purely additive** — two new tables, no rename, no touch to
+any existing data:
+
+```sql
+CREATE TABLE IF NOT EXISTS `practice_sets` (
+    `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    `name` TEXT NOT NULL,
+    `type` TEXT NOT NULL,
+    `script` TEXT NOT NULL,
+    `createdAt` INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS `practice_set_items` (
+    `itemId` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    `setId` INTEGER NOT NULL,
+    `value` TEXT NOT NULL,
+    `position` INTEGER NOT NULL,
+    FOREIGN KEY(`setId`) REFERENCES `practice_sets`(`id`)
+        ON UPDATE NO ACTION ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS `index_practice_set_items_setId`
+    ON `practice_set_items` (`setId`);
+```
+
+A set's members live in `practice_set_items` rows keyed by `setId`, deleted with their
+parent set via the `ON DELETE CASCADE` foreign key; the `index_practice_set_items_setId`
+index backs the relation read. Practice sets are plain user data (an explicit membership
+list, not SRS state), so no clock injection is involved. The tables start empty on any
+v3 database — nothing to backfill.
 
 ### Table: `practice_history` (`PracticeAttemptEntity`) — renamed from `practice_attempts`
 
@@ -507,8 +546,8 @@ registers both migrations (`.addMigrations(MIGRATION_1_2, MIGRATION_2_3)`).
 | `duration_ms` | `INTEGER` | `durationMs: Long` | |
 | `created_at` | `INTEGER` | `createdAt: Long` | Epoch ms; the read query sorts by this |
 | `source` | `TEXT` | `source: String = "FREE"` | **Phase 3.** `PracticeSource` enum stored as its `name`; `@ColumnInfo(defaultValue = "FREE")` backs the migration's `DEFAULT 'FREE'` |
-| `form_score` | `REAL`, nullable | `formScore: Float? = null` | **v3.** FORM dial (0..100) of the advisory handwriting score; `NULL` for pre-v3 rows, word attempts, and when scoring was off/unavailable |
-| `fit_score` | `REAL`, nullable | `fitScore: Float? = null` | **v3.** FIT dial (0..100); `NULL` under the same conditions as `form_score` |
+| `form_score` | `REAL`, nullable | `formScore: Float? = null` | **v3.** FORM dial (0..100) of the advisory handwriting score; `NULL` for pre-v3 rows and unscored rows (multi-copy 2×2/3×3 layouts, the unscorable-word fallback row). Set on scored **per-kana word rows** and the **word-level average row** too — see the per-kana word behavior in §6 |
+| `fit_score` | `REAL`, nullable | `fitScore: Float? = null` | **v3.** FIT dial (0..100); set/`NULL` under the same conditions as `form_score` |
 | `recognition_score` | `REAL`, nullable | `recognitionScore: Float? = null` | **v3.** ML Kit recognition sub-score (0..100); `NULL` when recognition didn't run |
 
 No indices beyond the primary key. No foreign keys (characters live in
@@ -522,6 +561,7 @@ history/stats readout and the Library's per-character score summary.
 |---|---|---|
 | `insert` | `@Insert suspend fun insert(attempt: PracticeAttemptEntity): Long` | Returns the new row id (return value ignored by the caller) |
 | `observeAll` | `@Query("SELECT * FROM practice_history ORDER BY created_at DESC") fun observeAll(): Flow<List<PracticeAttemptEntity>>` | Table name updated for the rename; newest first; **no current subscriber** (see §6) |
+| `observeScoreStats` | `fun observeScoreStats(): Flow<List<CharacterScoreStats>>` | Per-glyph quality aggregates for the Library, `GROUP BY character` over `AVG/MAX(form_score)`, `AVG/MAX(fit_score)`, `COUNT(*)`, `WHERE form_score IS NOT NULL`. The `NOT NULL` filter keeps unscored and pre-v3 rows out; **scored per-kana word rows and word-level average rows DO pass it**, so both feed the per-glyph squares and the word card (see §6) |
 
 ### Repository: `RoomPracticeRepository`
 
@@ -588,6 +628,63 @@ round trip.
 **Repository (`RoomVocabularyRepository`)**: implements `VocabularyRepository`
 (`getWords` — described in §3 — plus `getProgress`, `unlock`, `recordPractice` over this
 table).
+
+### Table: `practice_sets` (`PracticeSetEntity`) — v4
+
+One saved practice set's header (`data/local/PracticeSetEntity.kt`). A set is a
+**user-curated, hand-picked list** of characters or words, saved so it can be quizzed
+or free-practiced later — deliberately distinct from the declarative Study Scope
+opt-ins (a set is an explicit membership list, not a filter config).
+
+| Column | SQL type | Entity property | Notes |
+|---|---|---|---|
+| `id` | `INTEGER` PRIMARY KEY AUTOINCREMENT (`autoGenerate = true`) | `id: Long = 0L` | 0 until Room assigns it |
+| `name` | `TEXT` | `name: String` | User-chosen set name |
+| `type` | `TEXT` | `type: String` | **`PracticeSetType` enum stored as its `name`** (`"CHARACTERS"`/`"WORDS"`) — decides how members resolve (a glyph vs a whole word's kana). `PracticeSetType.fromKey` decodes it, falling back to `CHARACTERS` on unknown/null |
+| `script` | `TEXT` | `script: String` | **`Script` enum stored as its `key`** — the writing system the set was built in (selection is always scoped to one script) |
+| `createdAt` | `INTEGER` | `createdAt: Long` | `System.currentTimeMillis()` epoch ms, stamped in the repository; the observe query sorts by this |
+
+### Table: `practice_set_items` (`PracticeSetItemEntity`) — v4
+
+One member of a practice set (same file). Deleted with its parent set via
+`ForeignKey.CASCADE`.
+
+| Column | SQL type | Entity property | Notes |
+|---|---|---|---|
+| `itemId` | `INTEGER` PRIMARY KEY AUTOINCREMENT (`autoGenerate = true`) | `itemId: Long = 0L` | |
+| `setId` | `INTEGER`, indexed, FK → `practice_sets(id)` `ON DELETE CASCADE` | `setId: Long` | Which set this member belongs to |
+| `value` | `TEXT` | `value: String` | The member key — the glyph for a `CHARACTERS` set, the word's kana for a `WORDS` set |
+| `position` | `INTEGER` | `position: Int` | Preserves the order the user selected members in |
+
+`PracticeSetWithItems` (a `@Relation`, same file) reads a header plus its member rows
+together via `@Embedded val set` + `@Relation(parentColumn = "id", entityColumn = "setId")`.
+
+### DAO: `PracticeSetDao` — v4
+
+`data/local/PracticeSetDao.kt`. Only used through `RoomPracticeSetRepository`.
+
+| Method | Signature | Notes |
+|---|---|---|
+| `observeSetsWithItems` | `@Transaction @Query("SELECT * FROM practice_sets ORDER BY createdAt DESC") fun observeSetsWithItems(): Flow<List<PracticeSetWithItems>>` | Newest first; observed as a `Flow` so the Study Scope sheet and Quiz-me source picker stay live as sets change. `@Transaction` because it fans out to the member rows |
+| `insertSet` | `@Insert suspend fun insertSet(set): Long` | Returns the new set id |
+| `insertItems` | `@Insert suspend fun insertItems(items)` | |
+| `deleteItems` | `@Query("DELETE FROM practice_set_items WHERE setId = :setId") suspend fun deleteItems(setId)` | |
+| `renameSet` | `@Query("UPDATE practice_sets SET name = :name WHERE id = :setId") suspend fun renameSet(setId, name)` | |
+| `deleteSet` | `@Query("DELETE FROM practice_sets WHERE id = :setId") suspend fun deleteSet(setId)` | Member rows cascade away with it |
+| `createSet` | `@Transaction suspend fun createSet(set, values): Long` | Inserts the header then its ordered members (a private `toItemEntities` maps each value to a `position`-indexed row) in one transaction |
+| `replaceItems` | `@Transaction suspend fun replaceItems(setId, values)` | Deletes then re-inserts a set's members wholesale (used when editing membership) |
+
+**Domain model (`PracticeSet`)**: `domain/model/PracticeSet.kt` —
+`PracticeSet(id, name, type: PracticeSetType, script: Script, members: List<String>)`,
+where `members` are the app's script-unique keys (glyph string for `CHARACTERS`, the
+word's `kana` for `WORDS`), in selection order.
+
+**Repository (`RoomPracticeSetRepository`)**: implements `PracticeSetRepository`
+(`observeSets(): Flow<List<PracticeSet>>`, `createSet`, `renameSet`, `deleteSet`,
+`updateMembers`). Maps `PracticeSetWithItems` → `PracticeSet` with members sorted by
+`position`; `createSet` stamps `createdAt = System.currentTimeMillis()` (practice sets
+are plain user data, not SRS state, so they do **not** use the injected scheduler
+clock). Wired via `AppContainer.practiceSetRepository`.
 
 ### Gradle/KSP wiring
 
@@ -662,22 +759,44 @@ all four, and unchanged in spirit since Phase 1:
    canvas — and the `DrawingSession` inside `CanvasState` — is cleared by a
    `LaunchedEffect` as soon as `PracticeUiState.canvasClearKey` changes (see
    [DRAWING.md](DRAWING.md)).
-3. **Fire-and-forget persist**:
-   ```kotlin
-   viewModelScope.launch {
-       runCatching { practiceRepository.recordAttempt(attempt) }
-           .onFailure { Log.w(TAG, "Failed to record attempt for ${character.id}", it) }
-   }
-   ```
-   The Phase 1/2 wart — a bare `runCatching` with the result discarded and nothing
-   logged — is **fixed as of Phase 3**: failures are now logged (`Log.w`, tag
-   `HiraganaSession`) though still not retried or surfaced to the user.
+3. **Fire-and-forget persist** through one of two private helpers on `PracticeViewModel`,
+   both of which persist inside a `viewModelScope.launch { runCatching { … }.onFailure { Log.w(TAG, …) } }`
+   (tag `HiraganaSession`; the Phase 1/2 wart of a silently-discarded `runCatching` is
+   **fixed as of Phase 3** — failures are logged, though still not retried or surfaced):
+   - **`recordAttempt(character, grade, session, source)`** — single-character attempts.
+     A single character is **scored** (and thus carries `form_score`/`fit_score`) only
+     when it was written in exactly one 1×1 guide cell (`pendingCellRect != null`, plus a
+     non-empty reference and user ink); multi-copy 2×2/3×3 layouts leave the cell null
+     and record an **unscored** row (the quiz forces `PracticeLayout.SINGLE`, so it always
+     scores).
+   - **`recordWordAttempt(word, grade, session, source)`** — whole-word (VOCABULARY /
+     word FREE) attempts. On a 1×1 sheet (one guide cell per kana unit — `pendingCells`),
+     it scores each kana cell-by-cell and persists **one `practice_history` row PER kana**
+     (`character` = the unit glyph, `romaji` = the unit's romaji, `form_score`/`fit_score`
+     set) **PLUS one word-level row** (`character` = the full word kana string) carrying
+     the **average** form/fit across the scored units. Multi-copy 2×2/3×3 (no per-kana
+     cells) falls back to a single **unscored** word row.
+   - **Grading off ⇒ nothing recorded.** When `scoringMode == ScoringMode.OFF`, BOTH
+     helpers early-return **without inserting any row at all** — for FREE practice AND
+     the SRS session phases (REVIEWS/NEW_CHARACTER/PRACTICE/VOCABULARY). This is a
+     deliberate "pure practice, no score to store" policy; it resolves a prior divergence
+     where FREE recorded nothing but sessions still wrote unscored rows. The SRS
+     side-effects in step 4 are written **separately by the callers** and are unaffected
+     by this early return.
+
+   Consequence of the per-kana word rows: because they pass `observeScoreStats`'
+   `form_score IS NOT NULL … GROUP BY character` filter, **word practice now contributes
+   to each kana's per-glyph average** (and the word-level row colors the Library word
+   card). Word-cell ink is drawn smaller and rougher than a single-character sheet, so it
+   can pull a glyph's average down.
 4. Phase-specific follow-up, without awaiting the insert: REVIEWS reschedules the card
    via `SrsScheduler.next(...)` and persists it (`LearningRepository.upsertReviewCard`,
    also `runCatching` + `Log.w` on failure); NEW_CHARACTER/PRACTICE's final rep seeds a
    new `ReviewCard`; VOCABULARY records `vocabularyRepository.recordPractice(...)`;
-   FREE just advances. Every branch bumps `canvasClearKey`, advancing the UI regardless
-   of whether any of these writes succeeded.
+   FREE just advances. These SRS/unlock writes run regardless of `scoringMode` (the
+   grading-off policy in step 3 gates only the `practice_history` insert, not scheduling
+   or vocab unlock/staleness). Every branch bumps `canvasClearKey`, advancing the UI
+   regardless of whether any of these writes succeeded.
 
 The plain "Next" button (FREE only) calls `advanceToNextCharacter()` directly and writes
 nothing.
@@ -695,6 +814,13 @@ summary today reads its stats from in-memory session state, not this `Flow`). Wh
 session start (`PracticeViewModel.startSession()`) to feed `LessonGenerator.generate(...)`
 — so grading history now *does* influence future behavior, just through the new
 progress tables rather than by replaying `practice_history`.
+
+The score columns added in v3 also have a **live reader**: `PracticeRepository.observeScoreSummaries()`
+→ `RoomPracticeRepository` (maps `dao.observeScoreStats()`'s `CharacterScoreStats` rows to
+`CharacterScoreSummary`) is `collect`ed by `PracticeViewModel` into `PracticeUiState.scoreStats`
+for the Library's per-glyph / per-word quality readout. This is the one place `form_score`/
+`fit_score` are read back — and only in aggregate (`AVG`/`MAX` per glyph), never into the SRS
+scheduler.
 
 ## 7. Data integrity caveats
 

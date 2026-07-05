@@ -14,6 +14,8 @@ import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeAttempt
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.KanaUnits
+import com.hive.hiragana.domain.model.PracticeSet
+import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.domain.model.PracticeSource
 import com.hive.hiragana.domain.model.ReviewCard
 import com.hive.hiragana.domain.model.Script
@@ -24,6 +26,7 @@ import com.hive.hiragana.domain.repository.CharacterRepository
 import com.hive.hiragana.domain.repository.HandwritingRecognizer
 import com.hive.hiragana.domain.repository.LearningRepository
 import com.hive.hiragana.domain.repository.PracticeRepository
+import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
 import com.hive.hiragana.domain.repository.SettingsRepository
 import com.hive.hiragana.domain.repository.VocabularyRepository
@@ -34,11 +37,14 @@ import com.hive.hiragana.domain.scoring.GeometryScorer
 import com.hive.hiragana.domain.scoring.Pt
 import com.hive.hiragana.domain.scoring.RecognitionResult
 import com.hive.hiragana.domain.scoring.ScoringMode
+import com.hive.hiragana.domain.scoring.StrokeAttribution
+import com.hive.hiragana.domain.scoring.WordUnitScore
 import com.hive.hiragana.drawing.stroke.DrawingSession
 import com.hive.hiragana.drawing.stroke.durationMillis
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -83,23 +89,64 @@ enum class QuizStage { SETUP, RUNNING, SUMMARY }
  * result). Overlays whatever phase is active, exactly like the library;
  * closing it restores that phase.
  */
+/**
+ * One item a quiz walks through: either a single character or a whole word.
+ * The RUNNING screen only reads the interface ([prompt] shown from memory,
+ * [answer] revealed on Submit, [glyphs] laid out on the canvas), so it renders
+ * both uniformly; the ViewModel branches on the concrete type only to pick the
+ * scoring path (single-character vs per-kana word scoring). [key] identifies
+ * the item in [QuizState.results].
+ */
+sealed interface QuizItem {
+    val key: String
+    val prompt: String
+    val answer: String
+    val glyphs: List<String>
+    val subtitle: String?
+}
+
+data class CharQuizItem(val character: HiraganaCharacter) : QuizItem {
+    override val key: String get() = character.id
+    override val prompt: String get() = character.romaji
+    override val answer: String get() = character.character
+    override val glyphs: List<String> get() = listOf(character.character)
+    override val subtitle: String? get() = null
+}
+
+data class WordQuizItem(
+    val word: VocabularyWord,
+    override val prompt: String,
+) : QuizItem {
+    override val key: String get() = word.kana
+    override val answer: String get() = word.kana
+    override val glyphs: List<String> get() = KanaUnits.split(word.kana)
+    override val subtitle: String get() = word.meaning
+}
+
 data class QuizState(
     val stage: QuizStage = QuizStage.SETUP,
     val requestedCount: Int = 5,
     val showGrid: Boolean = true,
-    val characters: List<HiraganaCharacter> = emptyList(),
+    val items: List<QuizItem> = emptyList(),
     val index: Int = 0,
     val revealed: Boolean = false,
-    // Two-step per character: false = writing (ghost off, no feedback, button
-    // "Submit"); true = the char has been submitted and is being reviewed
+    // Two-step per item: false = writing (ghost off, no feedback, button
+    // "Submit"); true = the item has been submitted and is being reviewed
     // (ghost revealed, feedback shown, button "Next"). Reset on advance/back.
     val submitted: Boolean = false,
     val results: Map<String, Int> = emptyMap(),
+    // Item keys the learner actually wrote+submitted, regardless of whether a
+    // score was produced — distinguishes a written-but-unscored item (e.g.
+    // ScoringMode.OFF, so no headline lands in [results]) from a genuine skip.
+    val submittedKeys: Set<String> = emptySet(),
+    // Which source the quiz draws from: null = the active-script character
+    // scope (the original behaviour); otherwise a saved practice set's id.
+    val selectedSetId: Long? = null,
 ) {
-    val current: HiraganaCharacter? get() = characters.getOrNull(index)
+    val current: QuizItem? get() = items.getOrNull(index)
 
-    /** True on the quiz's last character — Next becomes Finish. */
-    val isLast: Boolean get() = index >= characters.size - 1
+    /** True on the quiz's last item — Next becomes Finish. */
+    val isLast: Boolean get() = index >= items.size - 1
 }
 
 /**
@@ -148,14 +195,30 @@ data class PracticeUiState(
     val currentIndex: Int = 0,
     val gradedCount: Int = 0,
     val freeWord: VocabularyWord? = null,
+    // When free practice is cycling a WORD set, the queue of words; [freeWord]
+    // is kept pointing at freeWords[currentIndex] and Next steps through them.
+    // Empty for single-word or character free practice.
+    val freeWords: List<VocabularyWord> = emptyList(),
+    // FREE two-step (mirrors the quiz): false = writing (button "Submit"),
+    // true = the attempt has been submitted/scored and the feedback card
+    // shows (buttons "Again"/"Next"). Reset on advance, retry, and every FREE
+    // entry point.
+    val freeSubmitted: Boolean = false,
     // LIBRARY (browse everything; overlays whatever phase is active)
     val isLibraryOpen: Boolean = false,
     val allWords: List<VocabularyWord> = emptyList(),
     val unlockedWordKana: Set<String> = emptySet(),
     val learnedCharacterIds: Set<String> = emptySet(),
+    // Saved practice sets (user-curated character/word lists), newest first.
+    // Observed from the repository; durable across session rebuilds.
+    val practiceSets: List<PracticeSet> = emptyList(),
     // QUIZ (write-from-memory overlay, launched from the library; renders
     // above the library so closing it drops back into browsing)
     val quiz: QuizState? = null,
+    // One-shot: set true when a SET-launched quiz closes, so the library
+    // reopens the practice-sets manager (not the browse page) underneath.
+    // Consumed by LibraryScreen once acted on. Transient (not in rebuilt()).
+    val pendingOpenSetsManager: Boolean = false,
     // SETTINGS (persisted via SettingsRepository)
     val isGridEnabled: Boolean = true,
     val isGhostEnabled: Boolean = true,
@@ -188,6 +251,14 @@ data class PracticeUiState(
     // the card can outlive its character — labelling it with the scored glyph
     // stops the score reading as if it judged the character now on screen.
     val lastScoredCharacter: String? = null,
+    // Per-kana scores for the most recent WHOLE-WORD attempt (1×1 only), in
+    // reading order — shown as chips above the canvas with [lastWordAverage]
+    // below. Null outside a scored word step. Transient, like [lastScore];
+    // reset wherever [lastScore] is.
+    val lastWordScores: List<WordUnitScore>? = null,
+    // Average headline across [lastWordScores] (the number shown below the
+    // canvas). Null when there are no per-kana word scores.
+    val lastWordAverage: Int? = null,
     // Per-glyph quality history (avg/best), keyed by glyph string, for the
     // Library rows. Sourced from the DB, carried across session resets.
     val scoreStats: Map<String, CharacterScoreSummary> = emptyMap(),
@@ -201,6 +272,18 @@ data class PracticeUiState(
         get() = ScriptScope.scopedCharacters(
             characters, activeScript, includeDiacritics, includeYoon, includeExtended,
         )
+
+    /** The saved set with [setId], or null for the default (active-script) source. */
+    fun practiceSet(setId: Long?): PracticeSet? =
+        setId?.let { id -> practiceSets.firstOrNull { it.id == id } }
+
+    /**
+     * How many items the quiz would draw from [setId] — a set's member count,
+     * or the active-script deck size for the default source. Bounds the count
+     * presets/stepper on the quiz setup card.
+     */
+    fun quizSourceSize(setId: Long?): Int =
+        practiceSet(setId)?.members?.size ?: activeScriptCharacters.size
 
     val currentCharacter: HiraganaCharacter?
         get() = when (phase) {
@@ -250,6 +333,17 @@ data class PracticeUiState(
         get() = currentWord?.kana?.let { it in newlyUnlockedKana } == true
 
     /**
+     * O(1) glyph -> deck character lookup, built once per state instance. Backs
+     * [pronunciationOf]/[wordUnitCharacters] so they don't linear-scan the full
+     * ~250-character deck per reading unit — that scan is hot when the Library's
+     * Words grid composes cards while fast-scrolling. Not a constructor property,
+     * so it stays out of the data class's equals/copy.
+     */
+    private val characterByGlyph: Map<String, HiraganaCharacter> by lazy(LazyThreadSafetyMode.NONE) {
+        characters.associateBy { it.character }
+    }
+
+    /**
      * Space-separated per-unit romaji for [word] — the pronunciation shown
      * next to its meaning in the guide panel (かう -> "ka u", きょう -> "kyo u").
      * Splitting into reading units means a yōon resolves as one sound (きょ ->
@@ -257,7 +351,18 @@ data class PracticeUiState(
      */
     fun pronunciationOf(word: VocabularyWord): String =
         KanaUnits.split(word.kana).joinToString(" ") { unit ->
-            characters.firstOrNull { it.character == unit }?.romaji ?: unit
+            characterByGlyph[unit]?.romaji ?: unit
+        }
+
+    /**
+     * The deck [HiraganaCharacter] for each reading unit of [word], in order —
+     * feeds the guide panel's per-kana stroke-order previews. Units with no
+     * deck entry (unexpected) are dropped; composites (きょ/ファ) resolve to
+     * their single composite character with its composed strokes.
+     */
+    fun wordUnitCharacters(word: VocabularyWord): List<HiraganaCharacter> =
+        KanaUnits.split(word.kana).mapNotNull { unit ->
+            characterByGlyph[unit]
         }
 }
 
@@ -279,6 +384,7 @@ class PracticeViewModel(
     private val learningRepository: LearningRepository,
     private val vocabularyRepository: VocabularyRepository,
     private val settingsRepository: SettingsRepository,
+    private val practiceSetRepository: PracticeSetRepository,
     private val handwritingRecognizer: HandwritingRecognizer,
     private val lessonGenerator: LessonGenerator = LessonGenerator(),
     private val clock: Clock = Clock.systemDefaultZone(),
@@ -321,6 +427,15 @@ class PracticeViewModel(
      */
     private var pendingCellRect: CellRect? = null
 
+    /**
+     * The per-kana guide cells captured from the canvas at the moment of the
+     * current grade/submit tap, used to score a whole word cell-by-cell. Set by
+     * the grade entry points alongside [pendingCellRect] and read by
+     * [recordWordAttempt]; empty when the layout has no per-kana cells (multi-
+     * copy 2×2/3×3 sheets), which is exactly when a word must not be scored.
+     */
+    private var pendingCells: List<CellRect> = emptyList()
+
     init {
         startSession()
         // Long-lived: keeps the Library's per-glyph score history live as
@@ -328,6 +443,14 @@ class PracticeViewModel(
         viewModelScope.launch {
             practiceRepository.observeScoreSummaries().collect { summaries ->
                 _uiState.update { it.copy(scoreStats = summaries.associateBy { s -> s.character }) }
+            }
+        }
+        // Long-lived: keeps saved practice sets live for the Study Scope sheet,
+        // the sets manager, and the Quiz-me source picker. Independent of
+        // session resets (carried through rebuilt()).
+        viewModelScope.launch {
+            practiceSetRepository.observeSets().collect { sets ->
+                _uiState.update { it.copy(practiceSets = sets) }
             }
         }
     }
@@ -466,29 +589,127 @@ class PracticeViewModel(
      * the canvas session is always snapshotted synchronously first (the
      * canvas is cleared as soon as [PracticeUiState.canvasClearKey] moves).
      */
-    fun gradeCurrentCharacter(grade: Grade, session: DrawingSession, cellRect: CellRect? = null) {
+    fun gradeCurrentCharacter(
+        grade: Grade,
+        session: DrawingSession,
+        cellRect: CellRect? = null,
+        cells: List<CellRect> = emptyList(),
+    ) {
         if (session === lastGradedSession) return
         lastGradedSession = session
         pendingCellRect = cellRect
+        pendingCells = cells
         when (_uiState.value.phase) {
             SessionPhase.REVIEWS -> gradeReview(grade, session)
             SessionPhase.NEW_CHARACTER, SessionPhase.PRACTICE -> gradePractice(grade, session)
             SessionPhase.VOCABULARY -> gradeVocabulary(grade, session)
-            SessionPhase.FREE -> gradeFree(grade, session)
+            // FREE uses the two-step Submit→Next flow (freeSubmit/freeRetry/
+            // advanceToNextCharacter), not the session grade buttons.
+            SessionPhase.FREE -> Unit
             SessionPhase.LOADING, SessionPhase.COMPLETE -> Unit
         }
     }
 
-    /** "Next" button — only visible in FREE. Skips ahead without grading. */
+    /**
+     * "Submit" — step one of the two-step FREE-practice flow (mirrors the
+     * quiz). Scores the ink and records a [PracticeSource.FREE] attempt with a
+     * neutral placeholder grade (FREE never touches scheduling/unlocks), shows
+     * the feedback card, and KEEPS the ink on screen (no [canvasClearKey]
+     * bump). No-op outside FREE, without ink, or if already submitted;
+     * double-tap guarded via [lastGradedSession] like the other grade paths.
+     */
+    fun freeSubmit(
+        session: DrawingSession,
+        cellRect: CellRect? = null,
+        cells: List<CellRect> = emptyList(),
+    ) {
+        val state = _uiState.value
+        if (state.phase != SessionPhase.FREE || state.freeSubmitted) return
+        // Multi-cell (2×2/3×3) single-character practice is a repetition
+        // worksheet, not a scored attempt (the UI shows Clear·Next there, no
+        // Submit) — never submit/score it. Words keep the two-step at any layout.
+        if (state.freeWord == null && state.practiceLayout != PracticeLayout.SINGLE) return
+        if (session.strokes.none { it.points.isNotEmpty() }) return
+        if (session === lastGradedSession) return
+
+        val word = state.freeWord
+        val character = if (word == null) {
+            state.freeCharacters.getOrNull(state.currentIndex) ?: return
+        } else {
+            null
+        }
+
+        lastGradedSession = session
+        pendingCellRect = cellRect
+        pendingCells = cells
+        if (word != null) {
+            // Words aren't per-kana scored; recordWordAttempt clears any
+            // lingering single-character feedback so no stale card shows.
+            recordWordAttempt(word, Grade.GOOD, session, PracticeSource.FREE)
+        } else if (character != null) {
+            recordAttempt(character, Grade.GOOD, session, PracticeSource.FREE)
+        }
+        _uiState.update { it.copy(freeSubmitted = true, gradedCount = it.gradedCount + 1) }
+    }
+
+    /**
+     * "Again" — after a submit, discard the ink and let the learner rewrite the
+     * SAME character/word (this replaces the old behaviour where a grade tap
+     * advanced past it). Clears the feedback and returns to the writing
+     * sub-state without changing deck position.
+     */
+    fun freeRetry() {
+        _uiState.update {
+            if (it.phase != SessionPhase.FREE) {
+                it
+            } else {
+                it.copy(
+                    freeSubmitted = false,
+                    lastScore = null,
+                    lastScoredCharacter = null,
+                    lastWordScores = null,
+                    lastWordAverage = null,
+                    canvasClearKey = it.canvasClearKey + 1,
+                )
+            }
+        }
+    }
+
+    /**
+     * "Next"/"Skip" — step two of the FREE flow (and the empty-canvas skip).
+     * Advances to the next character in the free deck, returns to the writing
+     * sub-state, and clears the feedback so it doesn't distract on the next
+     * character. Single-word free practice has no deck to advance (no-op).
+     */
     fun advanceToNextCharacter() {
         _uiState.update { state ->
-            if (state.phase != SessionPhase.FREE || state.freeCharacters.isEmpty()) {
-                state
-            } else {
-                state.copy(
+            if (state.phase != SessionPhase.FREE) return@update state
+            when {
+                // Word-set free practice: step through the word queue, keeping
+                // freeWord pointed at the new current word.
+                state.freeWords.isNotEmpty() -> {
+                    val next = (state.currentIndex + 1) % state.freeWords.size
+                    state.copy(
+                        currentIndex = next,
+                        freeWord = state.freeWords[next],
+                        freeSubmitted = false,
+                        lastScore = null,
+                        lastScoredCharacter = null,
+                        lastWordScores = null,
+                        lastWordAverage = null,
+                        canvasClearKey = state.canvasClearKey + 1,
+                    )
+                }
+                state.freeCharacters.isNotEmpty() -> state.copy(
                     currentIndex = (state.currentIndex + 1) % state.freeCharacters.size,
+                    freeSubmitted = false,
+                    lastScore = null,
+                    lastScoredCharacter = null,
+                    lastWordScores = null,
+                    lastWordAverage = null,
                     canvasClearKey = state.canvasClearKey + 1,
                 )
+                else -> state
             }
         }
     }
@@ -508,9 +729,15 @@ class PracticeViewModel(
             it.copy(
                 phase = SessionPhase.FREE,
                 freeCharacters = learned,
+                freeWords = emptyList(),
                 currentIndex = 0,
                 gradedCount = 0,
                 freeWord = null,
+                freeSubmitted = false,
+                lastScore = null,
+                lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
                 canvasClearKey = it.canvasClearKey + 1,
             )
         }
@@ -539,6 +766,7 @@ class PracticeViewModel(
         allWords = allWords,
         unlockedWordKana = unlockedWordKana,
         learnedCharacterIds = learnedCharacterIds,
+        practiceSets = practiceSets,
         isGridEnabled = isGridEnabled,
         isGhostEnabled = isGhostEnabled,
         isLibraryGridView = isLibraryGridView,
@@ -689,7 +917,16 @@ class PracticeViewModel(
         _uiState.update { state ->
             if (state.scoringMode == mode) return@update state
             settingsRepository.setScoringMode(mode)
-            state.copy(scoringMode = mode, lastScore = null)
+            // Clear ALL advisory feedback (single-char AND per-kana word chips),
+            // per the "reset wherever lastScore is" invariant — a mode change
+            // must not leave stale chips lingering over the sheet.
+            state.copy(
+                scoringMode = mode,
+                lastScore = null,
+                lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
+            )
         }
     }
 
@@ -710,7 +947,9 @@ class PracticeViewModel(
      * Repetition layout: tiles the canvas with span×span copies of the
      * current character/word so several attempts fit on one sheet.
      * Persisted like the grid toggle; unlike it, changing layout clears
-     * the sheet (the ghost cells move, so stale ink would misalign).
+     * the sheet (the ghost cells move, so stale ink would misalign) — and
+     * with it any pending FREE-practice feedback (submitted flag + score
+     * cards), which would otherwise float over the freshly-blanked sheet.
      */
     fun setPracticeLayout(layout: PracticeLayout) {
         _uiState.update { state ->
@@ -718,6 +957,11 @@ class PracticeViewModel(
             settingsRepository.setPracticeLayout(layout)
             state.copy(
                 practiceLayout = layout,
+                freeSubmitted = false,
+                lastScore = null,
+                lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
                 canvasClearKey = state.canvasClearKey + 1,
             )
         }
@@ -752,9 +996,15 @@ class PracticeViewModel(
                 isLibraryOpen = false,
                 phase = SessionPhase.FREE,
                 freeCharacters = deck,
+                freeWords = emptyList(),
                 currentIndex = deck.indexOfFirst { it.id == character.id }.coerceAtLeast(0),
                 gradedCount = 0,
                 freeWord = null,
+                freeSubmitted = false,
+                lastScore = null,
+                lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
                 canvasClearKey = state.canvasClearKey + 1,
             )
         }
@@ -773,45 +1023,185 @@ class PracticeViewModel(
                 isLibraryOpen = false,
                 phase = SessionPhase.FREE,
                 freeCharacters = emptyList(),
+                freeWords = emptyList(),
                 currentIndex = 0,
                 gradedCount = 0,
                 freeWord = word,
+                freeSubmitted = false,
+                lastScore = null,
+                lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
                 canvasClearKey = state.canvasClearKey + 1,
             )
         }
     }
 
+    // ---- PRACTICE SETS ---------------------------------------------------
+
+    /**
+     * Free practice of a saved set (no scoring side effects on SRS, same as
+     * [practiceCharacter]/[practiceWord]). A character set becomes the free
+     * deck (Next cycles the characters); a word set becomes the free word
+     * queue (Next cycles the words). Members that no longer resolve are
+     * dropped; an empty resolved set is a no-op.
+     */
+    fun practiceSet(setId: Long) {
+        _uiState.update { state ->
+            val set = state.practiceSet(setId) ?: return@update state
+            when (set.type) {
+                PracticeSetType.CHARACTERS -> {
+                    val chars = set.members
+                        .mapNotNull { glyph -> state.characters.firstOrNull { it.character == glyph } }
+                    if (chars.isEmpty()) return@update state
+                    state.copy(
+                        isLibraryOpen = false,
+                        phase = SessionPhase.FREE,
+                        freeCharacters = chars,
+                        freeWords = emptyList(),
+                        currentIndex = 0,
+                        gradedCount = 0,
+                        freeWord = null,
+                        freeSubmitted = false,
+                        lastScore = null,
+                        lastScoredCharacter = null,
+                        lastWordScores = null,
+                        lastWordAverage = null,
+                        canvasClearKey = state.canvasClearKey + 1,
+                    )
+                }
+                PracticeSetType.WORDS -> {
+                    val words = set.members
+                        .mapNotNull { kana -> state.allWords.firstOrNull { it.kana == kana } }
+                    if (words.isEmpty()) return@update state
+                    state.copy(
+                        isLibraryOpen = false,
+                        phase = SessionPhase.FREE,
+                        freeCharacters = emptyList(),
+                        freeWords = words,
+                        currentIndex = 0,
+                        gradedCount = 0,
+                        freeWord = words.first(),
+                        freeSubmitted = false,
+                        lastScore = null,
+                        lastScoredCharacter = null,
+                        lastWordScores = null,
+                        lastWordAverage = null,
+                        canvasClearKey = state.canvasClearKey + 1,
+                    )
+                }
+            }
+        }
+    }
+
+    /** Creates and persists a new practice set. No-op on a blank name / empty members. */
+    fun savePracticeSet(
+        name: String,
+        type: PracticeSetType,
+        script: Script,
+        members: List<String>,
+    ) {
+        if (name.isBlank() || members.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { practiceSetRepository.createSet(name.trim(), type, script, members) }
+                .onFailure { Log.w(TAG, "Failed to save practice set '$name'", it) }
+        }
+    }
+
+    /** Replaces a set's members (add/remove while editing). No-op on empty members. */
+    fun updatePracticeSetMembers(id: Long, members: List<String>) {
+        if (members.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { practiceSetRepository.updateMembers(id, members) }
+                .onFailure { Log.w(TAG, "Failed to update practice set $id", it) }
+        }
+    }
+
+    fun renamePracticeSet(id: Long, name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            runCatching { practiceSetRepository.renameSet(id, name.trim()) }
+                .onFailure { Log.w(TAG, "Failed to rename practice set $id", it) }
+        }
+    }
+
+    fun deletePracticeSet(id: Long) {
+        viewModelScope.launch {
+            runCatching { practiceSetRepository.deleteSet(id) }
+                .onFailure { Log.w(TAG, "Failed to delete practice set $id", it) }
+        }
+    }
+
     // ---- QUIZ ------------------------------------------------------------
 
-    /** "Quiz me!" in the library: opens the quiz setup overlay (scoped to the active script). */
-    fun openQuiz() {
+    /**
+     * "Quiz me!" in the library: opens the quiz setup overlay. [setId] is null
+     * for the default active-script character quiz, or a saved set's id to
+     * preselect that set as the quiz source (the setup card's source picker
+     * lets the learner change it either way).
+     */
+    fun openQuiz(setId: Long? = null) {
         _uiState.update { state ->
-            val deckSize = state.activeScriptCharacters.size
-            if (deckSize == 0) return@update state
+            // Only preselect a set that still exists; otherwise fall back to
+            // the default source so the picker never starts on a dangling id.
+            val source = setId?.takeIf { id -> state.practiceSets.any { it.id == id } }
+            val poolSize = state.quizSourceSize(source)
+            if (poolSize == 0) return@update state
             state.copy(
                 quiz = QuizState(
-                    requestedCount = 5.coerceAtMost(deckSize),
+                    requestedCount = 5.coerceAtMost(poolSize),
                     showGrid = state.isGridEnabled,
+                    selectedSetId = source,
                 ),
             )
         }
     }
 
-    /** Back/close from any quiz stage; the library (and phase) underneath resume untouched. */
+    /**
+     * Setup-screen source picker: switch between the default active-script
+     * character quiz ([setId] null) and any saved set. Re-clamps the requested
+     * count to the new source's size.
+     */
+    fun setQuizSource(setId: Long?) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            val poolSize = state.quizSourceSize(setId)
+            state.copy(
+                quiz = quiz.copy(
+                    selectedSetId = setId,
+                    requestedCount = quiz.requestedCount.coerceIn(1, poolSize.coerceAtLeast(1)),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Back/close/Done from any quiz stage; the library (and phase) underneath
+     * resume untouched. A quiz launched from a saved set ([QuizState.selectedSetId]
+     * non-null) flags [PracticeUiState.pendingOpenSetsManager] so the library
+     * reopens the sets manager rather than the browse page.
+     */
     fun closeQuiz() {
         _uiState.update {
-            if (it.quiz == null) {
-                it
-            } else {
-                it.copy(
-                    quiz = null,
-                    // Drop any lingering feedback (incl. a late async recognition
-                    // update) so it can't flash on the screen underneath.
-                    lastScore = null,
-                    lastScoredCharacter = null,
-                    canvasClearKey = it.canvasClearKey + 1,
-                )
-            }
+            val quiz = it.quiz ?: return@update it
+            it.copy(
+                quiz = null,
+                pendingOpenSetsManager = quiz.selectedSetId != null,
+                // Drop any lingering feedback (incl. a late async recognition
+                // update) so it can't flash on the screen underneath.
+                lastScore = null,
+                lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
+                canvasClearKey = it.canvasClearKey + 1,
+            )
+        }
+    }
+
+    /** Clears the [PracticeUiState.pendingOpenSetsManager] one-shot once the library has acted on it. */
+    fun consumeOpenSetsManager() {
+        if (_uiState.value.pendingOpenSetsManager) {
+            _uiState.update { it.copy(pendingOpenSetsManager = false) }
         }
     }
 
@@ -822,9 +1212,10 @@ class PracticeViewModel(
     fun setQuizCount(count: Int) {
         _uiState.update { state ->
             val quiz = state.quiz ?: return@update state
+            val poolSize = state.quizSourceSize(quiz.selectedSetId)
             state.copy(
                 quiz = quiz.copy(
-                    requestedCount = count.coerceIn(1, state.activeScriptCharacters.size.coerceAtLeast(1)),
+                    requestedCount = count.coerceIn(1, poolSize.coerceAtLeast(1)),
                 ),
             )
         }
@@ -844,29 +1235,57 @@ class PracticeViewModel(
 
     /**
      * Builds the quiz deck and starts writing (also "Quiz again" on the
-     * summary): learned characters first — they are the ones worth testing
-     * — topped up with unlearned picks when the requested count exceeds
-     * them; both groups shuffled.
+     * summary). For the default source, learned characters come first — they
+     * are the ones worth testing — topped up with unlearned picks; both groups
+     * shuffled. For a saved set, the set's members (characters OR words) are the
+     * pool, resolved to deck entries and shuffled.
      */
     fun startQuiz() {
         val learned = learnedIds()
         _uiState.update { state ->
             val quiz = state.quiz ?: return@update state
-            val deck = state.activeScriptCharacters
-            if (deck.isEmpty()) return@update state
-            val pool = deck.filter { it.id in learned }.shuffled() +
-                deck.filterNot { it.id in learned }.shuffled()
+            val pool = buildQuizPool(state, quiz.selectedSetId, learned)
+            if (pool.isEmpty()) return@update state
             state.copy(
                 quiz = quiz.copy(
                     stage = QuizStage.RUNNING,
-                    characters = pool.take(quiz.requestedCount.coerceIn(1, pool.size)),
+                    items = pool.take(quiz.requestedCount.coerceIn(1, pool.size)),
                     index = 0,
                     revealed = false,
                     submitted = false,
                     results = emptyMap(),
+                    submittedKeys = emptySet(),
                 ),
                 canvasClearKey = state.canvasClearKey + 1,
             )
+        }
+    }
+
+    /** Resolves the quiz pool as an ordered list of [QuizItem]s for the source. */
+    private fun buildQuizPool(
+        state: PracticeUiState,
+        setId: Long?,
+        learned: Set<String>,
+    ): List<QuizItem> {
+        val set = state.practiceSet(setId)
+        return when {
+            set == null -> {
+                // Default source: active-script characters, learned first.
+                val deck = state.activeScriptCharacters
+                (deck.filter { it.id in learned }.shuffled() +
+                    deck.filterNot { it.id in learned }.shuffled())
+                    .map { CharQuizItem(it) }
+            }
+            set.type == PracticeSetType.CHARACTERS ->
+                set.members
+                    .mapNotNull { glyph -> state.characters.firstOrNull { it.character == glyph } }
+                    .map { CharQuizItem(it) }
+                    .shuffled()
+            else ->
+                set.members
+                    .mapNotNull { kana -> state.allWords.firstOrNull { it.kana == kana } }
+                    .map { WordQuizItem(it, prompt = state.pronunciationOf(it)) }
+                    .shuffled()
         }
     }
 
@@ -880,17 +1299,38 @@ class PracticeViewModel(
      * their ink to the revealed guide strokes, then taps Next. No-op without ink
      * (the UI calls [quizAdvance] to skip an empty canvas) or if already
      * submitted; double-tap guarded like the other grade paths.
+     *
+     * A word item is scored per-kana via [recordWordAttempt] (the same engine
+     * as whole-word practice: each kana against its own reference, averaged);
+     * [cells] carries the per-kana guide cells the canvas exposed. A single
+     * character goes through [recordAttempt]. Either way the headline (the word
+     * average, or the character score) lands in [QuizState.results].
      */
-    fun quizSubmit(session: DrawingSession, cellRect: CellRect? = null) {
+    fun quizSubmit(
+        session: DrawingSession,
+        cellRect: CellRect? = null,
+        cells: List<CellRect> = emptyList(),
+    ) {
         val quiz = _uiState.value.quiz ?: return
         if (quiz.stage != QuizStage.RUNNING || quiz.submitted) return
-        val character = quiz.current ?: return
+        val item = quiz.current ?: return
         if (session.strokes.none { it.points.isNotEmpty() }) return
         if (session === lastGradedSession) return
 
         lastGradedSession = session
         pendingCellRect = cellRect
-        val score = recordAttempt(character, Grade.GOOD, session, PracticeSource.QUIZ)
+        pendingCells = cells
+        val headline: Int? = when (item) {
+            is CharQuizItem ->
+                recordAttempt(item.character, Grade.GOOD, session, PracticeSource.QUIZ)?.headline
+            is WordQuizItem -> {
+                // recordWordAttempt updates lastWordScores/lastWordAverage
+                // synchronously (persistence is fire-and-forget), so the
+                // average is available immediately for the results map.
+                recordWordAttempt(item.word, Grade.GOOD, session, PracticeSource.QUIZ)
+                _uiState.value.lastWordAverage
+            }
+        }
 
         _uiState.update { state ->
             val live = state.quiz ?: return@update state
@@ -898,7 +1338,8 @@ class PracticeViewModel(
                 quiz = live.copy(
                     submitted = true,
                     revealed = true,
-                    results = if (score != null) live.results + (character.id to score.headline) else live.results,
+                    results = if (headline != null) live.results + (item.key to headline) else live.results,
+                    submittedKeys = live.submittedKeys + item.key,
                 ),
                 // No canvasClearKey bump — keep the ink on screen for review.
             )
@@ -915,7 +1356,7 @@ class PracticeViewModel(
         _uiState.update { state ->
             val quiz = state.quiz ?: return@update state
             if (quiz.stage != QuizStage.RUNNING) return@update state
-            val finished = quiz.index + 1 >= quiz.characters.size
+            val finished = quiz.index + 1 >= quiz.items.size
             state.copy(
                 quiz = quiz.copy(
                     stage = if (finished) QuizStage.SUMMARY else QuizStage.RUNNING,
@@ -925,6 +1366,8 @@ class PracticeViewModel(
                 ),
                 lastScore = null,
                 lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
                 canvasClearKey = state.canvasClearKey + 1,
             )
         }
@@ -939,6 +1382,8 @@ class PracticeViewModel(
                 quiz = quiz.copy(index = quiz.index - 1, revealed = false, submitted = false),
                 lastScore = null,
                 lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
                 canvasClearKey = state.canvasClearKey + 1,
             )
         }
@@ -1095,28 +1540,6 @@ class PracticeViewModel(
     private fun learnedIds(): Set<String> =
         cardsById.filterValues { it.repetitions >= 1 }.keys.toSet()
 
-    private fun gradeFree(grade: Grade, session: DrawingSession) {
-        val state = _uiState.value
-        val word = state.freeWord
-        if (word != null) {
-            // Library word practice: one grade per whole-word sheet, then a
-            // clean sheet for another go. No unlock/staleness side effects —
-            // the library must never touch scheduling state.
-            recordWordAttempt(word, grade, session, PracticeSource.FREE)
-            _uiState.update {
-                it.copy(
-                    gradedCount = it.gradedCount + 1,
-                    canvasClearKey = it.canvasClearKey + 1,
-                )
-            }
-            return
-        }
-        val character = state.freeCharacters.getOrNull(state.currentIndex) ?: return
-        recordAttempt(character, grade, session, PracticeSource.FREE)
-        _uiState.update { it.copy(gradedCount = it.gradedCount + 1) }
-        advanceToNextCharacter()
-    }
-
     // ---- shared helpers -------------------------------------------------
 
     private fun advanceToPhase(phase: SessionPhase) {
@@ -1172,10 +1595,20 @@ class PracticeViewModel(
     }
 
     /**
-     * Persists one whole-word attempt as a single row: `character` holds
-     * the full kana (e.g. "あお") and `romaji` the joined per-character
-     * romaji ("ao"), since strokes can't be attributed to individual kana
-     * on a shared sheet.
+     * Records a whole-word attempt. When the sheet is a single copy with one
+     * guide cell per kana (1×1 layout) and scoring is on, each kana is scored
+     * INDEPENDENTLY: its strokes are attributed to its cell
+     * ([StrokeAttribution.groupByCell]) and compared to that kana's reference.
+     * The per-kana scores drive the chips shown above the canvas and their
+     * average the readout below; each kana persists its own scored row (so the
+     * Library's per-glyph history includes word practice), plus one word-level
+     * row carrying the AVERAGE form/fit — keyed by the whole-word string — for
+     * the Library word card's color.
+     *
+     * **When grading is off (`ScoringMode.OFF`) nothing is recorded** — pure
+     * practice. Otherwise, if the sheet has no per-kana cells (multi-copy
+     * 2×2/3×3, where a word can't be scored per cell) it falls back to a single
+     * unscored row (character = full kana, joined romaji).
      */
     private fun recordWordAttempt(
         word: VocabularyWord,
@@ -1184,30 +1617,138 @@ class PracticeViewModel(
         source: PracticeSource,
     ) {
         val characters = _uiState.value.characters
-        val romaji = KanaUnits.split(word.kana).joinToString("") { unit ->
+        val units = KanaUnits.split(word.kana)
+        val romaji = units.joinToString("") { unit ->
             characters.firstOrNull { it.character == unit }?.romaji ?: unit
         }
-        // Words aren't per-kana scored; clear any lingering single-character
-        // feedback so a word step doesn't show a stale glyph score.
-        _uiState.update { it.copy(lastScore = null, lastScoredCharacter = null) }
-        val attempt = PracticeAttempt(
-            character = word.kana,
-            romaji = romaji,
-            grade = grade,
-            strokeCount = session.strokes.size,
-            durationMs = session.durationMillis(),
-            createdAt = clock.millis(),
-            source = source,
-        )
-        viewModelScope.launch {
-            runCatching { practiceRepository.recordAttempt(attempt) }
-                .onFailure { Log.w(TAG, "Failed to record word attempt for ${word.kana}", it) }
+        val createdAt = clock.millis()
+        val strokeCount = session.strokes.size
+        val durationMs = session.durationMillis()
+
+        fun persist(attempt: PracticeAttempt) {
+            viewModelScope.launch {
+                runCatching { practiceRepository.recordAttempt(attempt) }
+                    .onFailure { Log.w(TAG, "Failed to record word attempt for ${word.kana}", it) }
+            }
         }
+
+        val mode = _uiState.value.scoringMode
+        // Grading off = pure practice: don't record the word attempt at all
+        // (same product decision as recordAttempt). vocab unlock/staleness is
+        // tracked separately by the caller and is unaffected.
+        if (mode == ScoringMode.OFF) {
+            _uiState.update {
+                it.copy(
+                    lastScore = null,
+                    lastScoredCharacter = null,
+                    lastWordScores = null,
+                    lastWordAverage = null,
+                )
+            }
+            return
+        }
+        val cells = pendingCells
+        val userStrokes = session.strokes
+            .map { stroke -> stroke.points.map { Pt(it.x, it.y) } }
+            .filter { it.isNotEmpty() }
+        // Per-cell scoring only when one guide cell exists per kana (1×1 sheet)
+        // and scoring is on; multi-copy 2×2/3×3 leaves pendingCells empty.
+        val canScorePerCell = mode != ScoringMode.OFF &&
+            cells.size == units.size &&
+            userStrokes.isNotEmpty()
+
+        if (canScorePerCell) {
+            val perCellStrokes = StrokeAttribution.groupByCell(userStrokes, cells)
+            val unitScores = mutableListOf<WordUnitScore>()
+            units.forEachIndexed { index, unit ->
+                val entry = characters.firstOrNull { it.character == unit }
+                val reference = entry?.strokeAnimations
+                    ?.sortedBy { it.order }
+                    ?.map { def -> def.points.map { Pt(it.x, it.y) } }
+                    ?.filter { it.isNotEmpty() }
+                    .orEmpty()
+                val ink = perCellStrokes.getOrNull(index).orEmpty()
+                // Skip units with no reference (e.g. ー) or no ink in their cell.
+                if (reference.isEmpty() || ink.isEmpty()) return@forEachIndexed
+                val geometry = GeometryScorer.score(ink, reference, cells[index])
+                unitScores.add(WordUnitScore(unit, CharacterScore.combine(geometry, null, mode)))
+                // Each kana persists its own scored row so the Library's
+                // per-glyph avg/best reflects word practice too.
+                persist(
+                    PracticeAttempt(
+                        character = unit,
+                        romaji = entry?.romaji ?: unit,
+                        grade = grade,
+                        strokeCount = ink.size,
+                        durationMs = durationMs,
+                        createdAt = createdAt,
+                        source = source,
+                        formScore = geometry.form.toFloat(),
+                        fitScore = geometry.fit?.toFloat(),
+                    ),
+                )
+            }
+
+            if (unitScores.isNotEmpty()) {
+                val avgHeadline = unitScores.map { it.score.headline }.average().roundToInt()
+                val avgForm = unitScores.map { it.score.form }.average().toFloat()
+                val fits = unitScores.mapNotNull { it.score.fit }
+                val avgFit = if (fits.isEmpty()) null else fits.average().toFloat()
+                _uiState.update {
+                    it.copy(
+                        lastScore = null,
+                        lastScoredCharacter = null,
+                        lastWordScores = unitScores.toList(),
+                        lastWordAverage = avgHeadline,
+                    )
+                }
+                // One word-level row carrying the average (keyed by the whole
+                // word string) — colors the Library word card.
+                persist(
+                    PracticeAttempt(
+                        character = word.kana,
+                        romaji = romaji,
+                        grade = grade,
+                        strokeCount = strokeCount,
+                        durationMs = durationMs,
+                        createdAt = createdAt,
+                        source = source,
+                        formScore = avgForm,
+                        fitScore = avgFit,
+                    ),
+                )
+                return
+            }
+        }
+
+        // Not scored (scoring off, multi-copy sheet, or nothing attributable):
+        // clear any lingering feedback and record one plain word row.
+        _uiState.update {
+            it.copy(
+                lastScore = null,
+                lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
+            )
+        }
+        persist(
+            PracticeAttempt(
+                character = word.kana,
+                romaji = romaji,
+                grade = grade,
+                strokeCount = strokeCount,
+                durationMs = durationMs,
+                createdAt = createdAt,
+                source = source,
+            ),
+        )
     }
 
     /**
-     * Persists one graded single-character attempt, and — unless scoring is
-     * off — computes its handwriting-quality score. Geometry is computed
+     * Records one single-character practice attempt. **When grading is off
+     * (`ScoringMode.OFF`) nothing is recorded** — it's pure practice with no
+     * score to store. Otherwise it persists the attempt and computes its
+     * handwriting-quality score. Geometry is computed
      * synchronously (instant, so [PracticeUiState.lastScore] updates
      * immediately for advisory feedback); recognition is awaited in a
      * fire-and-forget coroutine, after which the score is finalised and the
@@ -1230,6 +1771,20 @@ class PracticeViewModel(
         val cell = pendingCellRect
 
         val mode = _uiState.value.scoringMode
+        // Grading off = pure practice: nothing to score, so don't log the
+        // attempt at all (product decision — no point recording ungraded tries).
+        // SRS scheduling, done by the caller, is unaffected.
+        if (mode == ScoringMode.OFF) {
+            _uiState.update {
+                it.copy(
+                    lastScore = null,
+                    lastScoredCharacter = null,
+                    lastWordScores = null,
+                    lastWordAverage = null,
+                )
+            }
+            return null
+        }
         val reference = character.strokeAnimations
             .sortedBy { it.order }
             .map { def -> def.points.map { Pt(it.x, it.y) } }
@@ -1237,9 +1792,16 @@ class PracticeViewModel(
         val userStrokes = session.strokes
             .map { stroke -> stroke.points.map { Pt(it.x, it.y) } }
             .filter { it.isNotEmpty() }
+        // Scoring only runs when ONE glyph was written ONCE: [cell] is non-null
+        // exactly when the ink was drawn in a single 1×1 guide cell (see
+        // CanvasState.lastCell). This excludes the multi-copy 2×2/3×3 layouts —
+        // where all copies' strokes flatten into one list and would score as a
+        // garbage stroke-count mismatch ("you drew 12 strokes") — and word
+        // sheets, while still covering the quiz (it forces PracticeLayout.SINGLE).
         val scoreEnabled = mode != ScoringMode.OFF &&
             reference.isNotEmpty() &&
-            userStrokes.isNotEmpty()
+            userStrokes.isNotEmpty() &&
+            cell != null
 
         fun persist(attempt: PracticeAttempt) {
             viewModelScope.launch {
@@ -1259,7 +1821,14 @@ class PracticeViewModel(
         )
 
         if (!scoreEnabled) {
-            _uiState.update { it.copy(lastScore = null, lastScoredCharacter = null) }
+            _uiState.update {
+                it.copy(
+                    lastScore = null,
+                    lastScoredCharacter = null,
+                    lastWordScores = null,
+                    lastWordAverage = null,
+                )
+            }
             persist(base)
             return null
         }
@@ -1271,7 +1840,12 @@ class PracticeViewModel(
         val geometry = GeometryScorer.score(userStrokes, reference, cell)
         val score = CharacterScore.combine(geometry, null, mode)
         _uiState.update {
-            it.copy(lastScore = score, lastScoredCharacter = character.character)
+            it.copy(
+                lastScore = score,
+                lastScoredCharacter = character.character,
+                lastWordScores = null,
+                lastWordAverage = null,
+            )
         }
         persist(
             base.copy(
@@ -1327,6 +1901,7 @@ class PracticeViewModel(
                     learningRepository = application.container.learningRepository,
                     vocabularyRepository = application.container.vocabularyRepository,
                     settingsRepository = application.container.settingsRepository,
+                    practiceSetRepository = application.container.practiceSetRepository,
                     handwritingRecognizer = application.container.handwritingRecognizer,
                 )
             }

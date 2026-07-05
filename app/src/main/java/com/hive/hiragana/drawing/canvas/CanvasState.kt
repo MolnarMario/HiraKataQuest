@@ -47,6 +47,16 @@ class CanvasState {
      */
     var lastCell: CellRect? = null
 
+    /**
+     * Per-kana guide cells (px) for the current single-copy sheet, in glyph
+     * order — the reference frames for per-character scoring of a whole word
+     * (one cell per [com.hive.hiragana.domain.model.KanaUnits] unit). Empty for
+     * multi-copy 2×2/3×3 layouts (where a word can't be meaningfully scored per
+     * cell). For a lone character this holds the single cell (same rect as
+     * [lastCell]). Plain state, refreshed by the canvas each draw pass.
+     */
+    var kanaCellRects: List<CellRect> = emptyList()
+
     var currentSession: DrawingSession by mutableStateOf(DrawingSession())
         private set
 

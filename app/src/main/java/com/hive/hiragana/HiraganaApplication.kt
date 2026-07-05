@@ -9,11 +9,13 @@ import com.hive.hiragana.data.repository.AssetCharacterRepository
 import com.hive.hiragana.data.repository.PrefsSettingsRepository
 import com.hive.hiragana.data.repository.RoomLearningRepository
 import com.hive.hiragana.data.repository.RoomPracticeRepository
+import com.hive.hiragana.data.repository.RoomPracticeSetRepository
 import com.hive.hiragana.data.repository.RoomVocabularyRepository
 import com.hive.hiragana.domain.repository.CharacterRepository
 import com.hive.hiragana.domain.repository.HandwritingRecognizer
 import com.hive.hiragana.domain.repository.LearningRepository
 import com.hive.hiragana.domain.repository.PracticeRepository
+import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.SettingsRepository
 import com.hive.hiragana.domain.repository.VocabularyRepository
 
@@ -30,6 +32,12 @@ class HiraganaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // Warm the SharedPreferences disk load off the main thread so the
+        // ViewModel's synchronous first read (~10 prefs during construction)
+        // is served from memory instead of forcing a blocking disk load.
+        Thread { container.settingsRepository.isGridEnabled() }
+            .apply { isDaemon = true; name = "prefs-warmup" }
+            .start()
     }
 }
 
@@ -63,6 +71,10 @@ class AppContainer(context: Context) {
 
     val vocabularyRepository: VocabularyRepository by lazy {
         RoomVocabularyRepository(assetDataSource, database.vocabularyProgressDao())
+    }
+
+    val practiceSetRepository: PracticeSetRepository by lazy {
+        RoomPracticeSetRepository(database.practiceSetDao())
     }
 
     val settingsRepository: SettingsRepository by lazy {

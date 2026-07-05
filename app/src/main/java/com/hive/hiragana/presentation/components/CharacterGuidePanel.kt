@@ -25,13 +25,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -39,10 +34,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -60,11 +53,13 @@ import com.hive.hiragana.domain.model.VocabularyWord
  *   deck position on the left; the animated stroke-order preview with
  *   playback controls on the right (falling back to the static numbered
  *   diagram inside [AnimatedStrokePreview] when there is no timed data).
- * - **Word mode** ([word] non-null): the whole word's kana large, plus
- *   its English meaning — with a "New word!" prefix when [isNewWord] (a
- *   fresh unlock, not a reinforcement pick). The word is traced as one
- *   sheet, so there is no single current character and no stroke-order
- *   preview; per-character demos live in character practice.
+ * - **Word mode** ([word] non-null): the whole word's kana, its English
+ *   meaning — with a "New word!" prefix when [isNewWord] (a fresh unlock,
+ *   not a reinforcement pick) — and a row of per-kana stroke-order previews
+ *   ([wordCharacters], one demo per reading unit) that share ONE playback
+ *   controls row (same controls a single character gets — see
+ *   [WordStrokePreview]). The word is traced as one sheet, but each kana still
+ *   gets its own "how to draw it" demo.
  *
  * [sessionLabel] renders a small progress line at the top (e.g.
  * "Review 2/5", "Practice 1/3") whenever non-null. A full-width controls
@@ -81,6 +76,9 @@ fun CharacterGuidePanel(
     modifier: Modifier = Modifier,
     sessionLabel: String? = null,
     word: VocabularyWord? = null,
+    // The deck characters for the word's kana units, in order — drives the
+    // per-kana stroke-order previews in word mode (empty in character mode).
+    wordCharacters: List<HiraganaCharacter> = emptyList(),
     pronunciation: String? = null,
     isNewWord: Boolean = false,
     onOpenLibrary: (() -> Unit)? = null,
@@ -90,8 +88,6 @@ fun CharacterGuidePanel(
     onToggleGhost: (() -> Unit)? = null,
     practiceLayout: PracticeLayout = PracticeLayout.SINGLE,
     onSelectLayout: ((PracticeLayout) -> Unit)? = null,
-    brushInkColor: Int = 0xFF20222E.toInt(),
-    onSelectBrushColor: ((Int) -> Unit)? = null,
 ) {
     Box(modifier = modifier) {
         if (character == null && word == null) return@Box
@@ -119,11 +115,11 @@ fun CharacterGuidePanel(
                         )
                     }
                     if (word != null) {
-                        // displayMedium keeps three-kana words (いいえ) inside
-                        // the left column's width.
+                        // displaySmall leaves room for the per-kana stroke-order
+                        // previews on the right while still reading large.
                         Text(
                             text = word.kana,
-                            style = MaterialTheme.typography.displayMedium,
+                            style = MaterialTheme.typography.displaySmall,
                             color = MaterialTheme.colorScheme.onBackground,
                         )
                         Text(
@@ -175,11 +171,22 @@ fun CharacterGuidePanel(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                } else if (word != null && wordCharacters.isNotEmpty()) {
+                    // Word mode: a stroke-order demo per kana sharing ONE
+                    // playback-controls row (same controls a single character
+                    // gets) — see WordStrokePreview.
+                    WordStrokePreview(
+                        characters = wordCharacters,
+                        modifier = Modifier
+                            .weight(1.3f)
+                            .fillMaxHeight()
+                            .padding(4.dp),
+                    )
                 }
             }
 
             if (onOpenLibrary != null || onSelectLayout != null ||
-                onToggleGrid != null || onToggleGhost != null || onSelectBrushColor != null
+                onToggleGrid != null || onToggleGhost != null
             ) {
                 PanelControlsRow(
                     onOpenLibrary = onOpenLibrary,
@@ -189,8 +196,6 @@ fun CharacterGuidePanel(
                     onToggleGrid = onToggleGrid,
                     isGhostEnabled = isGhostEnabled,
                     onToggleGhost = onToggleGhost,
-                    brushInkColor = brushInkColor,
-                    onSelectBrushColor = onSelectBrushColor,
                 )
             }
         }
@@ -228,8 +233,6 @@ private fun PanelControlsRow(
     onToggleGrid: (() -> Unit)?,
     isGhostEnabled: Boolean,
     onToggleGhost: (() -> Unit)?,
-    brushInkColor: Int,
-    onSelectBrushColor: ((Int) -> Unit)?,
 ) {
     Row(
         modifier = Modifier
@@ -328,56 +331,6 @@ private fun PanelControlsRow(
                         }
                     },
                 )
-            }
-        }
-        if (onSelectBrushColor != null) {
-            // Rightmost control: a swatch of the current ink that opens the
-            // full HSV picker. Purely a personalization affordance — the
-            // colour never touches stroke geometry or scoring.
-            var showPicker by remember { mutableStateOf(false) }
-            BrushColorSwatchButton(
-                color = brushInkColor,
-                onClick = { showPicker = true },
-            )
-            if (showPicker) {
-                BrushColorPicker(
-                    initial = Color(brushInkColor),
-                    onPick = {
-                        onSelectBrushColor(it.toArgb())
-                        showPicker = false
-                    },
-                    onDismiss = { showPicker = false },
-                )
-            }
-        }
-    }
-}
-
-/**
- * The ink-colour control: a neutral square the size of the grid/ghost toggles
- * with a filled circle in the current ink [color] (thin outline ring so a
- * near-white pick still reads). Tapping opens the [BrushColorPicker].
- */
-@Composable
-private fun BrushColorSwatchButton(
-    color: Int,
-    onClick: () -> Unit,
-) {
-    val ink = Color(color)
-    val outline = MaterialTheme.colorScheme.outline
-    Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .width(ToggleWidth)
-            .height(ControlHeight)
-            .semantics { contentDescription = "Brush colour" },
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.size(20.dp)) {
-                drawCircle(ink)
-                drawCircle(outline, style = Stroke(1.dp.toPx()))
             }
         }
     }

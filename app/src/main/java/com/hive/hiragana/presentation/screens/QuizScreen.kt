@@ -14,9 +14,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,41 +46,51 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.model.PracticeLayout
+import com.hive.hiragana.domain.model.PracticeSet
+import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.domain.scoring.CharacterScore
 import com.hive.hiragana.domain.scoring.ScoringMode
+import com.hive.hiragana.domain.scoring.WordUnitScore
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
+import com.hive.hiragana.presentation.components.WordAverageCard
+import com.hive.hiragana.presentation.components.WordScoreChips
 import com.hive.hiragana.presentation.theme.InkBlack
 import kotlin.math.roundToInt
 import com.hive.hiragana.presentation.viewmodels.QuizStage
 import com.hive.hiragana.presentation.viewmodels.QuizState
+import com.hive.hiragana.presentation.viewmodels.WordQuizItem
 
 /**
  * Full-screen "Quiz me!" overlay, launched from the library: the learner
- * writes characters from their romaji prompt alone. The ghost tracing
- * guide is off while writing — "Show answer" reveals it on the canvas
- * (plus the kana in the header) for self-checking — while the crosshair
- * practice grid is a per-quiz choice (setup switch, changeable mid-quiz).
+ * writes an item (a single character, or — for a word set — a whole word)
+ * from its romaji prompt alone. The ghost tracing guide is off while writing;
+ * "Show answer" reveals it on the canvas (plus the kana in the header) for
+ * self-checking. The crosshair practice grid is a per-quiz choice (setup
+ * switch, changeable mid-quiz).
  *
- * Three stages ([QuizState.stage]): SETUP picks how many characters
- * (5/10/20/All presets, or an exact number typed/stepped in the box the
- * presets pre-populate) and whether to show the grid; RUNNING is prompt →
- * write → optional reveal → self-grade, with Back/Next for moving through
- * the deck without grading (Next reads Finish on the last character);
- * SUMMARY lists every character with its grade, or "Skipped" if it never
- * got one. Attempts persist as PracticeSource.QUIZ; scheduling is never
- * touched.
+ * Three stages ([QuizState.stage]): SETUP picks the source (the active-script
+ * character scope, or any saved practice set), how many items (5/10/20/All
+ * presets, or an exact number), and whether to show the grid; RUNNING is
+ * prompt → write → optional reveal → submit (auto-scored), with Back/Next for
+ * moving through the deck; SUMMARY lists every item with its score, or
+ * "Skipped" if it was never written. Attempts persist as PracticeSource.QUIZ;
+ * scheduling is never touched. Words are scored per-kana (the same engine as
+ * whole-word practice) and their average is the item's quiz score.
  */
 @Composable
 fun QuizScreen(
     quiz: QuizState,
     deckSize: Int,
+    practiceSets: List<PracticeSet>,
     canvasState: CanvasState,
     onSetCount: (Int) -> Unit,
     onToggleGrid: () -> Unit,
+    onSelectSource: (Long?) -> Unit,
     onStart: () -> Unit,
     onSubmit: () -> Unit,
     onAdvance: () -> Unit,
@@ -88,6 +101,8 @@ fun QuizScreen(
     onSetScoringMode: (ScoringMode) -> Unit,
     lastScore: CharacterScore?,
     lastScoredCharacter: String?,
+    lastWordScores: List<WordUnitScore>?,
+    lastWordAverage: Int?,
     inkColor: Color = InkBlack,
     modifier: Modifier = Modifier,
 ) {
@@ -99,8 +114,10 @@ fun QuizScreen(
             QuizStage.SETUP -> QuizSetup(
                 quiz = quiz,
                 deckSize = deckSize,
+                practiceSets = practiceSets,
                 onSetCount = onSetCount,
                 onToggleGrid = onToggleGrid,
+                onSelectSource = onSelectSource,
                 onStart = onStart,
                 onClose = onClose,
                 scoringMode = scoringMode,
@@ -116,6 +133,8 @@ fun QuizScreen(
                 onClose = onClose,
                 lastScore = lastScore,
                 lastScoredCharacter = lastScoredCharacter,
+                lastWordScores = lastWordScores,
+                lastWordAverage = lastWordAverage,
                 inkColor = inkColor,
             )
             QuizStage.SUMMARY -> QuizSummary(quiz, onQuizAgain, onClose)
@@ -139,13 +158,18 @@ private fun quizCountOptions(deckSize: Int): List<Int> =
 private fun QuizSetup(
     quiz: QuizState,
     deckSize: Int,
+    practiceSets: List<PracticeSet>,
     onSetCount: (Int) -> Unit,
     onToggleGrid: () -> Unit,
+    onSelectSource: (Long?) -> Unit,
     onStart: () -> Unit,
     onClose: () -> Unit,
     scoringMode: ScoringMode,
     onSetScoringMode: (ScoringMode) -> Unit,
 ) {
+    val selectedSet = practiceSets.firstOrNull { it.id == quiz.selectedSetId }
+    val isWordSource = selectedSet?.type == PracticeSetType.WORDS
+    val itemNoun = if (isWordSource) "words" else "characters"
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -183,14 +207,29 @@ private fun QuizSetup(
                         style = MaterialTheme.typography.titleLarge,
                     )
                     Text(
-                        text = "Each character is prompted by its sound only — " +
-                            "no ghost guide to trace. Write it, check the answer, " +
-                            "grade yourself. Your review schedule isn't affected.",
+                        text = "Each item is prompted by its sound only — no ghost " +
+                            "guide to trace. Write it, check the answer, see your " +
+                            "score. Your review schedule isn't affected.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+
+                    // Source picker — only when the learner has saved sets to
+                    // choose from; otherwise the default scope source is implied.
+                    if (practiceSets.isNotEmpty()) {
+                        Text(
+                            text = "Practice from",
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        QuizSourcePicker(
+                            selectedSet = selectedSet,
+                            practiceSets = practiceSets,
+                            onSelectSource = onSelectSource,
+                        )
+                    }
+
                     Text(
-                        text = "How many characters?",
+                        text = "How many $itemNoun?",
                         style = MaterialTheme.typography.titleSmall,
                     )
                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -269,6 +308,53 @@ private fun QuizSetup(
 }
 
 /**
+ * The quiz-source dropdown: the default active-script character scope, or any
+ * saved practice set. Rendered as a button opening a [DropdownMenu].
+ */
+@Composable
+private fun QuizSourcePicker(
+    selectedSet: PracticeSet?,
+    practiceSets: List<PracticeSet>,
+    onSelectSource: (Long?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = selectedSet?.let { "${it.name} (${it.members.size})" } ?: "Study scope",
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Start,
+            )
+            Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = null)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Study scope (characters)") },
+                onClick = {
+                    onSelectSource(null)
+                    expanded = false
+                },
+            )
+            practiceSets.forEach { set ->
+                val kind = if (set.type == PracticeSetType.WORDS) "words" else "chars"
+                DropdownMenuItem(
+                    text = { Text("${set.name} · ${set.members.size} $kind") },
+                    onClick = {
+                        onSelectSource(set.id)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
  * Exact-count row: a numeric text box flanked by −/+ steppers. The box is
  * pre-populated from whatever the presets (or steppers) set; typing a
  * number works the other way and clamps to 1..[deckSize] in the ViewModel
@@ -340,10 +426,13 @@ private fun QuizRunning(
     onClose: () -> Unit,
     lastScore: CharacterScore?,
     lastScoredCharacter: String?,
+    lastWordScores: List<WordUnitScore>?,
+    lastWordAverage: Int?,
     inkColor: Color,
 ) {
     val current = quiz.current ?: return
     var showExitConfirm by rememberSaveable { mutableStateOf(false) }
+    val isWord = current is WordQuizItem
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -355,15 +444,27 @@ private fun QuizRunning(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Quiz ${quiz.index + 1}/${quiz.characters.size}",
+                    text = "Quiz ${quiz.index + 1}/${quiz.items.size}",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = current.romaji,
-                    style = MaterialTheme.typography.displayMedium,
+                    text = current.prompt,
+                    style = MaterialTheme.typography.displaySmall,
                     color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                // Meaning hint for words (helps recall the whole word).
+                current.subtitle?.let { meaning ->
+                    Text(
+                        text = meaning,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Text(
                     text = if (quiz.submitted) {
                         "Compare with the guide, then Next"
@@ -382,9 +483,10 @@ private fun QuizRunning(
                 // learner commits from memory first.
                 if (quiz.revealed) {
                     Text(
-                        text = current.character,
-                        style = MaterialTheme.typography.displayMedium,
+                        text = current.answer,
+                        style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
                     )
                 }
                 Row(
@@ -411,7 +513,7 @@ private fun QuizRunning(
         ) {
             TracingCanvas(
                 canvasState = canvasState,
-                characters = listOf(current.character),
+                characters = current.glyphs,
                 showGrid = quiz.showGrid,
                 // Ghost guide strokes appear only after Submit (revealed) — the
                 // "official answer" comes up alongside the score.
@@ -423,16 +525,34 @@ private fun QuizRunning(
                     .padding(horizontal = 14.dp),
             )
             // Feedback shows only in the review sub-state (after Submit); it is
-            // cleared on advance so it doesn't distract on the next character.
+            // cleared on advance so it doesn't distract on the next item. A word
+            // shows per-kana chips + an average; a character shows one card.
             if (quiz.submitted) {
-                lastScore?.let { score ->
-                    ScoreFeedbackCard(
-                        score = score,
-                        glyph = lastScoredCharacter,
+                if (isWord && lastWordScores != null) {
+                    WordScoreChips(
+                        scores = lastWordScores,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .padding(top = 6.dp),
+                            .padding(top = 6.dp, start = 8.dp, end = 8.dp),
                     )
+                    lastWordAverage?.let { avg ->
+                        WordAverageCard(
+                            average = avg,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 6.dp),
+                        )
+                    }
+                } else {
+                    lastScore?.let { score ->
+                        ScoreFeedbackCard(
+                            score = score,
+                            glyph = lastScoredCharacter,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 6.dp),
+                        )
+                    }
                 }
             }
         }
@@ -501,7 +621,7 @@ private fun QuizRunning(
             onDismissRequest = { showExitConfirm = false },
             title = { Text("Exit quiz?") },
             text = {
-                Text("Characters you've already submitted are saved, but you'll leave the quiz.")
+                Text("Items you've already submitted are saved, but you'll leave the quiz.")
             },
             confirmButton = {
                 TextButton(
@@ -542,35 +662,53 @@ private fun QuizSummary(
                     text = "Quiz complete",
                     style = MaterialTheme.typography.headlineSmall,
                 )
-                val scored = quiz.characters.mapNotNull { quiz.results[it.id] }
-                val written = scored.size
+                // "written" counts items actually submitted (regardless of
+                // whether scoring produced a headline — e.g. ScoringMode.OFF);
+                // "scored" backs the average and excludes the unscored ones.
+                val written = quiz.items.count { it.key in quiz.submittedKeys }
+                val scored = quiz.items.mapNotNull { quiz.results[it.key] }
                 Text(
                     text = if (written > 0) {
-                        "Wrote $written of ${quiz.characters.size} · average ${scored.average().roundToInt()}"
+                        val base = "Wrote $written of ${quiz.items.size}"
+                        if (scored.isNotEmpty()) {
+                            "$base · average ${scored.average().roundToInt()}"
+                        } else {
+                            base
+                        }
                     } else {
-                        "You skipped every character"
+                        "You skipped every item"
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                quiz.characters.forEach { character ->
-                    val score = quiz.results[character.id]
+                quiz.items.forEach { item ->
+                    val score = quiz.results[item.key]
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Text(
-                            text = character.character,
+                            text = item.answer,
                             style = MaterialTheme.typography.titleLarge,
                         )
                         Text(
-                            text = character.romaji,
+                            text = item.prompt,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
+                        // Three-way: a numeric score; "—" for an item written
+                        // but not scored (e.g. ScoringMode.OFF); "Skipped" for a
+                        // genuinely-unwritten item.
+                        val wasWritten = item.key in quiz.submittedKeys
                         Text(
-                            text = score?.toString() ?: "Skipped",
+                            text = when {
+                                score != null -> score.toString()
+                                wasWritten -> "—"
+                                else -> "Skipped"
+                            },
                             style = MaterialTheme.typography.labelLarge,
                             color = when {
                                 score == null -> MaterialTheme.colorScheme.onSurfaceVariant
