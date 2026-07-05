@@ -12,6 +12,39 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-05 — Guided study removed; built-in default practice sets
+
+#### Removed
+- **The guided SRS study session** — the app is now **free practice + the
+  "Quiz me!" quiz** only. Deleted `SrsScheduler`, `LessonGenerator`,
+  `StudySession`, and `PracticeActionBar` (the Again/Hard/Good/Easy grade bar;
+  `FreePracticeActionBar` split into its own file), plus the three
+  `domain/learning` test files. `SessionPhase` collapsed to `LOADING`/`FREE`;
+  the COMPLETE summary, the "Start a study session" / "Start next session" entry
+  points, and the Library's "Learned/Locked" status labels are gone.
+
+#### Added
+- **Built-in default practice sets** — ~32 sets seeded once per install
+  (persisted `default_sets_seeded` flag): for each script, the 10 gojūon rows +
+  the Voiced / Combined / Extended kana categories + starter word sets
+  (Colors / Nature / Seasons; Food & drink / Countries / Everyday items). They
+  are ordinary editable sets afterward, and a deleted default does not return.
+
+#### Changed
+- Whether writing is scored is now governed **solely** by the **Score my
+  writing** setting — there is no separate graded flow.
+- Unscored Library cells / rows / cards use a neutral tint (previously a
+  learned/unlocked highlight); the score-spectrum coloring is unchanged.
+- **Room untouched at v4** — the `review_cards` / `character_progress` /
+  `vocabulary_progress` tables + entities/DAOs + `RoomLearningRepository`
+  remain as dormant, unused schema (removing them would need a destructive
+  migration).
+
+#### Tests
+- Suite is now **84 unit tests, 0 failures** (removed the SRS / lesson-generator
+  / vocabulary-unlock suites; trimmed `ScriptScopeTest` to its pure filter/gating
+  cases; added default-practice-set seeding tests).
+
 ### 2026-07-05 — Code-review round 4 (practice-sets & scoring hardening)
 
 #### Fixed

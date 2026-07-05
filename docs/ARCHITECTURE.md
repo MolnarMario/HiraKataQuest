@@ -11,16 +11,23 @@ complete and verified with a successful `assembleDebug` on 2026-07-03. **Phase 2
 2026-07-03, adversarially reviewed and review-fixed 2026-07-04. **Phase 3 (Smart
 Learning System — SRS scheduling, session generation, vocabulary unlocking) is also
 complete** — implemented, built and unit-tested 2026-07-04 (45/45 tests green),
-adversarially reviewed the same day (0 P0, review fixes applied). A **katakana
+adversarially reviewed the same day (0 P0, review fixes applied). **Phase 3 was
+then REMOVED on 2026-07-05** (§8 and §3/§4 note this inline): the SRS scheduler,
+lesson generator, `StudySession`, and the session state machine were deleted, so
+the app is now free-practice + quiz only with built-in default practice sets.
+`SessionPhase` is now just `LOADING`/`FREE`; the Room SRS tables + their
+repositories are retained as dormant, unused schema. The Phase-3 descriptions in
+the sections below are therefore historical except where a 2026-07-05 note
+supersedes them. A **katakana
 section** (2026-07-04, device-verified on the Pixel 7) then added a second script
 without touching the learning engine or Room schema: a `Script` enum on every
 `HiraganaCharacter` (set by the loader from the `assets/<script>/` directory), a
 second asset directory, a persisted `activeScript` setting, and a Library selector.
 The `PracticeViewModel` keeps the full merged deck loaded (for cross-script romaji
 lookups) but derives a script-scoped deck via `ScriptScope.scopedCharacters/Words`
-and feeds ONLY that into `LessonGenerator.generate()`, the quiz pool, and FREE
-practice — so the pure learning layer, its tests, and the Room tables are
-unchanged (off-script `ReviewCard`s are inert orphans; katakana rows are additive).
+and feeds ONLY that into the quiz pool and FREE practice — katakana rows are
+additive (no Room migration). (When this was written the scoped deck also fed
+`LessonGenerator.generate()`, but the guided study session was removed 2026-07-05.)
 The same `ScriptScope` seam then carries the **dakuten/handakuten opt-in**
 (2026-07-04): `KanaKind` classifies each glyph (base vs voiced/semi-voiced, via
 Unicode NFD) and the persisted `includeDiacritics` setting (default off) makes
@@ -39,8 +46,7 @@ in priority **extended → yōon → voiced**, so each opt-in is independent (a
 foreign combo like ヴァ is gated by `includeExtended` alone, and ゔ/ヴ — voiced by
 NFD — stay under `includeDiacritics`). `setActiveScript`,
 `setIncludeDiacritics`, `setIncludeYoon`, and `setIncludeExtended` all persist
-then do a phase-independent session rebuild that keeps the library open;
-`startNextSession` preserves all four across its state reconstruction. With all
+then re-enter FREE practice in place, keeping the library open. With all
 three opt-ins on, the deck is the complete kana inventory (both scripts).
 A later **practice-sets** feature adds user-curated, hand-picked lists of
 characters or words (`domain/model/PracticeSet.kt`) — an *explicit membership
@@ -54,10 +60,13 @@ Section 7 covers the Phase 2 design as
 built and section 8 covers Phase 3; the full contracts are
 [docs/PHASE2-DESIGN.md](PHASE2-DESIGN.md) and [docs/PHASE3-DESIGN.md](PHASE3-DESIGN.md).
 
-All Kotlin sources live under `app/src/main/java/com/hive/hiragana/`. There are **76
-Kotlin files** in the `main` source set, plus **12 files** under `app/src/test/`
-(121 JUnit tests total; there is still no `androidTest/`). The test count grew
-well past Phase 3's original 45 as the katakana/opt-in seam (`Script`, `KanaKind`,
+All Kotlin sources live under `app/src/main/java/com/hive/hiragana/`. After the
+2026-07-05 guided-study removal the `main` source set lost `SrsScheduler`,
+`LessonGenerator`, `StudySession`, and `PracticeActionBar` and gained
+`DefaultPracticeSets` + a standalone `FreePracticeActionBar`; the test set dropped the
+three `domain/learning` files, leaving **84 JUnit tests** (there is still no
+`androidTest/`). The test count had grown past Phase 3's original 45 as the
+katakana/opt-in seam (`Script`, `KanaKind`,
 `KanaUnits`, `ScriptScope`), the Library chart (`KanaChart`), and the
 handwriting-scoring layer (`GeometryScorer`, `CharacterScore`, `StrokeAttribution`) each
 brought their own pure-domain suites. Paths below are given relative to
@@ -192,27 +201,23 @@ channel (a) into a session state machine but did not touch the split itself:
 
 `presentation/viewmodels/PracticeViewModel.kt` exposes
 `uiState: StateFlow<PracticeUiState>` (backed by a private `MutableStateFlow`, mutated
-only via `_uiState.update { … }`). As of Phase 3 the ViewModel drives a `SessionPhase`
-state machine (docs/PHASE3-DESIGN.md §6):
+only via `_uiState.update { … }`). **As of 2026-07-05 the `SessionPhase` machine is just:**
 
 ```
-LOADING → REVIEWS → NEW_CHARACTER → PRACTICE → VOCABULARY → COMPLETE → (FREE)
+LOADING → FREE
 ```
 
-`NEW_CHARACTER` and `PRACTICE` are deliberately collapsed into one UI-visible step: the
-Phase 2 animated preview auto-plays as soon as the new character is shown, and its first
-trace *is* practice repetition 1. `COMPLETE` now offers three continuations (see §5):
-**"Start next session"** (`startNextSession()` — primary, hidden when `allCaughtUp`;
-regenerates a fresh `StudySession` from the just-updated cards, so restarting the app is
-no longer the only way to keep learning), **"Keep practicing"** (`startFreePractice()` —
-the original escape hatch into `FREE`, the old Phase 1/2 endless loop over
-already-learned characters, no scheduling side effects), and **"Browse library"**
-(`openLibrary()`). The library (post-Phase-3) also feeds `FREE` directly:
-`practiceCharacter(char)` free-practices the **whole** deck starting at the pick
-(learned or not — the library is the explicit escape hatch from SRS gating), and
-`practiceWord(word)` free-practices the word's kana in order with `freeWord` driving the
-word header in the guide panel. Key `PracticeUiState` fields, grouped by which phase(s)
-they serve:
+The guided-study phases (`REVIEWS`/`NEW_CHARACTER`/`PRACTICE`/`VOCABULARY`/`COMPLETE`)
+described in the rest of this section were **removed with the SRS study session** —
+`startPractice()` loads the deck and drops straight into `FREE` (see §4). The library
+feeds `FREE` directly: `practiceCharacter(char)` free-practices the **whole** deck
+starting at the pick, and `practiceWord(word)` free-practices the word's kana in order
+with `freeWord` driving the word header in the guide panel. Practice sets launch into
+`FREE` too (`practiceSet(id)`). The rest of the field table below is **historical for the
+removed phases** (the guided fields — `reviewQueue`, `newCharacter`, `vocabularyQueue`,
+`allCaughtUp`, `learnedCharacterIds`, `unlockedWordKana`, etc. — no longer exist); the
+`FREE`, SETTINGS, SCORING, LIBRARY-overlay, QUIZ, and practice-set rows still apply. Key
+`PracticeUiState` fields, grouped by which phase(s) they served:
 
 | Field | Meaning |
 |---|---|
@@ -222,14 +227,14 @@ they serve:
 | `vocabularyQueue`, `currentWord`, `wordCharIndex`, `wordsTotal`, `wordsPracticed`, `newlyUnlockedKana` | VOCABULARY: the word queue, the kana index being traced, and which unlocks are fresh this session (drives the "New word!" badge, not reinforcement picks). |
 | `allCaughtUp`, `newCharacterLearned`, `wordsUnlocked`, `hasLearnedCharacters` | COMPLETE: summary stats. `newCharacterLearned` is null if the final practice rep was graded Again (introduced, not learned); `wordsUnlocked` lists only fresh unlocks; `hasLearnedCharacters` gates whether "Keep practicing" renders at all. |
 | `freeCharacters`, `currentIndex`, `gradedCount`, `freeWord`, `freeSubmitted` | FREE: the old Phase 1/2 deck-walking fields, now driving a **two-step Submit→review flow**. Via "Keep practicing" the deck is scoped to characters with `repetitions >= 1`; via a library pick it can hold the **whole** deck (`practiceCharacter`) or one word's kana in order (`practiceWord`, with `freeWord` non-null so the guide panel shows the word header). `freeSubmitted` is the writing↔reviewing flag: `false` = writing (Clear · Submit/Skip), `true` = reviewing the just-scored attempt (Again · Next). It is reset at every FREE entry point, on `freeRetry()` (rewrite the same char/word), and on `advanceToNextCharacter()` (Next). See §4. |
-| `isLibraryOpen`, `allWords`, `unlockedWordKana`, `learnedCharacterIds` | LIBRARY: whether the full-screen library overlay is showing (it overlays whatever phase is active without disturbing it), every vocabulary word, and the unlock/learned sets that drive the rows' "Unlocked"/"Locked" and "Learned"/"Not started" labels. |
+| `isLibraryOpen`, `allWords` | LIBRARY: whether the full-screen library overlay is showing (it overlays `FREE` without disturbing it) and every vocabulary word. (The `unlockedWordKana`/`learnedCharacterIds` sets and the "Unlocked/Locked" + "Learned/Not started" row labels they drove were **removed 2026-07-05** — rows now show only the score tint.) |
 | `quiz: QuizState?` | QUIZ (write-from-memory overlay launched from the library; renders above it). `QuizState` holds a `QuizStage` (`SETUP`/`RUNNING`/`SUMMARY`), the requested count, a per-quiz `showGrid`, the chosen `items: List<QuizItem>`, a `selectedSetId: Long?` (null = active-script character scope; else a saved practice set), `index`, `revealed`/`submitted` two-step flags, and `results` (auto quality-score headline by item key). `QuizItem` is a sealed interface (`key`/`prompt`/`answer`/`glyphs`/`subtitle`) with `CharQuizItem(character)` and `WordQuizItem(word, prompt)`, so a quiz can now draw **words** as well as characters. Each submit auto-scores (no self-grade — `quizSubmit(cells)` branches character → `recordAttempt`, word → `recordWordAttempt` per-kana average) and records a `PracticeSource.QUIZ` attempt — **no SRS/unlock side effects**. |
 | `practiceSets: List<PracticeSet>` | Always relevant. The user's saved practice sets, observed from `PracticeSetRepository.observeSets()` in `init` and carried through the `rebuilt()` helper (durable). Feeds the Study-scope sets manager and the quiz source picker. |
 | `pendingOpenSetsManager: Boolean` | LIBRARY (one-shot). Set true by `closeQuiz()` when the closing quiz's `selectedSetId != null`, so the library reopens the practice-sets manager instead of the browse page — needed because the quiz overlay decomposes `LibraryScreen` and loses its local `showSetsManager` state. Consumed by a `LibraryScreen` `LaunchedEffect` calling `consumeOpenSetsManager()`, which clears it. |
 | `freeWords: List<VocabularyWord>` | FREE (word-set practice). The FREE word-set queue when a `PracticeSetType.WORDS` set is launched via `practiceSet(id)`; `advanceToNextCharacter()` cycles it (modulo wrap), keeping `freeWord` pointed at the current item. Empty for single-character/word FREE. |
 | `isGridEnabled`, `isGhostEnabled`, `isLibraryGridView`, `practiceLayout`, `activeScript`, `includeDiacritics`, `includeYoon`, `includeExtended`, `scoringMode`, `brushInkColor` | SETTINGS: seeded from and persisted via `SettingsRepository` (keys `grid_enabled`, `ghost_enabled`, `library_grid_view`, `practice_layout_span`, `active_script`, `diacritics_included`, `yoon_included`, `extended_included`, `scoring_mode`, `brush_ink_color`). |
 | `lastScore`, `lastScoredCharacter`, `lastWordScores`, `lastWordAverage`, `scoreStats` | SCORING (§8): the most recent single-glyph `CharacterScore` and the glyph it was computed for (drives `ScoreFeedbackCard`); `lastWordScores: List<WordUnitScore>?` + `lastWordAverage: Int?` are the transient per-kana word breakdown (drives `WordScoreChips` above the canvas + `WordAverageCard` below); and `scoreStats: Map<String, CharacterScoreSummary>` for the Library's per-character readout. The single-glyph and word fields are mutually exclusive — each is set with the other nulled, and all four are reset wherever `lastScore` is (on every advance/retry/entry point, and when scoring is `OFF`). |
-| derived: `currentCharacter`, `sessionProgress`, `total`, `isCurrentWordNew`, `activeScriptCharacters` | `currentCharacter` resolves per-phase (review queue head / new character / word's current kana resolved back to a `HiraganaCharacter` / free-deck position); `sessionProgress` is the human-readable line ("Review 3/5", "Practice 1/3", …) shown by `CharacterGuidePanel`; `activeScriptCharacters` is the script/opt-in-scoped view of the full deck. |
+| derived: `currentCharacter`, `activeScriptCharacters` | `currentCharacter` resolves the current FREE glyph (free-deck position, or the current kana of a `freeWord` resolved back to a `HiraganaCharacter`); `activeScriptCharacters` is the script/opt-in-scoped view of the full deck. (The guided `sessionProgress`/`isCurrentWordNew`/`total` derivations were removed 2026-07-05.) |
 
 This is the durable, screen-rotation-safe state (ViewModel-scoped). Collected in
 `PracticeScreen` with `collectAsStateWithLifecycle()`.
@@ -299,40 +304,27 @@ Details of capture, palm rejection, pressure and smoothing are in
 
 ## 4. Event flow
 
-The user actions, plus the shared clear loop-back. Grading now routes through
-`SrsScheduler` and the `SessionPhase` machine instead of a flat "advance the deck" step:
+The user actions, plus the shared clear loop-back. **As of 2026-07-05 there is no graded
+SRS session** — the `GRADE`/`gradeCurrentCharacter` routing and the `START NEXT SESSION`
+flow shown below were removed with the study session; the app drives FREE practice through
+the SUBMIT/RETRY/NEXT path. The removed flows are kept here (struck through in prose) only
+so a reader tracing old commits recognizes them:
 
 ```
 CLEAR (local-only; ViewModel never involved)
   User taps Clear
-    └─► PracticeActionBar.onClear
+    └─► FreePracticeActionBar.onClear
           └─► CanvasState.clear()          resets session/paths → canvas recomposes,
-                                           hasInk=false disables Clear + grade buttons
+                                           hasInk=false disables Clear + Submit buttons
 
-GRADE (Again / Hard / Good / Easy — session phases only; FREE uses SUBMIT below)
-  User taps a grade button (enabled only when hasInk)
-    └─► PracticeActionBar.onGrade(grade)
-          └─► PracticeScreen: viewModel.gradeCurrentCharacter(grade, session, cellRect, cells)
-                ├─ 0. double-grade guard: return early if this DrawingSession was
-                │       already consumed by the previous grade (identity check);
-                │       stashes cellRect (single 1×1 cell) + cells (per-kana word cells)
-                │       for the recordAttempt/recordWordAttempt scoring pass
-                └─ phase-specific routing:
-                        REVIEWS      → gradeReview: SrsScheduler.next(...) reschedules;
-                                       Again re-queues the character within reviewQueue
-                        NEW_CHARACTER/PRACTICE → gradePractice: on the final rep,
-                                       SrsScheduler.newCard() + next(...) seeds the card
-                        VOCABULARY   → gradeVocabulary: records the attempt only
-                        FREE         → no-op (FREE is driven by freeSubmit/freeRetry/
-                                       advanceToNextCharacter, not the grade buttons)
-                      each session branch records the attempt (see recordAttempt below)
-                      and bumps canvasClearKey
+GRADE — REMOVED 2026-07-05 (was: Again/Hard/Good/Easy for the SRS session phases,
+  routing through gradeCurrentCharacter → gradeReview/gradePractice/gradeVocabulary and
+  SrsScheduler). No grade bar exists anymore; FREE uses SUBMIT below.
 
 RECORD (recordAttempt / recordWordAttempt — the scoring + persistence step)
-  Called by the session grade branches and by freeSubmit:
+  Called by freeSubmit (and the quiz submit):
     ├─ if scoringMode == OFF → clear the last-score fields and RETURN WITHOUT
-    │    persisting (no attempt row is written); SRS scheduling + vocab unlock
-    │    still run because the callers do them independently
+    │    persisting (no attempt row is written)
     ├─ SYNCHRONOUS snapshot: build PracticeAttempt (character, romaji, grade,
     │    strokeCount, durationMs, clock.millis(), source)
     ├─ single glyph: score ONLY when cell != null — i.e. one glyph in one 1×1
@@ -365,24 +357,17 @@ SUBMIT / RETRY / NEXT (FREE two-step, mirrors the quiz)
   A multi-copy 2×2/3×3 single-character worksheet (or scoring turned Off) can't be
   single-scored, so FreePracticeActionBar collapses the two-step to Clear · Next.
 
-START NEXT SESSION (COMPLETE summary, hidden when allCaughtUp; also legal from FREE)
-  User taps "Start next session"
-    └─► PracticeViewModel.startNextSession()
-          resets PracticeUiState (carrying over characters / allWords /
-          unlockedWordKana / learnedCharacterIds, bumping canvasClearKey),
-          then re-runs the same private startSession() load — the cards
-          grading just updated usually open the mastery gate for the next
-          character. No-op outside COMPLETE/FREE.
+START NEXT SESSION — REMOVED 2026-07-05 (was: the COMPLETE summary's "Start next
+  session" button calling startNextSession() to regenerate a StudySession). No
+  guided sessions exist anymore.
 
-LIBRARY (post-Phase-3; available from the guide panel's "Library" button and
-the COMPLETE summary's "Browse library")
-  openLibrary()  → isLibraryOpen = true (overlay; underlying phase untouched)
+LIBRARY (available from the guide panel's "Library" button)
+  openLibrary()  → isLibraryOpen = true (overlay; FREE underneath untouched)
   closeLibrary() → isLibraryOpen = false (also wired to system Back via BackHandler)
   practiceCharacter(char) → FREE over the WHOLE deck, currentIndex at the pick
   practiceWord(word)      → FREE over the word's kana in order, freeWord = word
-  (both close the overlay, bump canvasClearKey, and abandon any in-progress
-  session steps; grading in this FREE mode records PracticeSource.FREE
-  attempts only — no scheduling or unlock side effects)
+  (both close the overlay, bump canvasClearKey; record PracticeSource.FREE
+  attempts only)
 
 PRACTICE SETS (user-curated lists; CRUD from the Study-scope sheet's sets manager)
   savePracticeSet(name, type, script, members) → RoomPracticeSetRepository.createSet
@@ -406,20 +391,27 @@ LOOP-BACK (after any GRADE branch, or NEXT)
                 └─► CanvasState.clear()    blank sheet for whatever is current now
 ```
 
-The ordering in GRADE is the whole point: by the time any coroutine write runs and the
-canvas clears, the attempt object (and, where relevant, the rescheduled `ReviewCard`) is
-already fully built and immutable. `startSession()` (called once from `init`) is the
-Phase 3 addition upstream of all of this: it loads characters/cards/words/progress, asks
-`LessonGenerator.generate(...)` for a `StudySession`, persists any freshly-unlocked
-vocabulary rows, and enters `REVIEWS` (or skips forward through whichever steps are
-empty, straight to `COMPLETE` if the whole session is empty).
+The ordering in the SUBMIT/RECORD path is the whole point: by the time any coroutine write
+runs and the canvas clears, the attempt object is already fully built and immutable.
+Upstream of all of this is the launch load. **As of 2026-07-05 the guided SRS study session
+has been removed** — there is no `startSession`/`startNextSession`/`startStudySession`, and
+no `LessonGenerator`/`SrsScheduler`. A cold start calls `startPractice()` (from
+`init`/`retrySession`), which loads the deck + words, seeds the built-in default practice
+sets once (`seedDefaultSetsIfNeeded`, gated by the persisted `default_sets_seeded` flag),
+and drops straight into `SessionPhase.FREE` on a random item from the last-used Library
+section (`enterFreePracticeFromLastSection`, scoped by the persisted Study Scope). The four
+scope setters (`setActiveScript`/`setIncludeDiacritics`/`setIncludeYoon`/`setIncludeExtended`)
+re-enter free practice in place via the same helper. The Room SRS tables and
+`LearningRepository`/`RoomLearningRepository` remain in the code as **dormant, unused**
+schema (retained to avoid a destructive migration); `AppContainer.learningRepository` is
+still constructed but no longer injected into the ViewModel.
 
 ## 5. Screen composition tree
 
 Single screen, no navigation library. The top-level content branches on the library
-overlay (`isLibraryOpen`, post-Phase-3) and `SessionPhase.COMPLETE` (a summary card)
-versus everything else (the familiar three-pane
-layout, now fed by whichever phase is active):
+overlay (`isLibraryOpen`) versus the familiar three-pane FREE-practice layout. (The
+`SessionPhase.COMPLETE` summary-card branch was removed 2026-07-05 with the guided study
+session.)
 
 ```
 MainActivity.setContent
@@ -432,29 +424,24 @@ MainActivity.setContent
          │                               (viewModel.retrySession) }
          ├─ isLibraryOpen              → BackHandler { closeLibrary } +
          │                               LibraryScreen (full-screen overlay:
-         │                               LazyColumn of all characters + all words,
-         │                               "Learned"/"Not started" and
-         │                               "Unlocked"/"Locked" labels, every row
-         │                               tappable → practiceCharacter/practiceWord;
+         │                               LazyColumn (or grid chart) of all characters
+         │                               + all words, score-tinted (no status labels
+         │                               since 2026-07-05), every row tappable →
+         │                               practiceCharacter/practiceWord;
          │                               arrow or Back closes)
-         ├─ phase == COMPLETE          → SessionCompleteContent (Card: reviews done /
-         │                               character learned / words unlocked+practiced;
-         │                               buttons: "Start next session" (primary Button,
-         │                               hidden when allCaughtUp) · "Keep practicing"
-         │                               (FilledTonalButton, hidden if nothing learned) ·
-         │                               "Browse library" (TextButton))
-         └─ else → PracticeContent
+         │  (the phase == COMPLETE → SessionCompleteContent branch was REMOVED
+         │   2026-07-05 with the guided study session — there is no summary card)
+         └─ else → PracticeContent (always FREE)
             └─ Column (fillMaxSize)
                ├─ CharacterGuidePanel      weight(0.25f)   ── top 25%
                │  └─ Row
-               │     ├─ Column weight(1f): [sessionLabel line, e.g. "Review 2/5"]
-               │     │                     + glyph (displayLarge, 76.sp)
-               │     │                     + either "romaji · character N of M" (FREE,
-               │     │                       or hidden via total=0 in session phases)
+               │     ├─ Column weight(1f): glyph (displayLarge, 76.sp)
+               │     │                     + either "romaji · character N of M"
                │     │                       or the word's kana (current glyph bolded)
-               │     │                       + meaning line with a "New word!" prefix
-               │     │                       on fresh unlocks (VOCABULARY)
+               │     │                       + meaning line (for a freeWord)
                │     │                     + "Library" TextButton (onOpenLibrary)
+               │     │                     (the guided sessionLabel line + "New word!"
+               │     │                      badge were removed 2026-07-05)
                │     └─ Column: single char → AnimatedStrokePreview; whole word →
                │                WordStrokePreview (one engine per kana unit sharing
                │                ONE PlaybackControls row; squares sized to fit ALL
@@ -472,9 +459,8 @@ MainActivity.setContent
                │                     (BottomCenter), keyed on lastWordScores
                │        single glyph → ScoreFeedbackCard (TopCenter), keyed on lastScore
                └─ action bar               weight(0.10f)   ── bottom 10%
-                  ├─ session phases → PracticeActionBar
-                  │     Row: Clear · Again · Hard · Good · Easy
-                  └─ FREE (isFree) → FreePracticeActionBar (two-step, mirrors the quiz)
+                  └─ FreePracticeActionBar (the only bar since 2026-07-05; two-step,
+                        mirrors the quiz)
                         writing:   Clear · Submit  (Skip when canvas empty)
                         reviewing: Again · Next    (freeSubmitted == true)
                         repetition worksheet OR scoring Off → collapses to Clear · Next
@@ -491,12 +477,12 @@ not touch it, only what's rendered inside each pane.
 |---|---|---|
 | Asset JSON read + parse (characters + vocabulary) | `Dispatchers.IO` | `HiraganaAssetDataSource.loadCharacters()` / `.loadVocabulary()` wrap everything in `withContext(Dispatchers.IO)`; `org.json` parsing happens there too. |
 | Character cache / vocabulary word cache | caller's context, serialised | `AssetCharacterRepository` and (Phase 3) `RoomVocabularyRepository.getWords()` each guard an in-memory cache with a `kotlinx.coroutines.sync.Mutex` — concurrent first calls load once. |
-| `startSession()` / grade / progress / unlock coroutines | `viewModelScope` (Main dispatcher) | Launched in `PracticeViewModel`; the suspend hops (`withContext(IO)`, Room) move real work off the main thread. `LessonGenerator.generate(...)` itself is synchronous pure computation called inline inside the coroutine. |
-| Room writes (practice_history insert, review_cards upsert, character_progress/vocabulary_progress updates) | Room's own executors | All DAO methods are `suspend fun`; Room dispatches internally. Fire-and-forget inside `viewModelScope.launch { runCatching { … } }` — no result observed, but (Phase 3) failures are now logged via `Log.w(TAG, ...)` (tag `HiraganaSession`) instead of silently swallowed. |
+| `startPractice()` / freeSubmit / score / persist coroutines | `viewModelScope` (Main dispatcher) | Launched in `PracticeViewModel`; the suspend hops (`withContext(IO)`, Room) move real work off the main thread. (The `startSession()`/`LessonGenerator.generate(...)` guided-session path was removed 2026-07-05.) |
+| Room writes (practice_history insert, practice_set create/replace) | Room's own executors | All DAO methods are `suspend fun`; Room dispatches internally. Fire-and-forget inside `viewModelScope.launch { runCatching { … } }` — no result observed, but failures are logged via `Log.w(TAG, ...)` (tag `HiraganaSession`) instead of silently swallowed. (The review_cards/character_progress/vocabulary_progress writes were removed with the study session; those tables are now dormant.) |
 | MotionEvent capture, stroke building, path smoothing | UI thread | `pointerInteropFilter` delivers events on the main thread; `StrokeCapture` and `StrokeRenderer` run inline in the handler. |
 | `CanvasState` mutations | **UI thread only, by contract** | Documented in its KDoc. Snapshot state is technically thread-safe, but the class assumes single-threaded mutation (e.g. `startStroke`'s defensive commit, `activeStroke` is a plain non-snapshot field). All current call sites honour this: `StrokeCapture` (input), `PracticeScreen` button lambdas and `LaunchedEffect` (composition). |
 | Stroke-order playback (Phase 2) | UI thread (main) | `StrokeAnimationEngine.run()` is the single suspend driver, launched from a `LaunchedEffect` in `AnimatedStrokePreview`; controls are non-suspend `onClick` mutations of desired state. Outputs are snapshot state read inside the preview's draw lambda (draw invalidation only, no recomposition per frame). |
-| `SrsScheduler` / `LessonGenerator` (Phase 3) | Wherever the caller runs them (today: inside `viewModelScope` coroutines) | Pure, synchronous, no dispatcher of their own — no I/O, no clock reads; every date computation takes `todayStartMillis` as a parameter, so they carry no threading requirement at all. |
+| `SrsScheduler` / `LessonGenerator` | — | Removed 2026-07-05. (Were pure, synchronous, clock-injected — no threading requirement.) |
 
 Nothing else in the app creates threads or dispatchers.
 
@@ -538,12 +524,10 @@ pipeline were untouched — Phase 2 is confined to the guide area and the data l
 Remaining seams from Phase 2, now largely closed by Phase 3:
 
 - **`PracticeRepository.observeAttempts()` — still implemented, still no direct UI
-  collector**, but the COMPLETE summary (§8 below) is the concrete consumer the Phase 2
-  KDoc anticipated for `HiraganaCharacter.frequency` and SRS: `frequency` now drives study
-  order, and grading now feeds a real scheduler — `observeAttempts()`'s `Flow` itself
-  remains unread, but its purpose (grade history informing later behavior) has arrived
-  through a different path (persisted `ReviewCard`/`CharacterProgress` state instead of
-  replaying the attempt log).
+  collector.** `HiraganaCharacter.frequency` drives browse/study order; scored attempts
+  persist to `practice_history` and roll up into `scoreStats` for the Library tinting.
+  (The SRS scheduler that once consumed grade history was removed 2026-07-05; the `Flow`
+  remains unread.)
 - **`strokeImage` reserved field.** Each character JSON may name a raster stroke-order
   image; the field is parsed into `HiraganaCharacter.strokeImage` but never read, and
   the referenced PNGs **do not exist in assets** (known wart / reserved for later
@@ -618,22 +602,22 @@ walk into a generated session.
   order (today the two coincide). `RoomPracticeRepository`'s legacy-grade fallback moved
   from `Grade.OKAY` to `Grade.GOOD` (stored `"OKAY"` rows decode to `GOOD`); an
   unrecognised stored `source` decodes to `PracticeSource.FREE`.
-- **UI — session state machine**: `PracticeViewModel` now drives `SessionPhase`
-  (`LOADING → REVIEWS → NEW_CHARACTER → PRACTICE → VOCABULARY → COMPLETE`, with `FREE` as
-  an escape hatch from `COMPLETE`) inside `PracticeUiState` — full field/flow detail in
-  §3 and §4 above. `PracticeActionBar` renders `Clear · Again · Hard · Good · Easy`,
-  plus `Next` only when `showNext` (i.e. only in `FREE` — during a session the generator
-  decides what's next). `CharacterGuidePanel` gained optional `sessionLabel` / `word` /
-  `wordCharIndex` / `isNewWord` parameters, all defaulted so the `FREE`/legacy call shape
-  is unchanged. `Color.kt` gained `GradeAgainContainer`/`GradeAgainContent` — a step more
-  alarming than Hard's pink, completing a worst-to-best visual ramp.
-- **Tests**: `app/src/test/java/com/hive/hiragana/domain/learning/` — `SrsSchedulerTest`,
-  `LessonGeneratorTest`, `VocabularyUnlockTest` — were the project's first tests (45 at
-  Phase 3), since joined by pure-domain suites for the katakana/opt-in seam and the
-  scoring/chart work (see §8-scoring) and the first `PracticeViewModelTest`;
-  **110 JUnit4 tests total** today, all green
-  (`testDebugUnitTest`). Pure domain logic made this practical without instrumentation,
-  unlike Phase 2's UI/engine surface.
+- **UI — session state machine** *(REMOVED 2026-07-05 — historical)*: Phase 3
+  `PracticeViewModel` drove a `SessionPhase` machine
+  (`LOADING → REVIEWS → NEW_CHARACTER → PRACTICE → VOCABULARY → COMPLETE → FREE`) with a
+  `PracticeActionBar` grade bar (`Clear · Again · Hard · Good · Easy`) and a
+  session-labelled `CharacterGuidePanel`. All of that was deleted on 2026-07-05;
+  `SessionPhase` is now just `LOADING`/`FREE` and the only bar is `FreePracticeActionBar`
+  (see §3/§4). `Color.kt`'s `GradeAgainContainer`/`GradeAgainContent` (the worst-to-best
+  grade ramp) remain, unused by the removed grade bar.
+- **Tests**: `app/src/test/java/com/hive/hiragana/domain/learning/`
+  (`SrsSchedulerTest`, `LessonGeneratorTest`, `VocabularyUnlockTest`) were the project's
+  first tests (45 at Phase 3) but were **deleted with the study session on 2026-07-05**;
+  `ScriptScopeTest` was trimmed to its pure filter/gating cases and `PracticeViewModelTest`
+  lost its session tests and gained default-set-seeding tests. The suite is now
+  **84 JUnit4 tests**, all green (`testDebugUnitTest`) — pure-domain suites for the
+  katakana/opt-in seam and the scoring/chart work (see §8-scoring) plus
+  `PracticeViewModelTest`.
 
 ### Handwriting-quality scoring, quiz, and the Library chart (post-Phase-3, additive)
 
@@ -764,9 +748,12 @@ columns only).
 Paths relative to `app/src/main/java/com/hive/hiragana/` unless noted. This table
 covers the Phase 1–3 core in full; the later additive files (the katakana/opt-in seam,
 handwriting scoring, quiz, Library chart, settings) are listed as a group at the end
-rather than exhaustively re-inventoried — the `main` set is now **76 files**, the test
-set **12 files (121 tests)** (incl. the first `PracticeViewModelTest` and
-`StrokeAttributionTest`).
+rather than exhaustively re-inventoried. **Note (2026-07-05):** the rows below for
+`domain/learning/SrsScheduler.kt`, `domain/learning/LessonGenerator.kt`,
+`domain/model/StudySession.kt`, `presentation/components/PracticeActionBar.kt`, and the
+`domain/learning` test files describe files that **have since been DELETED**;
+`FreePracticeActionBar` now lives in its own file and `domain/model/DefaultPracticeSets.kt`
+was added. The test suite is now **84 tests** (the `domain/learning` files removed).
 
 ### Root (2)
 

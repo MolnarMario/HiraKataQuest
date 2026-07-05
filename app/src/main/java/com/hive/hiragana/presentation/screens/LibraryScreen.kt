@@ -139,12 +139,10 @@ private fun CharacterScoreSummary?.avgScore(): Int? = this?.avgForm ?: this?.avg
  * Browsable library of every character and vocabulary word (Phase 3.1),
  * split into a Characters tab and a Words tab.
  *
- * Everything is tappable — the library is the deliberate escape hatch from
- * SRS gating, so unlearned characters and still-locked words can be freely
- * practiced too; status labels ("Learned", "Locked") are informational
- * only. Picks route to [PracticeViewModel.practiceCharacter] /
- * [PracticeViewModel.practiceWord], which run plain FREE practice with no
- * scheduling or unlock side effects.
+ * Everything is tappable — any character or word can be freely practiced.
+ * Cells/rows are tinted by their average score (neutral when unscored). Picks
+ * route to [PracticeViewModel.practiceCharacter] / [PracticeViewModel.practiceWord],
+ * which run plain FREE practice with no side effects.
  *
  * **Chrome layout (redesigned):** the header is a single Material 3
  * [TopAppBar] — back, title, and three actions: a collapsible search
@@ -190,8 +188,6 @@ private fun CharacterScoreSummary?.avgScore(): Int? = this?.avgForm ?: this?.avg
 fun LibraryScreen(
     characters: List<HiraganaCharacter>,
     words: List<VocabularyWord>,
-    learnedCharacterIds: Set<String>,
-    unlockedWordKana: Set<String>,
     scoreStats: Map<String, CharacterScoreSummary> = emptyMap(),
     activeScript: Script,
     onSelectScript: (Script) -> Unit,
@@ -207,6 +203,10 @@ fun LibraryScreen(
     onClose: () -> Unit,
     isGridView: Boolean = false,
     onSetGridView: (Boolean) -> Unit = {},
+    // Which tab to open on (0 = Characters, 1 = Words), seeded from the
+    // persisted last-used section; [onSelectTab] persists the learner's switch.
+    initialTab: Int = 0,
+    onSelectTab: (Int) -> Unit = {},
     pronunciation: (VocabularyWord) -> String = { "" },
     brushInkColor: Int = 0xFF20222E.toInt(),
     onSelectBrushColor: (Int) -> Unit = {},
@@ -224,7 +224,7 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(initialTab) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var showScopeSheet by rememberSaveable { mutableStateOf(false) }
 
@@ -419,12 +419,12 @@ fun LibraryScreen(
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(
                     selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
+                    onClick = { selectedTab = 0; onSelectTab(0) },
                     text = { Text("Characters (${filteredCharacters.size})") },
                 )
                 Tab(
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    onClick = { selectedTab = 1; onSelectTab(1) },
                     text = { Text("Words (${filteredWords.size})") },
                 )
             }
@@ -432,13 +432,11 @@ fun LibraryScreen(
             when {
                 gridMode && selectedTab == 0 -> CharacterChart(
                     characters = filteredCharacters,
-                    learnedCharacterIds = learnedCharacterIds,
                     scoreStats = scoreStats,
                     onPracticeCharacter = onPracticeCharacter,
                 )
                 gridMode -> WordGrid(
                     words = filteredWords,
-                    unlockedWordKana = unlockedWordKana,
                     scoreStats = scoreStats,
                     pronunciation = pronunciation,
                     onPracticeWord = onPracticeWord,
@@ -463,12 +461,6 @@ fun LibraryScreen(
                                     character.strokeCount,
                                     scoreStats[character.character],
                                 ),
-                                status = if (character.id in learnedCharacterIds) {
-                                    "Learned"
-                                } else {
-                                    "Not started"
-                                },
-                                statusHighlighted = character.id in learnedCharacterIds,
                                 score = scoreStats[character.character].avgScore(),
                             )
                         }
@@ -482,8 +474,6 @@ fun LibraryScreen(
                                 glyph = word.kana,
                                 title = word.meaning,
                                 subtitle = pronunciation(word),
-                                status = if (word.kana in unlockedWordKana) "Unlocked" else "Locked",
-                                statusHighlighted = word.kana in unlockedWordKana,
                                 score = scoreStats[word.kana].avgScore(),
                             )
                         }
@@ -494,8 +484,7 @@ fun LibraryScreen(
 
                     item {
                         Text(
-                            text = "Tap anything to practice it freely — grades here " +
-                                "don't affect your review schedule.",
+                            text = "Tap anything to practice it freely.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 8.dp),
@@ -1012,7 +1001,6 @@ private val ChartRowLabelWidth = 22.dp
 @Composable
 private fun CharacterChart(
     characters: List<HiraganaCharacter>,
-    learnedCharacterIds: Set<String>,
     scoreStats: Map<String, CharacterScoreSummary>,
     onPracticeCharacter: (HiraganaCharacter) -> Unit,
 ) {
@@ -1037,18 +1025,17 @@ private fun CharacterChart(
                     is TableSection -> {
                         item { ChartColumnLabels(section.columnLabels, cellSize) }
                         items(section.rows) { row ->
-                            ChartTableRow(row, cellSize, learnedCharacterIds, scoreStats, onPracticeCharacter)
+                            ChartTableRow(row, cellSize, scoreStats, onPracticeCharacter)
                         }
                     }
                     is FlowSection -> item {
-                        ChartCellFlow(section.cells, cellSize, learnedCharacterIds, scoreStats, onPracticeCharacter)
+                        ChartCellFlow(section.cells, cellSize, scoreStats, onPracticeCharacter)
                     }
                 }
             }
             item {
                 Text(
-                    text = "Tap any cell to practice it freely — grades here don't " +
-                        "affect your review schedule.",
+                    text = "Tap any cell to practice it freely.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),
@@ -1091,7 +1078,6 @@ private fun ChartColumnLabels(labels: List<String>, cellSize: Dp) {
 private fun ChartTableRow(
     row: TableRow,
     cellSize: Dp,
-    learnedCharacterIds: Set<String>,
     scoreStats: Map<String, CharacterScoreSummary>,
     onPracticeCharacter: (HiraganaCharacter) -> Unit,
 ) {
@@ -1111,7 +1097,6 @@ private fun ChartTableRow(
             if (character != null) {
                 ChartCell(
                     character = character,
-                    learned = character.id in learnedCharacterIds,
                     score = scoreStats[character.character].avgScore(),
                     onClick = { onPracticeCharacter(character) },
                     modifier = Modifier.size(cellSize),
@@ -1133,7 +1118,6 @@ private fun ChartTableRow(
 private fun ChartCellFlow(
     cells: List<HiraganaCharacter>,
     cellSize: Dp,
-    learnedCharacterIds: Set<String>,
     scoreStats: Map<String, CharacterScoreSummary>,
     onPracticeCharacter: (HiraganaCharacter) -> Unit,
 ) {
@@ -1147,7 +1131,6 @@ private fun ChartCellFlow(
         cells.forEach { character ->
             ChartCell(
                 character = character,
-                learned = character.id in learnedCharacterIds,
                 score = scoreStats[character.character].avgScore(),
                 onClick = { onPracticeCharacter(character) },
                 modifier = Modifier.size(cellSize),
@@ -1191,21 +1174,17 @@ private val ScoreTextStyle = TextStyle(
     platformStyle = PlatformTextStyle(includeFontPadding = false),
 )
 
-/** One chart cell: glyph over tiny romaji, tinted when learned; taps to practice. */
+/** One chart cell: glyph over tiny romaji, tinted by score; taps to practice. */
 @Composable
 private fun ChartCell(
     character: HiraganaCharacter,
-    learned: Boolean,
     score: Int?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Score tint takes precedence; otherwise keep the learned/unlearned tint.
-    val container = score?.let { scoreSpectrumColor(it) } ?: if (learned) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
+    // Score tint when scored; otherwise a neutral surface.
+    val container = score?.let { scoreSpectrumColor(it) }
+        ?: MaterialTheme.colorScheme.surfaceVariant
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
@@ -1253,13 +1232,12 @@ private fun ChartCell(
  * The Words grid: a [LazyVerticalGrid] of adaptive-width cards, so a long word
  * (ありがとう / パーティー) fits its cell and the grid only composes/measures the
  * cards actually on screen (vs. building all ~250 up front — the old eager
- * [FlowRow] stuttered while scrolling). Unlocked words are tinted; every card
+ * [FlowRow] stuttered while scrolling). Cards are tinted by score; every card
  * taps into free practice.
  */
 @Composable
 private fun WordGrid(
     words: List<VocabularyWord>,
-    unlockedWordKana: Set<String>,
     scoreStats: Map<String, CharacterScoreSummary>,
     pronunciation: (VocabularyWord) -> String,
     onPracticeWord: (VocabularyWord) -> Unit,
@@ -1291,15 +1269,13 @@ private fun WordGrid(
                 kana = word.kana,
                 meaning = word.meaning,
                 romaji = romajiByKana[word.kana].orEmpty(),
-                unlocked = word.kana in unlockedWordKana,
                 score = scoreStats[word.kana].avgScore(),
                 onClick = { onPracticeWord(word) },
             )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text(
-                text = "Tap any word to practice it freely — grades here don't " +
-                    "affect your review schedule.",
+                text = "Tap any word to practice it freely.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 12.dp),
@@ -1313,16 +1289,12 @@ private fun WordCard(
     kana: String,
     meaning: String,
     romaji: String,
-    unlocked: Boolean,
     score: Int?,
     onClick: () -> Unit,
 ) {
-    // Score tint takes precedence; otherwise keep the unlocked/locked tint.
-    val container = score?.let { scoreSpectrumColor(it) } ?: if (unlocked) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
+    // Score tint when scored; otherwise a neutral surface.
+    val container = score?.let { scoreSpectrumColor(it) }
+        ?: MaterialTheme.colorScheme.surfaceVariant
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1403,7 +1375,7 @@ private fun characterSubtitle(strokeCount: Int, summary: CharacterScoreSummary?)
 
 /**
  * One tappable row: the glyph (or word kana) large on the left, name and
- * detail in the middle, learned/unlocked status on the right.
+ * detail in the middle; the whole row is tinted by score when scored.
  */
 @Composable
 private fun LibraryRow(
@@ -1411,8 +1383,6 @@ private fun LibraryRow(
     glyph: String,
     title: String,
     subtitle: String,
-    status: String,
-    statusHighlighted: Boolean,
     score: Int?,
 ) {
     // Tint the whole row by score when available; otherwise the default card color.
@@ -1448,16 +1418,6 @@ private fun LibraryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                text = status,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (statusHighlighted) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier.width(72.dp),
-            )
         }
     }
 }

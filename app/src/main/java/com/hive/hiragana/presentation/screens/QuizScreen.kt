@@ -209,7 +209,7 @@ private fun QuizSetup(
                     Text(
                         text = "Each item is prompted by its sound only — no ghost " +
                             "guide to trace. Write it, check the answer, see your " +
-                            "score. Your review schedule isn't affected.",
+                            "score.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

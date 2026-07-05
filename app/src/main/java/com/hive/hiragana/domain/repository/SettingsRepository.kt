@@ -76,6 +76,25 @@ interface SettingsRepository {
     fun setLibraryGridView(gridView: Boolean)
 
     /**
+     * The Library section (tab) the learner last had open: 0 = Characters
+     * (default), 1 = Words. Persisted so a cold start can resume free practice
+     * in the same area the learner was studying.
+     */
+    fun getLibrarySection(): Int
+
+    fun setLibrarySection(index: Int)
+
+    /**
+     * Whether the built-in default practice sets have already been seeded into
+     * this install's library. One-time latch: false on a fresh install (and on
+     * existing installs upgrading from before defaults existed) so they seed
+     * once, true afterwards so a set the user deleted never reappears.
+     */
+    fun hasSeededDefaultSets(): Boolean
+
+    fun setDefaultSetsSeeded()
+
+    /**
      * The brush ink color, as a packed ARGB Int (`Color.toArgb()`). Purely a
      * visual customization — it never affects stroke geometry or scoring.
      * Default is the app's `InkBlack` charcoal.

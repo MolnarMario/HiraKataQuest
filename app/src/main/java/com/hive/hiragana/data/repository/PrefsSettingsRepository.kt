@@ -78,6 +78,19 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putBoolean(KEY_LIBRARY_GRID_VIEW, gridView).apply()
     }
 
+    override fun getLibrarySection(): Int = prefs.getInt(KEY_LIBRARY_SECTION, 0)
+
+    override fun setLibrarySection(index: Int) {
+        prefs.edit().putInt(KEY_LIBRARY_SECTION, index).apply()
+    }
+
+    override fun hasSeededDefaultSets(): Boolean =
+        prefs.getBoolean(KEY_DEFAULT_SETS_SEEDED, false)
+
+    override fun setDefaultSetsSeeded() {
+        prefs.edit().putBoolean(KEY_DEFAULT_SETS_SEEDED, true).apply()
+    }
+
     override fun getBrushInkColor(): Int = prefs.getInt(KEY_BRUSH_INK_COLOR, DEFAULT_INK_ARGB)
 
     override fun setBrushInkColor(color: Int) {
@@ -95,6 +108,8 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_EXTENDED_INCLUDED = "extended_included"
         const val KEY_SCORING_MODE = "scoring_mode"
         const val KEY_LIBRARY_GRID_VIEW = "library_grid_view"
+        const val KEY_LIBRARY_SECTION = "library_section"
+        const val KEY_DEFAULT_SETS_SEEDED = "default_sets_seeded"
         const val KEY_BRUSH_INK_COLOR = "brush_ink_color"
 
         // Default ARGB = presentation.theme.InkBlack (0xFF20222E); hardcoded so

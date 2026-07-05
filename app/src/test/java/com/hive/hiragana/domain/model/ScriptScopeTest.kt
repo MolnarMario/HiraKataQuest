@@ -1,26 +1,17 @@
 package com.hive.hiragana.domain.model
 
-import com.hive.hiragana.domain.learning.LessonGenerator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Unit tests for [ScriptScope] — the pure filter that scopes the merged
- * multi-script deck down to the active script — and for the end-to-end
- * guarantee it exists to provide: feeding a script-scoped deck into
- * [LessonGenerator] confines a session to that script while the other
- * script's review cards stay inert.
- *
- * This is the behaviour the ViewModel relies on for the katakana section, so
- * it is tested here directly rather than only through the (untested) ViewModel.
+ * multi-script deck down to the active script (and gates the voiced / yōon /
+ * extended opt-ins). This is the behaviour the ViewModel relies on to confine
+ * free practice, the quiz, and the Library lists to the active script, so it is
+ * tested here directly rather than only through the (untested) ViewModel.
  */
 class ScriptScopeTest {
-
-    companion object {
-        private const val TODAY = 1_800_000_000_000L
-        private const val DAY = 86_400_000L
-    }
 
     private fun character(id: String, glyph: String, frequency: Int, script: Script) =
         HiraganaCharacter(
@@ -33,14 +24,6 @@ class ScriptScopeTest {
             strokes = listOf("M0,0"),
             script = script,
         )
-
-    private fun card(characterId: String, repetitions: Int, nextReviewDate: Long) = ReviewCard(
-        characterId = characterId,
-        repetitions = repetitions,
-        intervalDays = 1,
-        easeFactor = 1.7f,
-        nextReviewDate = nextReviewDate,
-    )
 
     /** A merged deck: hiragana あ/い plus katakana ア/イ, as the real app loads it. */
     private val mergedDeck = listOf(
@@ -79,54 +62,6 @@ class ScriptScopeTest {
             listOf("アイ", "コーヒー"),
             ScriptScope.scopedWords(words, Script.KATAKANA, includeDiacritics = true, includeYoon = true, includeExtended = true).map { it.kana },
         )
-    }
-
-    // ---- end-to-end scoping through the generator -----------------------------
-
-    @Test
-    fun `a katakana-scoped session ignores hiragana cards and introduces katakana`() {
-        // Progress exists for BOTH scripts, but with Katakana active the deck
-        // is scoped to katakana; the hiragana cards become orphaned and inert
-        // (no reviews), and the first katakana character is introduced.
-        val cards = listOf(
-            card("a", repetitions = 1, nextReviewDate = TODAY - DAY),      // hiragana, due
-            card("i", repetitions = 1, nextReviewDate = TODAY - 2 * DAY),  // hiragana, due
-        )
-        val scoped = ScriptScope.scopedCharacters(mergedDeck, Script.KATAKANA, includeDiacritics = true, includeYoon = true, includeExtended = true)
-
-        val session = LessonGenerator().generate(
-            allCharacters = scoped,
-            cards = cards,
-            allWords = emptyList(),
-            unlockedWordKana = emptySet(),
-            wordLastPracticedAt = emptyMap(),
-            todayStartMillis = TODAY,
-        )
-
-        assertTrue("hiragana cards must not surface as katakana reviews", session.reviews.isEmpty())
-        assertEquals("kata_a", session.newCharacter?.id)
-    }
-
-    @Test
-    fun `switching scope back to hiragana resurfaces its due reviews unchanged`() {
-        // The same cards that were inert under katakana scope are live again
-        // under hiragana scope — proving scoping only hides, never mutates.
-        val cards = listOf(
-            card("a", repetitions = 1, nextReviewDate = TODAY - DAY),
-            card("i", repetitions = 1, nextReviewDate = TODAY - 2 * DAY),
-        )
-        val scoped = ScriptScope.scopedCharacters(mergedDeck, Script.HIRAGANA, includeDiacritics = true, includeYoon = true, includeExtended = true)
-
-        val session = LessonGenerator().generate(
-            allCharacters = scoped,
-            cards = cards,
-            allWords = emptyList(),
-            unlockedWordKana = emptySet(),
-            wordLastPracticedAt = emptyMap(),
-            todayStartMillis = TODAY,
-        )
-
-        assertEquals(listOf("i", "a"), session.reviews.map { it.id }) // most-overdue first
     }
 
     // ---- voiced-kana (dakuten/handakuten) opt-in gate -------------------------
@@ -172,27 +107,6 @@ class ScriptScopeTest {
         )
     }
 
-    @Test
-    fun `a voiced kana studied then hidden goes inert, not lost`() {
-        // Opt in, learn が (card exists), then opt back out: the が card
-        // becomes an off-scope orphan (no review), exactly like a cross-script
-        // card — progress is preserved for when the learner re-enables.
-        val cards = listOf(card("ga", repetitions = 1, nextReviewDate = TODAY - DAY))
-        val hidden = ScriptScope.scopedCharacters(diacriticDeck, Script.HIRAGANA, includeDiacritics = false, includeYoon = false, includeExtended = false)
-
-        val session = LessonGenerator().generate(
-            allCharacters = hidden,
-            cards = cards,
-            allWords = emptyList(),
-            unlockedWordKana = emptySet(),
-            wordLastPracticedAt = emptyMap(),
-            todayStartMillis = TODAY,
-        )
-
-        assertTrue("hidden voiced-kana card must not surface as a review", session.reviews.isEmpty())
-        assertEquals("ka", session.newCharacter?.id) // introduces the base char instead
-    }
-
     // ---- yōon opt-in gate (independent of the voiced gate) --------------------
 
     /** Hiragana deck: base か, voiced が, and yōon きゃ (base) + ぎゃ (voiced base). */
@@ -225,13 +139,8 @@ class ScriptScopeTest {
     }
 
     @Test
-    fun `yoon words unlock against a yoon deck character and are gated by includeYoon`() {
+    fun `yoon words are gated by includeYoon and split on the yoon unit`() {
         // きょう requires the unit "きょ" (not き + ょ) — matches a yōon deck char.
-        val deck = listOf(
-            character("ki", "き", 7, Script.HIRAGANA),
-            character("u", "う", 3, Script.HIRAGANA),
-            character("kyo", "きょ", 74, Script.HIRAGANA),
-        )
         val word = VocabularyWord.fromKana("きょう", "today")
         assertEquals(setOf("きょ", "う"), word.requiredCharacters)
 
@@ -240,20 +149,12 @@ class ScriptScopeTest {
             ScriptScope.scopedWords(listOf(word), Script.HIRAGANA, includeDiacritics = false, includeYoon = false, includeExtended = false)
                 .isEmpty(),
         )
-        // On: it's in scope, and unlocks once きょ + う are learned.
-        val cards = listOf(
-            card("kyo", repetitions = 1, nextReviewDate = TODAY + DAY),
-            card("u", repetitions = 1, nextReviewDate = TODAY + DAY),
+        // On: it's in scope.
+        assertEquals(
+            listOf("きょう"),
+            ScriptScope.scopedWords(listOf(word), Script.HIRAGANA, includeDiacritics = false, includeYoon = true, includeExtended = true)
+                .map { it.kana },
         )
-        val session = LessonGenerator().generate(
-            allCharacters = ScriptScope.scopedCharacters(deck, Script.HIRAGANA, includeDiacritics = false, includeYoon = true, includeExtended = true),
-            cards = cards,
-            allWords = ScriptScope.scopedWords(listOf(word), Script.HIRAGANA, includeDiacritics = false, includeYoon = true, includeExtended = true),
-            unlockedWordKana = emptySet(),
-            wordLastPracticedAt = emptyMap(),
-            todayStartMillis = TODAY,
-        )
-        assertEquals(listOf("きょう"), session.vocabulary.map { it.kana })
     }
 
     @Test
