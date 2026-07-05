@@ -314,18 +314,30 @@ fun LibraryScreen(
         )
     }
     val trimmedQuery = query.trim()
-    val filteredCharacters = remember(scriptCharacters, trimmedQuery) {
-        if (trimmedQuery.isEmpty()) {
+    // Normalize the query once: drop all whitespace and lowercase, so romaji
+    // typed with or without spaces ("neko" / "ne ko") and any casing compare
+    // equal. Kana are unaffected by lowercasing.
+    val normalizedQuery = remember(trimmedQuery) { trimmedQuery.searchNormalize() }
+    val filteredCharacters = remember(scriptCharacters, normalizedQuery) {
+        if (normalizedQuery.isEmpty()) {
             scriptCharacters
         } else {
-            scriptCharacters.filter { it.matches(trimmedQuery) }
+            scriptCharacters.filter { it.matches(normalizedQuery) }
         }
     }
-    val filteredWords = remember(scriptWords, trimmedQuery) {
-        if (trimmedQuery.isEmpty()) {
+    // Per-word reading (かう → "ka u") so words are searchable by romaji, not
+    // just kana/meaning. Keyed on scriptWords ONLY: `pronunciation` is a fresh
+    // method reference each recomposition, so keying on it would defeat the memo
+    // and rebuild this O(words) map on every keystroke (same reasoning as the
+    // Words grid's romajiByKana).
+    val wordRomaji = remember(scriptWords) {
+        scriptWords.associate { it.kana to pronunciation(it) }
+    }
+    val filteredWords = remember(scriptWords, normalizedQuery, wordRomaji) {
+        if (normalizedQuery.isEmpty()) {
             scriptWords
         } else {
-            scriptWords.filter { it.matches(trimmedQuery) }
+            scriptWords.filter { it.matches(normalizedQuery, wordRomaji[it.kana].orEmpty()) }
         }
     }
 
@@ -603,7 +615,12 @@ private fun LibraryTopBar(
                         .offset(x = TitleNudge)
                         .focusRequester(focusRequester),
                     singleLine = true,
-                    textStyle = LocalTextStyle.current.copy(
+                    // The TopAppBar title style is ~22sp (titleLarge) — too large
+                    // for the narrow title slot left after the action cluster, so a
+                    // longer reading like "ka me ra" overflowed and the single-line
+                    // field scrolled, clipping the first glyph. A normal search-input
+                    // size (bodyLarge, 16sp) fits those queries without scrolling.
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
                         color = MaterialTheme.colorScheme.onSurface,
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -613,6 +630,7 @@ private fun LibraryTopBar(
                                 Text(
                                     text = "Search",
                                     maxLines = 1,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -1346,14 +1364,32 @@ private fun WordCard(
     }
 }
 
+/**
+ * Normalizes a search token: drops ALL whitespace and lowercases. Lets romaji
+ * typed with or without spaces ("ne ko" / "neko") and any casing compare equal,
+ * and collapses spacing in multi-word English glosses ("ice cream"). Kana are
+ * untouched by lowercasing, so a Japanese-keyboard query still matches kana.
+ * Both the query and every searched field are passed through this before
+ * comparing.
+ */
+private fun String.searchNormalize(): String =
+    filterNot { it.isWhitespace() }.lowercase()
+
+/** [query] is already [searchNormalize]d by the caller. */
 private fun HiraganaCharacter.matches(query: String): Boolean =
     character.contains(query) ||
-        romaji.contains(query, ignoreCase = true) ||
-        id.contains(query, ignoreCase = true)
+        romaji.searchNormalize().contains(query) ||
+        id.searchNormalize().contains(query)
 
-private fun VocabularyWord.matches(query: String): Boolean =
+/**
+ * [query] is already [searchNormalize]d by the caller; [romaji] is the word's
+ * space-separated reading (from the ViewModel), matched space-insensitively so
+ * "ねこ" is findable by "neko" or "ne ko".
+ */
+private fun VocabularyWord.matches(query: String, romaji: String): Boolean =
     kana.contains(query) ||
-        meaning.contains(query, ignoreCase = true)
+        meaning.searchNormalize().contains(query) ||
+        romaji.searchNormalize().contains(query)
 
 @Composable
 private fun NoMatchesMessage(query: String, what: String) {

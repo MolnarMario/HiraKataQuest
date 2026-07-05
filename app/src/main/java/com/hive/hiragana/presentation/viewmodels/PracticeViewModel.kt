@@ -552,10 +552,11 @@ class PracticeViewModel(
     ) {
         val state = _uiState.value
         if (state.phase != SessionPhase.FREE || state.freeSubmitted) return
-        // Multi-cell (2×2/3×3) single-character practice is a repetition
-        // worksheet, not a scored attempt (the UI shows Clear·Next there, no
-        // Submit) — never submit/score it. Words keep the two-step at any layout.
-        if (state.freeWord == null && state.practiceLayout != PracticeLayout.SINGLE) return
+        // Any multi-copy (2×2/3×3) sheet — character OR word — is a repetition
+        // worksheet, not a scored attempt: scoring is a 1×1-only feature (one
+        // guide cell per glyph), so the UI shows Clear·Next there with no
+        // Submit. Never submit/score outside the SINGLE layout.
+        if (state.practiceLayout != PracticeLayout.SINGLE) return
         if (session.strokes.none { it.points.isNotEmpty() }) return
         if (session === lastGradedSession) return
 

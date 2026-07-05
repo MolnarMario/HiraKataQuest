@@ -214,10 +214,14 @@ private fun PracticeContent(
             val wordScores = uiState.lastWordScores
             if (wordScores != null) {
                 WordScoreChips(
+                    // Inset past the paper card's 14dp edge + its 20dp rounded
+                    // corner (and drop below the corner curve) so every chip —
+                    // leftmost and rightmost included — sits fully inside the
+                    // white canvas on any screen width.
                     scores = wordScores,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .padding(top = 6.dp, start = 8.dp, end = 8.dp),
+                        .padding(top = 12.dp, start = 22.dp, end = 22.dp),
                 )
                 uiState.lastWordAverage?.let { avg ->
                     WordAverageCard(
@@ -254,10 +258,11 @@ private fun PracticeContent(
             } else {
                 uiState.freeCharacters.isNotEmpty()
             },
-            // Multi-copy 2×2/3×3 character practice is a repetition
-            // worksheet (Clear·Next, no scoring); words keep the two-step.
-            repetitionMode = uiState.freeWord == null &&
-                uiState.practiceLayout != PracticeLayout.SINGLE,
+            // Any multi-copy 2×2/3×3 sheet — character OR word — is a
+            // repetition worksheet (Clear·Next, no Submit/scoring); scoring
+            // is a 1×1-only feature, so only the SINGLE layout keeps the
+            // Submit two-step.
+            repetitionMode = uiState.practiceLayout != PracticeLayout.SINGLE,
             // Scoring Off (Study Scope → "Score my writing" = Off) drops
             // the Submit/score step, leaving just Clear · Next.
             scoringEnabled = uiState.scoringMode != ScoringMode.OFF,

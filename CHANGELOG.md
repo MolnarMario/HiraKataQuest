@@ -12,6 +12,29 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-05 — Library search & free-practice polish
+
+#### Added
+- **Romaji search in the Library** — words are now findable by their reading,
+  not just kana/meaning: `ねこ` matches `neko`, `ne ko`, `ねこ`, or `cat`. The
+  query and every searched field are run through a shared `searchNormalize()`
+  (drops all whitespace, lowercases), so romaji typed with or without spaces and
+  in any case compare equal, and multi-word glosses match too ("ice cream" ⇒
+  "icecream"). Word readings come from the ViewModel's `pronunciationOf`.
+  Kana input is unchanged (still scoped to the active Hiragana/Katakana tab).
+
+#### Changed
+- **Library search field** uses a normal search-input text size (`bodyLarge`,
+  16 sp) instead of the oversized title style, so a longer query like
+  "ka me ra" fits the narrow title slot without the single-line field scrolling
+  and clipping the first character.
+- **Multi-copy layouts are repetition worksheets for words too** — in 2×2/3×3,
+  a word (like a single character) now shows **Clear · Next** with no
+  Submit/scoring; the Submit→score two-step exists only in the 1×1 layout.
+- **Per-kana word score chips** are responsive — an equal-weight row that resizes
+  to fit a 4+ kana word on one line inside the canvas, with insets that clear the
+  paper card's rounded corner (both practice and quiz).
+
 ### 2026-07-05 — Guided study removed; built-in default practice sets
 
 #### Removed
