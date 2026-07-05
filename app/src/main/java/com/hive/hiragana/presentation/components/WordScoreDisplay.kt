@@ -1,12 +1,10 @@
 package com.hive.hiragana.presentation.components
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -25,6 +23,12 @@ import com.hive.hiragana.presentation.theme.scoreSpectrumColor
  * word is submitted (1×1 practice) — one chip per scored reading unit, each
  * tinted on the red→green [scoreSpectrumColor] spectrum by its headline. Reads
  * left-to-right in the same order as the word's cells.
+ *
+ * The chips share the available width equally ([Modifier.weight]) so any number
+ * of kana always fits on one row within the canvas — a 4+ kana word no longer
+ * runs off the right edge. The caller supplies the horizontal insets from the
+ * screen edges; the gaps between chips and the padding inside each chip are
+ * kept here.
  */
 @Composable
 fun WordScoreChips(
@@ -32,19 +36,20 @@ fun WordScoreChips(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.horizontalScroll(rememberScrollState()),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         scores.forEach { unit ->
             Surface(
+                modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(10.dp),
                 color = scoreSpectrumColor(unit.score.headline),
             ) {
                 Column(
                     modifier = Modifier
-                        .widthIn(min = 44.dp, max = 108.dp)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(

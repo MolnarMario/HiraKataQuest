@@ -26,9 +26,10 @@ private val CompactPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
  * reviewing the just-scored attempt (Again · Next).
  * @param canAdvance true for the character deck (Next/Skip cycle through it);
  * false for single-word practice, which repeats one sheet and has no Next.
- * @param repetitionMode true for a single character in a multi-copy 2×2/3×3
- * layout — a repetition worksheet that can't be meaningfully single-scored, so
- * the two-step collapses to **Clear · Next** (no Submit, no score).
+ * @param repetitionMode true for any multi-copy 2×2/3×3 sheet — character OR
+ * word. Scoring is a 1×1-only feature (one guide cell per glyph), so a
+ * repetition worksheet can't be meaningfully scored and the two-step collapses
+ * to **Clear · Next** (no Submit, no score).
  * @param scoringEnabled false when the learner turned scoring **Off** (Study
  * Scope → "Score my writing" = Off): there is no score to earn, so the
  * two-step likewise collapses to **Clear · Next** — no Submit, no result.

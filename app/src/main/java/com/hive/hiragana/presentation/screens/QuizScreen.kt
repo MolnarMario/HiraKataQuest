@@ -530,10 +530,13 @@ private fun QuizRunning(
             if (quiz.submitted) {
                 if (isWord && lastWordScores != null) {
                     WordScoreChips(
+                        // Same inset as free practice: clear the paper card's
+                        // 14dp edge + 20dp rounded corner so all chips stay
+                        // fully inside the white canvas.
                         scores = lastWordScores,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .padding(top = 6.dp, start = 8.dp, end = 8.dp),
+                            .padding(top = 12.dp, start = 22.dp, end = 22.dp),
                     )
                     lastWordAverage?.let { avg ->
                         WordAverageCard(
