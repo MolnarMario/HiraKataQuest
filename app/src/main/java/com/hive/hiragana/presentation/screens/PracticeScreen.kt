@@ -115,7 +115,10 @@ fun PracticeScreen(
             }
 
             uiState.isLibraryOpen -> {
-                BackHandler { viewModel.closeLibrary() }
+                // No BackHandler here: the Library is "home", so a hardware
+                // Back press falls through to the system and exits the app
+                // (Practice → Back → Library → Back → exit). The in-app
+                // Back arrow still returns to practice via onClose.
                 LibraryScreen(
                     characters = uiState.characters,
                     words = uiState.allWords,
@@ -153,11 +156,16 @@ fun PracticeScreen(
                 )
             }
 
-            else -> PracticeContent(
-                uiState = uiState,
-                canvasState = canvasState,
-                viewModel = viewModel,
-            )
+            else -> {
+                // Free practice is a "detail" screen: hardware Back returns to
+                // the Library rather than exiting the app.
+                BackHandler { viewModel.openLibrary() }
+                PracticeContent(
+                    uiState = uiState,
+                    canvasState = canvasState,
+                    viewModel = viewModel,
+                )
+            }
         }
     }
 }

@@ -362,8 +362,14 @@ START NEXT SESSION — REMOVED 2026-07-05 (was: the COMPLETE summary's "Start ne
   guided sessions exist anymore.
 
 LIBRARY (available from the guide panel's "Library" button)
-  openLibrary()  → isLibraryOpen = true (overlay; FREE underneath untouched)
-  closeLibrary() → isLibraryOpen = false (also wired to system Back via BackHandler)
+  openLibrary()  → isLibraryOpen = true (overlay; FREE underneath untouched).
+                   ALSO the FREE screen's hardware/gesture Back target (2026-07-05):
+                   the Library is treated as "home", so Back from practice opens it
+                   rather than exiting the app.
+  closeLibrary() → isLibraryOpen = false (wired only to the in-app Back arrow's
+                   onClose; the Library has NO BackHandler, so a hardware Back from
+                   the Library falls through to the system and exits the app —
+                   giving the chain Practice → Back → Library → Back → exit)
   practiceCharacter(char) → FREE over the WHOLE deck, currentIndex at the pick
   practiceWord(word)      → FREE over the word's kana in order, freeWord = word
   (both close the overlay, bump canvasClearKey; record PracticeSource.FREE
@@ -422,16 +428,18 @@ MainActivity.setContent
          ├─ isLoading                  → CenteredBox { CircularProgressIndicator }
          ├─ errorMessage != null       → CenteredBox { error Text + Retry button
          │                               (viewModel.retrySession) }
-         ├─ isLibraryOpen              → BackHandler { closeLibrary } +
-         │                               LibraryScreen (full-screen overlay:
+         ├─ isLibraryOpen              → LibraryScreen (full-screen overlay:
          │                               LazyColumn (or grid chart) of all characters
          │                               + all words, score-tinted (no status labels
          │                               since 2026-07-05), every row tappable →
          │                               practiceCharacter/practiceWord;
-         │                               arrow or Back closes)
+         │                               in-app arrow closes via onClose. NO
+         │                               BackHandler — hardware Back exits the app)
          │  (the phase == COMPLETE → SessionCompleteContent branch was REMOVED
          │   2026-07-05 with the guided study session — there is no summary card)
          └─ else → PracticeContent (always FREE)
+            (BackHandler { openLibrary } — hardware Back opens the Library instead
+             of exiting; the Library is "home", see §4 LIBRARY)
             └─ Column (fillMaxSize)
                ├─ CharacterGuidePanel      weight(0.25f)   ── top 25%
                │  └─ Row
@@ -830,7 +838,7 @@ was added. The test suite is now **84 tests** (the `domain/learning` files remov
 | `presentation/components/AnimatedStrokePreview.kt` | Phase 2 animated demo: shared `StrokeCanvas` (guide → completed → active → pen dot) + `PlaybackControls` (play/pause, replay, speed cycle, auto-repeat; now takes a `List<StrokeAnimationEngine>` and broadcasts); engine per character; static-diagram fallback. Also hosts `WordStrokePreview` — one engine per word unit sharing one controls row. |
 | `presentation/components/PracticeActionBar.kt` | `PracticeActionBar` (session phases): Clear · Again · Hard · Good · Easy; ink-gated enabling; grade button colors. Also defines `FreePracticeActionBar` — the FREE two-step (Clear · Submit/Skip → Again · Next), collapsing to Clear · Next for a multi-copy worksheet or when scoring is Off. |
 | `presentation/components/CharacterGuidePanel.kt` | Top panel: glyph + (session label or romaji/deck-position or vocabulary word+meaning+"New word!" badge) + animated stroke-order preview + count label; optional `onOpenLibrary` renders a "Library" `TextButton`. |
-| `presentation/screens/PracticeScreen.kt` | The single screen: collects `uiState`, remembers `CanvasState`, `LaunchedEffect(canvasClearKey)` clear, branches on library overlay (with `BackHandler`) / `COMPLETE` (with its three continuation buttons) vs the 0.25/0.65/0.10 `Column`, loading/error(+Retry) branches. |
+| `presentation/screens/PracticeScreen.kt` | The single screen: collects `uiState`, remembers `CanvasState`, `LaunchedEffect(canvasClearKey)` clear, branches on library overlay vs the 0.25/0.65/0.10 `Column`, loading/error(+Retry) branches. Back-nav (2026-07-05): FREE has `BackHandler { openLibrary }` (Back → Library); the Library branch has NO `BackHandler` (hardware Back → exit app); the quiz branch keeps `BackHandler { closeQuiz }`. |
 | `presentation/screens/LibraryScreen.kt` | Post-Phase-3 full-screen library overlay: `LazyColumn` (or grid chart) of every character ("Learned"/"Not started") and every word ("Unlocked"/"Locked"), all rows tappable into FREE practice (`practiceCharacter`/`practiceWord`); closed by the back arrow or system Back. Tints chart squares / word cards / list rows by each glyph's `scoreStats` average (`avgForm ?: avgFit`) via `scoreSpectrumColor`, score shown top-right; app bar reordered (Search leftmost, `BasicTextField` field, view toggle persists during search). Study-scope `ModalBottomSheet` is now `skipPartiallyExpanded` + `heightIn(max 90%)` + `verticalScroll`; also hosts the practice-set selection mode (`SelectionModeContent` with a list⇄grid toggle: `SelectableList`/`SelectableGrid`/`SelectableGridCell`, both drag-to-range-select via `detectDragGestures` + edge auto-scroll), sets manager (`SetManagerRow` with per-set `setAverage` score tint, `SetSortMenu`/`SetSort` sorting, `drawSortGlyph`; `exitSelection()` always returns here), and name dialog. |
 
 ### `app/src/test/.../domain/learning` (3, Phase 3)
