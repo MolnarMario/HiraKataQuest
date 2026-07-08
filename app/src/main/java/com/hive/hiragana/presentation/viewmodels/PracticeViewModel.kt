@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.hive.hiragana.HiraganaApplication
+import com.hive.hiragana.domain.audio.PronunciationPlayer
+import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.DefaultPracticeSets
 import com.hive.hiragana.domain.model.Grade
 import com.hive.hiragana.domain.model.HiraganaCharacter
@@ -24,6 +26,7 @@ import com.hive.hiragana.domain.repository.HandwritingRecognizer
 import com.hive.hiragana.domain.repository.PracticeRepository
 import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
+import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.repository.SettingsRepository
 import com.hive.hiragana.domain.repository.VocabularyRepository
 import com.hive.hiragana.domain.scoring.CellRect
@@ -216,6 +219,10 @@ data class PracticeUiState(
     // Brush ink color as a packed ARGB Int (persisted; purely visual — feeds
     // TracingCanvas.inkColor, never affects geometry or scoring). Default InkBlack.
     val brushInkColor: Int = 0xFF20222E.toInt(),
+    // Which form the traced ghost shows (persisted; default PRINTED). Purely a
+    // rendering choice — the stroke-order demo and the scorer always use the
+    // KanjiVG strokes, so this switches only the ghost's rendering.
+    val characterForm: CharacterForm = CharacterForm.PRINTED,
     // Latest computed quality score, shown as advisory feedback after a graded
     // single character. Null when scoring is off/unavailable or on word steps.
     // Purely transient UI state — never persisted.
@@ -235,6 +242,9 @@ data class PracticeUiState(
     // Per-glyph quality history (avg/best), keyed by glyph string, for the
     // Library rows. Sourced from the DB, carried across session resets.
     val scoreStats: Map<String, CharacterScoreSummary> = emptyMap(),
+    // The device's Japanese TTS voice status — gates the pronunciation button
+    // (play / offer download / disabled). Set by the VM's status collector.
+    val ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
     /**
      * The scoped study deck: the active script, minus voiced kana / yōon /
@@ -245,6 +255,32 @@ data class PracticeUiState(
         get() = ScriptScope.scopedCharacters(
             characters, activeScript, includeDiacritics, includeYoon, includeExtended,
         )
+
+    /** The scoped word list for the active script (same scoping as the deck). */
+    val activeScriptWords: List<VocabularyWord>
+        get() = ScriptScope.scopedWords(
+            allWords, activeScript, includeDiacritics, includeYoon, includeExtended,
+        )
+
+    /**
+     * "character 12 of 73" / "word 20 of 84" for the item currently in FREE
+     * practice — the item's 1-based position in the active script's ordered
+     * deck (characters) or word list, and that list's size. Null outside FREE
+     * or when the item isn't in the current scope (so nothing misleading shows).
+     */
+    val practicePositionLabel: String?
+        get() {
+            if (phase != SessionPhase.FREE) return null
+            freeWord?.let { word ->
+                val words = activeScriptWords
+                val i = words.indexOfFirst { it.kana == word.kana }
+                return if (i >= 0) "word ${i + 1} of ${words.size}" else null
+            }
+            val glyph = currentCharacter?.character ?: return null
+            val deck = activeScriptCharacters
+            val i = deck.indexOfFirst { it.character == glyph }
+            return if (i >= 0) "character ${i + 1} of ${deck.size}" else null
+        }
 
     /** The saved set with [setId], or null for the default (active-script) source. */
     fun practiceSet(setId: Long?): PracticeSet? =
@@ -312,6 +348,18 @@ data class PracticeUiState(
         KanaUnits.split(word.kana).mapNotNull { unit ->
             characterByGlyph[unit]
         }
+
+    /**
+     * KanjiVG stroke paths (viewBox space) for each cell of [canvasGlyphs] — the
+     * geometry the HANDWRITTEN-form ghost traces. An empty inner list marks a
+     * glyph not in the deck; the canvas then falls back to the font ghost there.
+     */
+    val canvasGhostStrokes: List<List<String>>
+        get() = ghostStrokesFor(canvasGlyphs)
+
+    /** Per-glyph KanjiVG stroke paths (viewBox space) for [glyphs]; empty if unknown. */
+    fun ghostStrokesFor(glyphs: List<String>): List<List<String>> =
+        glyphs.map { characterByGlyph[it]?.strokes ?: emptyList() }
 }
 
 /**
@@ -332,6 +380,8 @@ class PracticeViewModel(
     private val settingsRepository: SettingsRepository,
     private val practiceSetRepository: PracticeSetRepository,
     private val handwritingRecognizer: HandwritingRecognizer,
+    // Speaks readings aloud via the device's built-in Japanese TTS.
+    private val ttsPlayer: PronunciationPlayer,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
 
@@ -348,6 +398,7 @@ class PracticeViewModel(
             includeExtended = settingsRepository.isExtendedIncluded(),
             scoringMode = settingsRepository.getScoringMode(),
             brushInkColor = settingsRepository.getBrushInkColor(),
+            characterForm = settingsRepository.getCharacterForm(),
         ),
     )
     val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
@@ -396,7 +447,31 @@ class PracticeViewModel(
                 _uiState.update { it.copy(practiceSets = sets) }
             }
         }
+        // Long-lived: mirrors the TTS engine's async status into UI state so the
+        // pronunciation button can play, offer the voice download, or grey out.
+        viewModelScope.launch {
+            ttsPlayer.status.collect { status ->
+                _uiState.update { it.copy(ttsStatus = status) }
+            }
+        }
     }
+
+    /** Speak [glyph] via the device's built-in Japanese TTS. */
+    fun speakTts(glyph: String) = ttsPlayer.play(glyph)
+
+    /**
+     * Re-check the Japanese voice status — called on ON_RESUME so a voice the
+     * user just installed flips the button from "download" to "play".
+     */
+    fun refreshTtsAvailability() = ttsPlayer.refresh()
+
+    // NOTE: the TTS engine is deliberately NOT released here. It's an
+    // Application-scoped singleton in AppContainer (like handwritingRecognizer),
+    // shared across every ViewModel instance. Releasing it in onCleared() would
+    // shut down the shared engine when the Activity finishes (e.g. Back out of
+    // the app) even though the process lives on — so the next launch would reuse
+    // a dead engine and all audio would silently stop. The OS reclaims the
+    // engine when the process dies.
 
     /**
      * Recovery path for the error state: back to LOADING, then a fresh
@@ -676,6 +751,7 @@ class PracticeViewModel(
         includeDiacritics = includeDiacritics,
         includeYoon = includeYoon,
         includeExtended = includeExtended,
+        characterForm = characterForm,
         canvasClearKey = canvasClearKey + 1,
     )
 
@@ -786,6 +862,20 @@ class PracticeViewModel(
     fun setLibraryGridView(gridView: Boolean) {
         settingsRepository.setLibraryGridView(gridView)
         _uiState.update { it.copy(isLibraryGridView = gridView) }
+    }
+
+    /**
+     * Switches the traced ghost between the PRINTED (typographic) and
+     * HANDWRITTEN (kaisho stroke) forms. Purely a rendering choice — the
+     * stroke-order demo and the scorer always use the KanjiVG strokes — so this
+     * just updates state (the canvas redraws the ghost). No rebuild and no
+     * [PracticeUiState.canvasClearKey] bump: committed ink and the guide cells
+     * are unchanged, so in-progress writing is preserved. Persisted.
+     */
+    fun setCharacterForm(form: CharacterForm) {
+        if (form == _uiState.value.characterForm) return
+        settingsRepository.setCharacterForm(form)
+        _uiState.update { it.copy(characterForm = form) }
     }
 
     /**
@@ -1580,6 +1670,7 @@ class PracticeViewModel(
                     settingsRepository = application.container.settingsRepository,
                     practiceSetRepository = application.container.practiceSetRepository,
                     handwritingRecognizer = application.container.handwritingRecognizer,
+                    ttsPlayer = application.container.ttsPronunciationPlayer,
                 )
             }
         }

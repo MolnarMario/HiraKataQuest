@@ -14,13 +14,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.dp
+import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.scoring.CellRect
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.drawing.canvas.drawGhostCharacter
+import com.hive.hiragana.drawing.canvas.drawGhostStrokes
 import com.hive.hiragana.drawing.canvas.drawPracticeGrid
 import com.hive.hiragana.drawing.canvas.ghostFitScale
 import com.hive.hiragana.drawing.stroke.StrokeCapture
@@ -30,30 +34,14 @@ import com.hive.hiragana.presentation.theme.GridGuide
 import com.hive.hiragana.presentation.theme.InkBlack
 import com.hive.hiragana.presentation.theme.PaperWhite
 
+/** KanjiVG viewBox the character stroke paths live in (all deck glyphs use 109). */
+private const val KANJIVG_VIEWBOX = 109f
+
 /** Gap between adjacent word cells within one copy of the glyph row. */
 private val CellGap = 10.dp
 
 /** Gap between repetition slots — wider than [CellGap] so each copy of a word reads as a group. */
 private val SlotGap = 18.dp
-
-/**
- * Full brush width at neutral pressure/speed in the reference cell — the
- * square a single character gets on the 2×2 sheet.
- */
-private val BrushBaseWidth = 20.dp
-
-/**
- * Ink stays proportional to the cell it is traced in: below the reference
- * cell the brush thins linearly, so smaller cells — denser layouts AND the
- * shrunken per-kana cells of a word row — get proportionally finer ink
- * automatically. Growth above the reference is halved: the single 1×1
- * cell is 2× the reference but the brush only grows ~1.5×, because a pen
- * shouldn't double just because the paper did.
- */
-private fun brushScale(cellSide: Float, referenceSide: Float): Float {
-    val ratio = cellSide / referenceSide
-    return if (ratio < 1f) ratio else 1f + (ratio - 1f) / 2f
-}
 
 /**
  * The main drawing surface. Renders, in order:
@@ -85,6 +73,14 @@ fun TracingCanvas(
     showGhost: Boolean = true,
     layout: PracticeLayout = PracticeLayout.SINGLE,
     inkColor: Color = InkBlack,
+    // Which form the traced ghost shows. PRINTED (default) draws the system-font
+    // glyph; HANDWRITTEN draws [glyphStrokes] as a grey brush (the same strokes
+    // the demo and scorer use). Falls back to the font ghost for any cell whose
+    // [glyphStrokes] entry is empty.
+    characterForm: CharacterForm = CharacterForm.PRINTED,
+    // Per-cell KanjiVG stroke paths (viewBox space), aligned with [characters];
+    // only consulted in HANDWRITTEN mode. Empty (the default) keeps the font ghost.
+    glyphStrokes: List<List<String>> = emptyList(),
 ) {
     val strokeCapture = remember(canvasState) { StrokeCapture(canvasState) }
     val ghostPaint = remember {
@@ -92,6 +88,16 @@ fun TracingCanvas(
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
             color = GhostGrey.toArgb()
+        }
+    }
+    // Parse the handwritten-ghost stroke paths once per glyph set (not per draw
+    // frame). Unparseable strokes drop out; an empty inner list falls back to
+    // the font ghost for that cell.
+    val ghostStrokePaths: List<List<Path>> = remember(glyphStrokes) {
+        glyphStrokes.map { cellStrokes ->
+            cellStrokes.mapNotNull { d ->
+                runCatching { PathParser().parsePathString(d).toPath() }.getOrNull()
+            }
         }
     }
 
@@ -161,8 +167,21 @@ fun TracingCanvas(
                         drawPracticeGrid(cell, borderColor = GridBorder, guideColor = GridGuide)
                     }
                     if (showGhost) {
-                        characters.getOrNull(index)?.let { glyph ->
-                            drawGhostCharacter(glyph, cell, ghostPaint)
+                        // Handwritten form draws the KanjiVG strokes (grey brush)
+                        // when available for this cell; otherwise — and always in
+                        // printed form — the system-font glyph.
+                        val handwrittenStrokes =
+                            if (characterForm == CharacterForm.HANDWRITTEN) {
+                                ghostStrokePaths.getOrNull(index)
+                            } else {
+                                null
+                            }
+                        if (!handwrittenStrokes.isNullOrEmpty()) {
+                            drawGhostStrokes(handwrittenStrokes, cell, KANJIVG_VIEWBOX, GhostGrey)
+                        } else {
+                            characters.getOrNull(index)?.let { glyph ->
+                                drawGhostCharacter(glyph, cell, ghostPaint)
+                            }
                         }
                     }
                 }
@@ -196,24 +215,16 @@ fun TracingCanvas(
             // clears the sheet via canvasClearKey, so committed ink never
             // outlives the scale it was built with.
             //
-            // The brush tracks the *effective glyph size*, not the raw cell:
-            // a composite glyph like "ファ" is drawn shrunk to fit the cell
-            // width (ghostFitScale), so its strokes are ~0.6× a lone kana's —
-            // scaling the brush by the smallest such fit keeps composites from
-            // getting an over-thick stroke, the same width-fit the ghost uses.
-            val referenceSide =
-                (minOf(availWidth, availHeight) - slotGap).coerceAtLeast(1f) / 2f
+            // Ink width is the SAME fraction of the glyph the stroke-order demo
+            // uses ([BrushWidthFraction]), so the user's brush reads as the same
+            // % of the character as the demo — at every size. It scales with the
+            // *effective* glyph size (`side` × `glyphFit`), so it thins
+            // automatically for words and dense 2×2/3×3 layouts (which shrink
+            // `side`) and for composite "multi-symbol" glyphs like きゃ/ファ,
+            // which are drawn shrunk to fit the cell width (ghostFitScale < 1).
             val glyphFit = characters.filter { it.isNotEmpty() }
                 .minOfOrNull { ghostFitScale(ghostPaint, it, side) } ?: 1f
-            // Clamp to a sane band around the base width: on a degenerate or
-            // transient layout (near-zero canvas) referenceSide hits its 1f/2f
-            // floor and brushScale can return a huge ratio, which would bake a
-            // giant ink blob into the next stroke. The bounds are wide enough
-            // that normal 1×1..3×3 layouts (brushScale ~0.x..1.5×) are untouched.
-            val baseWidthPx = BrushBaseWidth.toPx()
-            canvasState.brushBaseWidthPx =
-                (baseWidthPx * brushScale(side * glyphFit, referenceSide))
-                    .coerceIn(baseWidthPx * 0.3f, baseWidthPx * 2f)
+            canvasState.brushBaseWidthPx = (side * glyphFit * BrushWidthFraction).coerceAtLeast(1f)
 
             // 3. completed strokes — filled brush ribbons, width baked in
             canvasState.completedPaths.forEach { path ->

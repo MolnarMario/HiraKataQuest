@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,7 +49,19 @@ private val ControlButtonSize = 32.dp
 private val GuideStrokeColor = DiagramStroke.copy(alpha = 0.25f)
 
 /** Pen-tip dot radius as a fraction of the canvas edge (viewBox-independent). */
-private const val PenDotRadiusFraction = 0.035f
+private const val PenDotRadiusFraction = 0.05f
+
+/**
+ * Ink width as a fraction of the glyph's size: a bold, round-capped brush
+ * rather than the old thin centreline. ~0.08 reads as a written character
+ * next to the print-font guideline instead of a wireframe skeleton.
+ *
+ * Shared (not private) so the tracing canvas can width the USER's ink to the
+ * same fraction of the traced glyph — the pen stroke then reads as the same %
+ * of the character as this demo, at every cell size. Here it is applied in
+ * viewBox units inside the scaled draw; the canvas applies it to the cell size.
+ */
+internal const val BrushWidthFraction = 0.08f
 
 /**
  * The speed steps the cycle button walks through, in tap order. All values
@@ -66,7 +77,7 @@ private val SpeedCycle = listOf(0.5f, 1f, 2f)
  * rhythm: a faint full-character guide underneath, already-finished and
  * in-progress strokes on top in the diagram color, and a pen-tip dot that
  * disappears between strokes — the visible pen lift. A compact controls
- * row (play/pause, replay, speed cycle, auto-repeat) sits under the canvas.
+ * row (play/pause, speed cycle, auto-repeat) sits under the canvas.
  *
  * Contract points (docs/PHASE2-DESIGN.md §3):
  * - **Fallback**: when [HiraganaCharacter.strokeAnimations] is empty the
@@ -228,8 +239,12 @@ private fun StrokeCanvas(
 
     Canvas(modifier = modifier) {
         val scale = size.minDimension / character.viewBox
+        // Filled-brush look: a bold, glyph-proportional round-capped ribbon
+        // (width in viewBox units, so it scales with the canvas and is applied
+        // inside the scaled transform below) instead of a thin constant-dp
+        // centreline — reads as a written character, not a wireframe skeleton.
         val strokeStyle = Stroke(
-            width = 3.5.dp.toPx() / scale,
+            width = character.viewBox * BrushWidthFraction,
             cap = StrokeCap.Round,
             join = StrokeJoin.Round,
         )
@@ -261,7 +276,7 @@ private fun StrokeCanvas(
 }
 
 /**
- * Compact playback controls: play/pause toggle, replay, speed cycle
+ * Compact playback controls: play/pause toggle, speed cycle
  * (0.5× → 1× → 2×), auto-repeat toggle.
  *
  * All handlers are the engine's non-suspend control methods — they only
@@ -306,17 +321,6 @@ private fun PlaybackControls(
                     contentDescription = "Play",
                 )
             }
-        }
-
-        IconButton(
-            onClick = { engines.forEach { it.replay() } },
-            modifier = Modifier.size(ControlButtonSize),
-        ) {
-            Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = "Replay",
-                modifier = Modifier.size(20.dp),
-            )
         }
 
         IconButton(
