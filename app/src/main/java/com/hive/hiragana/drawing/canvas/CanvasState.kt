@@ -20,7 +20,7 @@ import com.hive.hiragana.drawing.stroke.UserStroke
  * - [currentSession]  raw point data ([DrawingSession]) for the character
  *                     currently on the canvas
  *
- * Paths are filled variable-width brush ribbons (see
+ * Paths are filled fixed-width brush ribbons (see
  * [StrokeRenderer.buildBrushPath]) with the ink width baked into the
  * geometry, so consumers draw them with a plain fill — no stroke style,
  * no width multiplier.
@@ -105,14 +105,13 @@ class CanvasState {
         currentSession = DrawingSession()
     }
 
-    /** The live stroke keeps a full-width tip; the flick appears on commit. */
     private fun buildActivePath(stroke: UserStroke): Path =
-        StrokeRenderer.buildBrushPath(stroke.points, brushBaseWidthPx, taperTail = false)
+        StrokeRenderer.buildBrushPath(stroke.points, brushBaseWidthPx)
 
     private fun commitStroke(stroke: UserStroke) {
         currentSession.strokes.add(stroke)
         completedPaths.add(
-            StrokeRenderer.buildBrushPath(stroke.points, brushBaseWidthPx, taperTail = true),
+            StrokeRenderer.buildBrushPath(stroke.points, brushBaseWidthPx),
         )
         activeStroke = null
         activePath = null

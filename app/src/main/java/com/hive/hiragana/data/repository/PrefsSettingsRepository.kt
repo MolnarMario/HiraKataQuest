@@ -2,6 +2,7 @@ package com.hive.hiragana.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.repository.SettingsRepository
@@ -97,6 +98,13 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putInt(KEY_BRUSH_INK_COLOR, color).apply()
     }
 
+    override fun getCharacterForm(): CharacterForm =
+        CharacterForm.fromPrefValue(prefs.getString(KEY_CHARACTER_FORM, null))
+
+    override fun setCharacterForm(form: CharacterForm) {
+        prefs.edit().putString(KEY_CHARACTER_FORM, form.prefValue).apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "settings"
         const val KEY_GRID_ENABLED = "grid_enabled"
@@ -111,6 +119,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_LIBRARY_SECTION = "library_section"
         const val KEY_DEFAULT_SETS_SEEDED = "default_sets_seeded"
         const val KEY_BRUSH_INK_COLOR = "brush_ink_color"
+        const val KEY_CHARACTER_FORM = "character_form"
 
         // Default ARGB = presentation.theme.InkBlack (0xFF20222E); hardcoded so
         // the data layer needn't depend on a Compose Color.

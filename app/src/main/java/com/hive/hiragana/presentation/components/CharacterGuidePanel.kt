@@ -41,6 +41,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.VocabularyWord
@@ -49,12 +50,14 @@ import com.hive.hiragana.domain.model.VocabularyWord
  * Top guide area (25% of the screen). Two modes:
  *
  * - **Character mode** ([character] non-null, [word] null): the current
- *   character with its romaji and (in free practice, when [total] > 0)
- *   deck position on the left; the animated stroke-order preview with
- *   playback controls on the right (falling back to the static numbered
- *   diagram inside [AnimatedStrokePreview] when there is no timed data).
+ *   character with its romaji, a pronunciation button, and (if provided) the
+ *   [positionLabel] (e.g. "character 12 of 73") on the left; the animated
+ *   stroke-order preview with playback controls on the right (falling back to
+ *   the static numbered diagram inside [AnimatedStrokePreview] when there is
+ *   no timed data).
  * - **Word mode** ([word] non-null): the whole word's kana, its English
- *   meaning, and a row of per-kana stroke-order previews ([wordCharacters],
+ *   meaning + pronunciation, its [positionLabel] (e.g. "word 20 of 84"), and a
+ *   row of per-kana stroke-order previews ([wordCharacters],
  *   one demo per reading unit) that share ONE playback controls row (same
  *   controls a single character gets — see [WordStrokePreview]). The word is
  *   traced as one sheet, but each kana still gets its own "how to draw it" demo.
@@ -68,8 +71,9 @@ import com.hive.hiragana.domain.model.VocabularyWord
 @Composable
 fun CharacterGuidePanel(
     character: HiraganaCharacter?,
-    position: Int,
-    total: Int,
+    // e.g. "character 12 of 73" / "word 20 of 84" — the item's position in the
+    // active script's ordered deck (characters) or word list. Null hides it.
+    positionLabel: String? = null,
     modifier: Modifier = Modifier,
     word: VocabularyWord? = null,
     // The deck characters for the word's kana units, in order — drives the
@@ -83,6 +87,9 @@ fun CharacterGuidePanel(
     onToggleGhost: (() -> Unit)? = null,
     practiceLayout: PracticeLayout = PracticeLayout.SINGLE,
     onSelectLayout: ((PracticeLayout) -> Unit)? = null,
+    // Pronunciation (device TTS). Null hides the button.
+    onSpeak: ((String) -> Unit)? = null,
+    ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
     Box(modifier = modifier) {
         if (character == null && word == null) return@Box
@@ -110,29 +117,61 @@ fun CharacterGuidePanel(
                             style = MaterialTheme.typography.displaySmall,
                             color = MaterialTheme.colorScheme.onBackground,
                         )
-                        Text(
-                            text = meaningLine(
-                                word = word,
-                                pronunciation = pronunciation,
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = meaningLine(
+                                    word = word,
+                                    pronunciation = pronunciation,
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (onSpeak != null) {
+                                PronunciationButton(
+                                    glyph = word.kana,
+                                    status = ttsStatus,
+                                    onSpeak = onSpeak,
+                                )
+                            }
+                        }
+                        if (positionLabel != null) {
+                            Text(
+                                text = positionLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     } else if (character != null) {
                         Text(
                             text = character.character,
-                            style = MaterialTheme.typography.displayLarge,
+                            // displayMedium (not displayLarge) so the reading
+                            // row + the position line below both fit the 25%
+                            // guide panel without clipping.
+                            style = MaterialTheme.typography.displayMedium,
                             color = MaterialTheme.colorScheme.onBackground,
                         )
-                        Text(
-                            text = if (total > 0) {
-                                "${character.romaji} · character $position of $total"
-                            } else {
-                                character.romaji
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = character.romaji,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (onSpeak != null) {
+                                PronunciationButton(
+                                    glyph = character.character,
+                                    status = ttsStatus,
+                                    onSpeak = onSpeak,
+                                )
+                            }
+                        }
+                        if (positionLabel != null) {
+                            Text(
+                                text = positionLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
 

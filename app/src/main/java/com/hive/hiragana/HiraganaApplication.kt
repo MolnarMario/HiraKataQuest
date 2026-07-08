@@ -3,6 +3,7 @@ package com.hive.hiragana
 import android.app.Application
 import android.content.Context
 import com.hive.hiragana.data.assets.HiraganaAssetDataSource
+import com.hive.hiragana.data.audio.TtsPronunciationPlayer
 import com.hive.hiragana.data.local.HiraganaDatabase
 import com.hive.hiragana.data.recognition.MlKitHandwritingRecognizer
 import com.hive.hiragana.data.repository.AssetCharacterRepository
@@ -11,6 +12,7 @@ import com.hive.hiragana.data.repository.RoomLearningRepository
 import com.hive.hiragana.data.repository.RoomPracticeRepository
 import com.hive.hiragana.data.repository.RoomPracticeSetRepository
 import com.hive.hiragana.data.repository.RoomVocabularyRepository
+import com.hive.hiragana.domain.audio.PronunciationPlayer
 import com.hive.hiragana.domain.repository.CharacterRepository
 import com.hive.hiragana.domain.repository.HandwritingRecognizer
 import com.hive.hiragana.domain.repository.LearningRepository
@@ -83,5 +85,11 @@ class AppContainer(context: Context) {
 
     val handwritingRecognizer: HandwritingRecognizer by lazy {
         MlKitHandwritingRecognizer()
+    }
+
+    // Pronunciation via the device's built-in Japanese TTS. Released in
+    // PracticeViewModel.onCleared().
+    val ttsPronunciationPlayer: PronunciationPlayer by lazy {
+        TtsPronunciationPlayer(appContext)
     }
 }

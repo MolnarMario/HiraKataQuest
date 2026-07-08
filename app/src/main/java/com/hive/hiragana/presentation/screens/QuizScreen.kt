@@ -48,6 +48,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
@@ -55,6 +56,8 @@ import com.hive.hiragana.domain.scoring.CharacterScore
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.scoring.WordUnitScore
 import com.hive.hiragana.drawing.canvas.CanvasState
+import com.hive.hiragana.domain.audio.VoiceStatus
+import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
 import com.hive.hiragana.presentation.components.WordAverageCard
@@ -104,6 +107,13 @@ fun QuizScreen(
     lastWordScores: List<WordUnitScore>?,
     lastWordAverage: Int?,
     inkColor: Color = InkBlack,
+    // Traced-ghost form + a per-glyph stroke lookup for the HANDWRITTEN ghost
+    // (the quiz reveals the ghost only after Submit); PRINTED keeps the font.
+    characterForm: CharacterForm = CharacterForm.PRINTED,
+    glyphStrokesFor: (List<String>) -> List<List<String>> = { emptyList() },
+    // Pronunciation (device TTS).
+    onSpeak: (String) -> Unit = {},
+    ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -136,8 +146,18 @@ fun QuizScreen(
                 lastWordScores = lastWordScores,
                 lastWordAverage = lastWordAverage,
                 inkColor = inkColor,
+                characterForm = characterForm,
+                glyphStrokesFor = glyphStrokesFor,
+                onSpeak = onSpeak,
+                ttsStatus = ttsStatus,
             )
-            QuizStage.SUMMARY -> QuizSummary(quiz, onQuizAgain, onClose)
+            QuizStage.SUMMARY -> QuizSummary(
+                quiz = quiz,
+                onQuizAgain = onQuizAgain,
+                onClose = onClose,
+                onSpeak = onSpeak,
+                ttsStatus = ttsStatus,
+            )
         }
     }
 }
@@ -429,6 +449,10 @@ private fun QuizRunning(
     lastWordScores: List<WordUnitScore>?,
     lastWordAverage: Int?,
     inkColor: Color,
+    characterForm: CharacterForm = CharacterForm.PRINTED,
+    glyphStrokesFor: (List<String>) -> List<List<String>> = { emptyList() },
+    onSpeak: (String) -> Unit = {},
+    ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
     val current = quiz.current ?: return
     var showExitConfirm by rememberSaveable { mutableStateOf(false) }
@@ -473,6 +497,13 @@ private fun QuizRunning(
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // Hear the reading — the same sound the romaji prompt already
+                // gives, so it never reveals the glyph shape being tested.
+                PronunciationButton(
+                    glyph = current.answer,
+                    status = ttsStatus,
+                    onSpeak = onSpeak,
                 )
             }
             Column(
@@ -520,6 +551,12 @@ private fun QuizRunning(
                 showGhost = quiz.revealed,
                 layout = PracticeLayout.SINGLE,
                 inkColor = inkColor,
+                characterForm = characterForm,
+                glyphStrokes = if (characterForm == CharacterForm.HANDWRITTEN) {
+                    glyphStrokesFor(current.glyphs)
+                } else {
+                    emptyList()
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 14.dp),
@@ -646,6 +683,8 @@ private fun QuizSummary(
     quiz: QuizState,
     onQuizAgain: () -> Unit,
     onClose: () -> Unit,
+    onSpeak: (String) -> Unit = {},
+    ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
     Box(
         modifier = Modifier
@@ -701,6 +740,11 @@ private fun QuizSummary(
                             modifier = Modifier.weight(1f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                        )
+                        PronunciationButton(
+                            glyph = item.answer,
+                            status = ttsStatus,
+                            onSpeak = onSpeak,
                         )
                         // Three-way: a numeric score; "—" for an item written
                         // but not scored (e.g. ScoringMode.OFF); "Skipped" for a

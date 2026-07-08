@@ -1,5 +1,6 @@
 package com.hive.hiragana.domain.repository
 
+import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.scoring.ScoringMode
@@ -102,4 +103,14 @@ interface SettingsRepository {
     fun getBrushInkColor(): Int
 
     fun setBrushInkColor(color: Int)
+
+    /**
+     * Which character form the traced ghost shows: [CharacterForm.PRINTED]
+     * (typographic — the form learners read in the wild, the default) or
+     * [CharacterForm.HANDWRITTEN] (the kaisho stroke shape). A rendering choice
+     * only — the stroke-order demo and scorer always use the strokes.
+     */
+    fun getCharacterForm(): CharacterForm
+
+    fun setCharacterForm(form: CharacterForm)
 }

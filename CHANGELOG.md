@@ -12,6 +12,69 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-08 — Library sorting, smart set-building & Options-sheet polish
+
+#### Added
+- **Sort the Library list by your scores** — a Sort menu in the Library app bar
+  (list view only; the chart keeps its fixed gojūon order) reorders characters or
+  words by **average** or **best** score, ascending or descending, with a
+  **Default order** reset. Not-yet-practiced items sink to the bottom, and
+  changing the order snaps the list back to the top so the new leaders are visible.
+- **Smart "All" when building a practice set** — in *Add practice set*, the **All**
+  button opens a popup that selects only the items you still need to drill:
+  **"Only under a score of"** (default **85**, −/+ stepper, tap-to-type a whole
+  number 1–99, and **70 / 80 / 90 / 99** quick-pick chips) plus a checkbox
+  **"Exclude {characters|words} I have not studied yet"** (on by default). Turn the
+  cap off to select everything (the previous behavior). Applies on **Select**.
+- **Score-aware selection list** — the set-builder's list rows now mirror the
+  Library browse rows (score-color tint + "avg · best"/"Not practiced yet") and
+  carry the same Sort menu, so weak items are easy to spot; selection shows as a
+  checkbox plus a border over the score tint.
+
+#### Changed
+- **Brush ink color moved into the Options (Study-scope) sheet** as a labeled
+  *Brush ink color* row (with its color swatch); the app-bar slot it vacated now
+  holds the Sort menu.
+- **The Options sheet fits on a ~6.3″ phone (e.g. Pixel 7) without scrolling** at
+  default font sizes — tightened section spacing, dividers, and toggle-row padding
+  (still uncramped; the ~90 %-height scroll fallback remains for very large fonts).
+
+### 2026-07-06 — Handwriting rendering: fixed-width brush & Printed/Handwritten style
+
+#### Added
+- **Character style — Printed vs Handwritten** — a persisted `CharacterForm`
+  setting (selector in the Study-scope sheet). *Printed* keeps the typographic
+  font ghost you read on signs and screens; *Handwritten* draws the guide ghost
+  from the same KanjiVG strokes the demo and scorer use (a grey brush), for both
+  practice and the quiz. Rendering only — it never changes what is studied,
+  demonstrated, or scored.
+- **A "character X of Y" / "word X of Y" position line** under the reading in the
+  practice guide panel (the item's place in the active-script scoped list).
+
+#### Changed
+- **The stroke-order demo now renders as a bold, glyph-proportional brush**
+  (previously a thin 3.5 dp wireframe), matching the printed form of the glyph.
+- **User ink is now a uniform fixed-width brush** — dropped pen-pressure (finger
+  contact size), speed thinning, and head/tail tapers, so a chubby finger and a
+  thin stylus draw identically and the ink matches the demo. Width is the same
+  fraction of the glyph as the demo at every size, so words, composite glyphs, and
+  2×2/3×3 grids thin automatically. Scoring is unaffected (it reads the raw points).
+- Removed the redundant **Replay** button from the stroke-order controls (Play
+  already restarts the animation).
+
+### 2026-07-06 — Audio pronunciation (device text-to-speech)
+
+#### Added
+- **Tap to hear a kana or word** — a small speaker button sits next to every
+  reading (practice guide panel, Library list rows + word cards, and the quiz
+  prompt + summary) and speaks it with the device's Japanese text-to-speech voice.
+  Uses the framework `TextToSpeech` (ja-JP) fed the raw kana glyph — **no new
+  dependency, permission, manifest, or Room change**. If the Japanese voice is not
+  installed the button opens the system voice-data installer; if TTS is
+  unavailable it greys out. Availability re-checks on resume, so a freshly
+  installed voice starts working without a restart. (The dense gojūon chart cells
+  intentionally omit the button — no room.)
+
 ### 2026-07-05 — Library search & free-practice polish
 
 #### Added

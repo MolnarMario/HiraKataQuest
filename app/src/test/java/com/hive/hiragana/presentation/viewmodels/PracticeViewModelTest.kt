@@ -1,5 +1,8 @@
 package com.hive.hiragana.presentation.viewmodels
 
+import com.hive.hiragana.domain.audio.PronunciationPlayer
+import com.hive.hiragana.domain.audio.VoiceStatus
+import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.Grade
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeAttempt
@@ -138,6 +141,7 @@ class PracticeViewModelTest {
         settingsRepository = settings,
         practiceSetRepository = practiceSetRepository,
         handwritingRecognizer = recognizer,
+        ttsPlayer = FakePronunciationPlayer(),
         clock = fixedClock,
     )
 
@@ -587,6 +591,14 @@ class PracticeViewModelTest {
         ): RecognitionResult = RecognitionResult.UNAVAILABLE
     }
 
+    /** No-op pronunciation engine — the VM only forwards calls to it. */
+    private class FakePronunciationPlayer : PronunciationPlayer {
+        override val status = MutableStateFlow(VoiceStatus.UNAVAILABLE)
+        override fun play(glyph: String) {}
+        override fun refresh() {}
+        override fun release() {}
+    }
+
     /**
      * Suspends each [recognize] on a per-target [CompletableDeferred] so the
      * test controls exactly when (and in what order) results resolve.
@@ -627,6 +639,7 @@ class PracticeViewModelTest {
         // seeding tests set it explicitly.
         var seededDefaults = true
         private var brushInkColor = 0xFF20222E.toInt()
+        private var characterForm = CharacterForm.PRINTED
 
         override fun isGridEnabled(): Boolean = grid
         override fun setGridEnabled(enabled: Boolean) { grid = enabled }
@@ -652,6 +665,8 @@ class PracticeViewModelTest {
         override fun setDefaultSetsSeeded() { seededDefaults = true }
         override fun getBrushInkColor(): Int = brushInkColor
         override fun setBrushInkColor(color: Int) { brushInkColor = color }
+        override fun getCharacterForm(): CharacterForm = characterForm
+        override fun setCharacterForm(form: CharacterForm) { characterForm = form }
     }
 
     /** In-memory practice sets, backing a [MutableStateFlow] for observation. */

@@ -3,6 +3,7 @@ package com.hive.hiragana.presentation.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -35,6 +37,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -77,6 +81,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -93,16 +98,20 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.FlowSection
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.KanaChartBuilder
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.scoring.CharacterScoreSummary
 import com.hive.hiragana.domain.scoring.ScoringMode
+import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.ScriptScope
+import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.domain.model.TableRow
 import com.hive.hiragana.domain.model.TableSection
 import com.hive.hiragana.domain.model.VocabularyWord
@@ -134,6 +143,36 @@ import kotlinx.coroutines.launch
 
 /** The score used to color a cell/row: average form, falling back to average fit. */
 private fun CharacterScoreSummary?.avgScore(): Int? = this?.avgForm ?: this?.avgFit
+
+/** The best score used for sorting: best form, falling back to best fit. */
+private fun CharacterScoreSummary?.bestScore(): Int? = this?.bestForm ?: this?.bestFit
+
+/** Sort orders for the character/word lists (browse + selection), by scored history. */
+private enum class ItemSort { DEFAULT, AVG_DESC, AVG_ASC, BEST_DESC, BEST_ASC }
+
+private val ITEM_SORT_OPTIONS = listOf(
+    ItemSort.DEFAULT to "Default order",
+    ItemSort.AVG_DESC to "Average: High → Low",
+    ItemSort.AVG_ASC to "Average: Low → High",
+    ItemSort.BEST_DESC to "Best: High → Low",
+    ItemSort.BEST_ASC to "Best: Low → High",
+)
+
+/**
+ * Reorder a list by scored history (average or best). Unscored items — those the
+ * user has not practiced yet — sink to the end in BOTH directions. Stable, so the
+ * incoming (gojūon) order breaks ties and DEFAULT is a no-op.
+ */
+private fun <T> List<T>.sortedByScore(
+    mode: ItemSort,
+    scoreOf: (T) -> CharacterScoreSummary?,
+): List<T> = when (mode) {
+    ItemSort.DEFAULT -> this
+    ItemSort.AVG_DESC -> sortedByDescending { scoreOf(it).avgScore() ?: Int.MIN_VALUE }
+    ItemSort.AVG_ASC -> sortedBy { scoreOf(it).avgScore() ?: Int.MAX_VALUE }
+    ItemSort.BEST_DESC -> sortedByDescending { scoreOf(it).bestScore() ?: Int.MIN_VALUE }
+    ItemSort.BEST_ASC -> sortedBy { scoreOf(it).bestScore() ?: Int.MAX_VALUE }
+}
 
 /**
  * Browsable library of every character and vocabulary word (Phase 3.1),
@@ -203,6 +242,10 @@ fun LibraryScreen(
     onClose: () -> Unit,
     isGridView: Boolean = false,
     onSetGridView: (Boolean) -> Unit = {},
+    // Traced-ghost form (Printed / Handwritten) + its setter, surfaced as a
+    // selector in the Study-scope sheet.
+    characterForm: CharacterForm = CharacterForm.PRINTED,
+    onSetCharacterForm: (CharacterForm) -> Unit = {},
     // Which tab to open on (0 = Characters, 1 = Words), seeded from the
     // persisted last-used section; [onSelectTab] persists the learner's switch.
     initialTab: Int = 0,
@@ -221,6 +264,9 @@ fun LibraryScreen(
     onPracticeSet: (Long) -> Unit = {},
     openSetsManagerSignal: Boolean = false,
     onConsumeOpenSetsManager: () -> Unit = {},
+    // Pronunciation (device TTS) shown on each browse row/card.
+    onSpeak: (String) -> Unit = {},
+    ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -341,6 +387,20 @@ fun LibraryScreen(
         }
     }
 
+    // List-mode sort by scored history (both tabs share one order). Session-local
+    // like the sets-manager sort; the chart/grid and tab counts stay unsorted.
+    var listSort by remember { mutableStateOf(ItemSort.DEFAULT) }
+    val sortedCharacters = remember(filteredCharacters, listSort, scoreStats) {
+        filteredCharacters.sortedByScore(listSort) { scoreStats[it.character] }
+    }
+    val sortedWords = remember(filteredWords, listSort, scoreStats) {
+        filteredWords.sortedByScore(listSort) { scoreStats[it.kana] }
+    }
+    // Jump back to the top whenever the order changes, so the new first items are
+    // visible instead of being left scrolled down in the previous order's tail.
+    val browseListState = rememberLazyListState()
+    LaunchedEffect(listSort) { browseListState.scrollToItem(0) }
+
     // A dot on the Filter icon whenever scope differs from the beginner
     // default (any advanced-kana group opted in). Script choice is a mode,
     // not a hide-things filter, so it does not raise the dot.
@@ -365,6 +425,7 @@ fun LibraryScreen(
                 words = remember(words, selectionScript) {
                     words.filter { it.script == selectionScript }
                 },
+                scoreStats = scoreStats,
                 selectedValues = selectedValues,
                 onToggle = { value ->
                     if (value in selectedValues) selectedValues.remove(value)
@@ -424,8 +485,9 @@ fun LibraryScreen(
                 showViewToggle = true,
                 isGridView = isGridView,
                 onToggleView = { onSetGridView(!isGridView) },
-                brushInkColor = brushInkColor,
-                onSelectBrushColor = onSelectBrushColor,
+                showSort = !gridMode,
+                sortMode = listSort,
+                onSortSelected = { listSort = it },
             )
 
             TabRow(selectedTabIndex = selectedTab) {
@@ -452,8 +514,11 @@ fun LibraryScreen(
                     scoreStats = scoreStats,
                     pronunciation = pronunciation,
                     onPracticeWord = onPracticeWord,
+                    onSpeak = onSpeak,
+                    ttsStatus = ttsStatus,
                 )
                 else -> LazyColumn(
+                    state = browseListState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         start = 16.dp,
@@ -464,7 +529,7 @@ fun LibraryScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     if (selectedTab == 0) {
-                        items(filteredCharacters, key = { it.id }) { character ->
+                        items(sortedCharacters, key = { it.id }) { character ->
                             LibraryRow(
                                 onClick = { onPracticeCharacter(character) },
                                 glyph = character.character,
@@ -474,19 +539,25 @@ fun LibraryScreen(
                                     scoreStats[character.character],
                                 ),
                                 score = scoreStats[character.character].avgScore(),
+                                showPronunciation = true,
+                                onSpeak = onSpeak,
+                                ttsStatus = ttsStatus,
                             )
                         }
                         if (filteredCharacters.isEmpty()) {
                             item { NoMatchesMessage(trimmedQuery, "characters") }
                         }
                     } else {
-                        items(filteredWords, key = { "${it.kana} ${it.meaning}" }) { word ->
+                        items(sortedWords, key = { "${it.kana} ${it.meaning}" }) { word ->
                             LibraryRow(
                                 onClick = { onPracticeWord(word) },
                                 glyph = word.kana,
                                 title = word.meaning,
                                 subtitle = pronunciation(word),
                                 score = scoreStats[word.kana].avgScore(),
+                                showPronunciation = true,
+                                onSpeak = onSpeak,
+                                ttsStatus = ttsStatus,
                             )
                         }
                         if (filteredWords.isEmpty()) {
@@ -518,6 +589,8 @@ fun LibraryScreen(
                 ScopeSheetContent(
                     activeScript = activeScript,
                     onSelectScript = onSelectScript,
+                    characterForm = characterForm,
+                    onSetCharacterForm = onSetCharacterForm,
                     includeDiacritics = includeDiacritics,
                     onToggleDiacritics = onToggleDiacritics,
                     includeYoon = includeYoon,
@@ -526,6 +599,8 @@ fun LibraryScreen(
                     onToggleExtended = onToggleExtended,
                     scoringMode = scoringMode,
                     onSetScoringMode = onSetScoringMode,
+                    brushInkColor = brushInkColor,
+                    onSelectBrushColor = onSelectBrushColor,
                     practiceSetCount = practiceSets.size,
                     onAddPracticeSet = { startNewSet() },
                     onSeePracticeSets = {
@@ -563,9 +638,11 @@ fun LibraryScreen(
 /**
  * The single header row. Back + title normally; while [searching] the title
  * slot becomes a borderless autofocused search field. Actions: search
- * toggle, Filter (dotted when [scopeIsNonDefault]) opening the scope sheet,
- * and the "Quiz me!" CTA. Window insets are zeroed because the host activity
- * is not edge-to-edge (the system already reserves the status-bar strip).
+ * toggle, list/chart view toggle, the [SortMenu] (list mode only, shown when
+ * [showSort]), Filter (dotted when [scopeIsNonDefault]) opening the scope
+ * sheet, and the "Quiz me!" CTA. The brush-ink-color picker moved into the
+ * scope sheet. Window insets are zeroed because the host activity is not
+ * edge-to-edge (the system already reserves the status-bar strip).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -581,8 +658,9 @@ private fun LibraryTopBar(
     showViewToggle: Boolean,
     isGridView: Boolean,
     onToggleView: () -> Unit,
-    brushInkColor: Int,
-    onSelectBrushColor: (Int) -> Unit,
+    showSort: Boolean,
+    sortMode: ItemSort,
+    onSortSelected: (ItemSort) -> Unit,
 ) {
     TopAppBar(
         windowInsets = WindowInsets(0, 0, 0, 0),
@@ -690,29 +768,17 @@ private fun LibraryTopBar(
                         }
                     }
                 }
-                // Brush ink-color swatch → opens the HSV picker. A purely-visual
-                // personalization affordance; it lives here (not on the practice
-                // canvas chrome) so the drawing controls stay focused on drawing.
-                var showColorPicker by remember { mutableStateOf(false) }
-                IconButton(onClick = { showColorPicker = true }, modifier = Modifier.size(40.dp)) {
-                    val ink = Color(brushInkColor)
-                    val outline = LocalContentColor.current
-                    Canvas(
-                        modifier = Modifier.size(22.dp),
-                        contentDescription = "Brush colour",
-                    ) {
-                        drawCircle(ink)
-                        drawCircle(outline, style = Stroke(1.dp.toPx()))
-                    }
-                }
-                if (showColorPicker) {
-                    BrushColorPicker(
-                        initial = Color(brushInkColor),
-                        onPick = {
-                            onSelectBrushColor(it.toArgb())
-                            showColorPicker = false
-                        },
-                        onDismiss = { showColorPicker = false },
+                // Sort the list by scored history — list mode only (the chart
+                // has a fixed gojūon order). Takes the slot the brush-colour
+                // swatch used to hold; the brush colour now lives in the scope
+                // sheet as a labeled row.
+                if (showSort) {
+                    SortMenu(
+                        contentDescription = "Sort list",
+                        label = null,
+                        options = ITEM_SORT_OPTIONS,
+                        selected = sortMode,
+                        onSelect = onSortSelected,
                     )
                 }
                 BadgedBox(
@@ -761,6 +827,8 @@ private fun LibraryTopBar(
 private fun ScopeSheetContent(
     activeScript: Script,
     onSelectScript: (Script) -> Unit,
+    characterForm: CharacterForm,
+    onSetCharacterForm: (CharacterForm) -> Unit,
     includeDiacritics: Boolean,
     onToggleDiacritics: (Boolean) -> Unit,
     includeYoon: Boolean,
@@ -769,6 +837,8 @@ private fun ScopeSheetContent(
     onToggleExtended: (Boolean) -> Unit,
     scoringMode: ScoringMode,
     onSetScoringMode: (ScoringMode) -> Unit,
+    brushInkColor: Int,
+    onSelectBrushColor: (Int) -> Unit,
     practiceSetCount: Int,
     onAddPracticeSet: () -> Unit,
     onSeePracticeSets: () -> Unit,
@@ -783,8 +853,8 @@ private fun ScopeSheetContent(
             .heightIn(max = maxSheetHeight)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
             text = "Study scope",
@@ -826,7 +896,38 @@ private fun ScopeSheetContent(
             hint = "っ, ファ, ティ …",
         )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+        // How the traced guide glyph is drawn. Printed = the typographic form
+        // learners meet when reading (default); Handwritten = the kaisho stroke
+        // form, drawn from the same strokes the demo and scorer use. Rendering
+        // only — it never changes what is studied, demonstrated, or scored.
+        Text(
+            text = "Character style",
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = "Printed is what you read on signs and screens; Handwritten " +
+                "shows the brush stroke form used when writing by hand.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            CharacterForm.entries.forEachIndexed { index, form ->
+                SegmentedButton(
+                    selected = form == characterForm,
+                    onClick = { onSetCharacterForm(form) },
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = CharacterForm.entries.size,
+                    ),
+                    icon = {},
+                    label = { Text(form.displayLabel) },
+                )
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
         // How practice writing is judged (also used by the quiz). This is the
         // one global scoring setting; the quiz setup card shows the same picker.
@@ -857,7 +958,7 @@ private fun ScopeSheetContent(
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
         // Practice sets are hand-picked lists (an explicit membership), kept
         // visually + conceptually separate from the declarative scope toggles
@@ -895,6 +996,47 @@ private fun ScopeSheetContent(
                 )
             }
         }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+        // Brush ink colour — a purely-visual personalization (the colour your
+        // strokes are drawn in). Moved here from the app bar so it reads as the
+        // labeled setting it is; the swatch on the right opens the HSV picker.
+        var showColorPicker by remember { mutableStateOf(false) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showColorPicker = true },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Brush ink color",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = "The color your strokes are drawn in.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            val ink = Color(brushInkColor)
+            val outline = MaterialTheme.colorScheme.outline
+            Canvas(modifier = Modifier.size(28.dp)) {
+                drawCircle(ink)
+                drawCircle(outline, style = Stroke(1.dp.toPx()))
+            }
+        }
+        if (showColorPicker) {
+            BrushColorPicker(
+                initial = Color(brushInkColor),
+                onPick = {
+                    onSelectBrushColor(it.toArgb())
+                    showColorPicker = false
+                },
+                onDismiss = { showColorPicker = false },
+            )
+        }
     }
 }
 
@@ -915,9 +1057,7 @@ private fun ScopeToggleRow(
     hint: String,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -1259,6 +1399,8 @@ private fun WordGrid(
     scoreStats: Map<String, CharacterScoreSummary>,
     pronunciation: (VocabularyWord) -> String,
     onPracticeWord: (VocabularyWord) -> Unit,
+    onSpeak: (String) -> Unit = {},
+    ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
     if (words.isEmpty()) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -1289,6 +1431,8 @@ private fun WordGrid(
                 romaji = romajiByKana[word.kana].orEmpty(),
                 score = scoreStats[word.kana].avgScore(),
                 onClick = { onPracticeWord(word) },
+                onSpeak = onSpeak,
+                ttsStatus = ttsStatus,
             )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -1309,6 +1453,8 @@ private fun WordCard(
     romaji: String,
     score: Int?,
     onClick: () -> Unit,
+    onSpeak: (String) -> Unit = {},
+    ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
     // Score tint when scored; otherwise a neutral surface.
     val container = score?.let { scoreSpectrumColor(it) }
@@ -1347,6 +1493,11 @@ private fun WordCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurface,
+            )
+            PronunciationButton(
+                glyph = kana,
+                status = ttsStatus,
+                onSpeak = onSpeak,
             )
         }
         if (score != null) {
@@ -1420,6 +1571,9 @@ private fun LibraryRow(
     title: String,
     subtitle: String,
     score: Int?,
+    showPronunciation: Boolean = false,
+    onSpeak: (String) -> Unit = {},
+    ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
     // Tint the whole row by score when available; otherwise the default card color.
     val cardColors = score?.let {
@@ -1454,6 +1608,13 @@ private fun LibraryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (showPronunciation) {
+                PronunciationButton(
+                    glyph = glyph,
+                    status = ttsStatus,
+                    onSpeak = onSpeak,
+                )
+            }
         }
     }
 }
@@ -1476,6 +1637,7 @@ private fun SelectionModeContent(
     editing: Boolean,
     characters: List<HiraganaCharacter>,
     words: List<VocabularyWord>,
+    scoreStats: Map<String, CharacterScoreSummary>,
     selectedValues: List<String>,
     onToggle: (String) -> Unit,
     onSetSelected: (String, Boolean) -> Unit,
@@ -1497,6 +1659,20 @@ private fun SelectionModeContent(
     val noun = if (type == PracticeSetType.CHARACTERS) "characters" else "words"
 
     var gridView by remember { mutableStateOf(false) }
+
+    // List-mode sort by scored history (session-local); grid mode keeps deck order.
+    var selectionSort by remember { mutableStateOf(ItemSort.DEFAULT) }
+    val sortedRows = remember(rows, selectionSort, scoreStats) {
+        rows.sortedByScore(selectionSort) { scoreStats[it.value] }
+    }
+
+    // "All" opens a smart-select popup: cap the selection to items scoring under
+    // a threshold (default 85, hard to reach), optionally excluding items never
+    // studied. Transient — reset to defaults each time the popup opens.
+    var allMenuOpen by remember { mutableStateOf(false) }
+    var capEnabled by remember { mutableStateOf(true) }
+    var threshold by remember { mutableStateOf(85) }
+    var excludeUnstudied by remember { mutableStateOf(true) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -1525,6 +1701,17 @@ private fun SelectionModeContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            // Sort by scored history — list mode only (grid keeps deck order),
+            // so weak items can be found while selecting. Icon-only to save room.
+            if (!gridView) {
+                SortMenu(
+                    contentDescription = "Sort $noun",
+                    label = null,
+                    options = ITEM_SORT_OPTIONS,
+                    selected = selectionSort,
+                    onSelect = { selectionSort = it },
+                )
+            }
             // List ⇄ grid toggle for the selectable items (shows the mode you'd
             // switch TO, same convention as the Library's view toggle). Tap and
             // drag-select behave identically in both layouts.
@@ -1541,10 +1728,96 @@ private fun SelectionModeContent(
                     }
                 }
             }
-            TextButton(
-                onClick = { onSelectAll(rows.map { it.value }) },
-                contentPadding = PaddingValues(horizontal = 8.dp),
-            ) { Text("All") }
+            Box {
+                TextButton(
+                    onClick = {
+                        // Present the recommended weak-item selection on open.
+                        capEnabled = true
+                        threshold = 85
+                        excludeUnstudied = true
+                        allMenuOpen = true
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                ) { Text("All") }
+                DropdownMenu(
+                    expanded = allMenuOpen,
+                    onDismissRequest = { allMenuOpen = false },
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .widthIn(min = 288.dp, max = 360.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { capEnabled = !capEnabled },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = capEnabled,
+                                onCheckedChange = { capEnabled = it },
+                            )
+                            Text(
+                                text = "Only under a score of",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        ScoreThresholdStepper(
+                            value = threshold,
+                            onValueChange = { threshold = it },
+                            enabled = capEnabled,
+                            modifier = Modifier.padding(start = 12.dp),
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = capEnabled) {
+                                    excludeUnstudied = !excludeUnstudied
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = excludeUnstudied,
+                                onCheckedChange = { excludeUnstudied = it },
+                                enabled = capEnabled,
+                            )
+                            Text(
+                                text = "Exclude $noun I have not studied yet",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (capEnabled) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                val subset = if (!capEnabled) {
+                                    rows.map { it.value }
+                                } else {
+                                    rows.mapNotNull { row ->
+                                        val score = scoreStats[row.value].avgScore()
+                                        val keep = when {
+                                            score != null -> score < threshold
+                                            excludeUnstudied -> false
+                                            else -> true
+                                        }
+                                        row.value.takeIf { keep }
+                                    }
+                                }
+                                onSelectAll(subset)
+                                allMenuOpen = false
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                        ) { Text("Select") }
+                    }
+                }
+            }
             TextButton(
                 onClick = onDeselectAll,
                 contentPadding = PaddingValues(horizontal = 8.dp),
@@ -1559,7 +1832,77 @@ private fun SelectionModeContent(
         if (gridView) {
             SelectableGrid(rows, selectedSet, onToggle, onSetSelected)
         } else {
-            SelectableList(rows, selectedSet, onToggle, onSetSelected)
+            SelectableList(sortedRows, selectedSet, scoreStats, onToggle, onSetSelected)
+        }
+    }
+}
+
+/**
+ * Score-cap editor for the "All" popup: a numeric box flanked by −/+ steppers,
+ * followed by [quickPicks] chips (common thresholds) to the right of "+". Steppers
+ * step the value; typing works the other way; a chip jumps straight to it. Clamps
+ * to 1..99 (a whole number under a perfect 100) and snaps the box back. The stepper
+ * + chips sit in a [FlowRow] so the chips wrap to a second line on narrow popups.
+ */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun ScoreThresholdStepper(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    quickPicks: List<Int> = listOf(70, 80, 90, 99),
+) {
+    fun clamp(n: Int) = n.coerceIn(1, 99)
+    var text by remember { mutableStateOf(value.toString()) }
+    LaunchedEffect(value) {
+        if (text.toIntOrNull() != value) text = value.toString()
+    }
+    FlowRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.align(Alignment.CenterVertically),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilledTonalIconButton(
+                onClick = { onValueChange(clamp(value - 1)) },
+                enabled = enabled && value > 1,
+            ) {
+                Text(text = "−", style = MaterialTheme.typography.titleMedium)
+            }
+            OutlinedTextField(
+                value = text,
+                onValueChange = { new ->
+                    if (new.length <= 2 && new.all { it.isDigit() }) {
+                        text = new
+                        new.toIntOrNull()?.let { onValueChange(clamp(it)) }
+                    }
+                },
+                enabled = enabled,
+                modifier = Modifier.width(72.dp),
+                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+            )
+            FilledTonalIconButton(
+                onClick = { onValueChange(clamp(value + 1)) },
+                enabled = enabled && value < 99,
+            ) {
+                Text(text = "+", style = MaterialTheme.typography.titleMedium)
+            }
+        }
+        quickPicks.forEach { pick ->
+            FilterChip(
+                modifier = Modifier.align(Alignment.CenterVertically),
+                selected = enabled && value == pick,
+                onClick = { onValueChange(clamp(pick)) },
+                enabled = enabled,
+                label = { Text(pick.toString()) },
+            )
         }
     }
 }
@@ -1573,6 +1916,7 @@ private fun SelectionModeContent(
 private fun SelectableList(
     rows: List<SelectionRow>,
     selectedSet: Set<String>,
+    scoreStats: Map<String, CharacterScoreSummary>,
     onToggle: (String) -> Unit,
     onSetSelected: (String, Boolean) -> Unit,
 ) {
@@ -1586,6 +1930,10 @@ private fun SelectableList(
     var lastDragIndex by remember { mutableStateOf(-1) }
     var pointerY by remember { mutableStateOf(0f) }
     var viewportHeight by remember { mutableStateOf(0) }
+
+    // A new (re-sorted) rows identity means the order changed — return to the top
+    // so the new first items are visible rather than the previous order's tail.
+    LaunchedEffect(rows) { listState.scrollToItem(0) }
 
     fun indexAt(y: Float): Int? =
         listState.layoutInfo.visibleItemsInfo
@@ -1651,6 +1999,7 @@ private fun SelectableList(
             SelectableRow(
                 glyph = row.glyph,
                 label = row.label,
+                summary = scoreStats[row.value],
                 selected = row.value in selectedSet,
                 onClick = { onToggle(row.value) },
             )
@@ -1814,22 +2163,33 @@ private fun SelectableGridCell(
     }
 }
 
-/** One row in selection mode: a checkbox, the glyph, and its reading/meaning. */
+/**
+ * One row in selection mode — mirrors the Library browse row so past performance
+ * is visible while building a set: a checkbox, the glyph, its reading/meaning, and
+ * an "avg · best" line, with the card tinted by score (neutral when unpracticed).
+ * Selection is shown by the checkbox + a primary border (kept legible over the tint).
+ */
 @Composable
 private fun SelectableRow(
     glyph: String,
     label: String,
+    summary: CharacterScoreSummary?,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val container = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
+    val avg = summary.avgScore()
+    val best = summary.bestScore()
+    val container = avg?.let { scoreSpectrumColor(it) }
+        ?: MaterialTheme.colorScheme.surfaceVariant
+    val subtitle = when {
+        avg != null && best != null -> "avg $avg · best $best"
+        avg != null -> "avg $avg"
+        else -> "Not practiced yet"
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = container),
+        border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
     ) {
         Row(
             modifier = Modifier
@@ -1845,14 +2205,22 @@ private fun SelectableRow(
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -1956,26 +2324,47 @@ private fun setAverage(set: PracticeSet, scoreStats: Map<String, CharacterScoreS
     set.members.mapNotNull { scoreStats[it].avgScore() }
         .let { if (it.isEmpty()) null else it.average().roundToInt() }
 
-/** The sort icon + dropdown of the four orders, with a check on the active one. */
+/**
+ * Generic sort control: a hand-drawn sort glyph (icon-only when [label] is null,
+ * else glyph + label) that drops down the [options], checking the active one.
+ * Shared by the sets manager and the character/word list + selection sorts.
+ */
 @Composable
-private fun SetSortMenu(sortMode: SetSort, onSelect: (SetSort) -> Unit) {
+private fun <T> SortMenu(
+    contentDescription: String,
+    label: String?,
+    options: List<Pair<T, String>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }, modifier = Modifier.size(40.dp)) {
-            val color = LocalContentColor.current
-            Canvas(modifier = Modifier.size(22.dp), contentDescription = "Sort sets") {
-                drawSortGlyph(color)
+        if (label == null) {
+            IconButton(onClick = { expanded = true }, modifier = Modifier.size(40.dp)) {
+                val color = LocalContentColor.current
+                Canvas(modifier = Modifier.size(22.dp), contentDescription = contentDescription) {
+                    drawSortGlyph(color)
+                }
+            }
+        } else {
+            TextButton(onClick = { expanded = true }) {
+                val color = LocalContentColor.current
+                Canvas(modifier = Modifier.size(18.dp), contentDescription = contentDescription) {
+                    drawSortGlyph(color)
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(label)
             }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            SET_SORT_OPTIONS.forEach { (mode, label) ->
+            options.forEach { (mode, text) ->
                 DropdownMenuItem(
-                    text = { Text(label) },
+                    text = { Text(text) },
                     onClick = {
                         onSelect(mode)
                         expanded = false
                     },
-                    trailingIcon = if (mode == sortMode) {
+                    trailingIcon = if (mode == selected) {
                         { Icon(Icons.Filled.Check, contentDescription = null) }
                     } else {
                         null
@@ -1984,6 +2373,18 @@ private fun SetSortMenu(sortMode: SetSort, onSelect: (SetSort) -> Unit) {
             }
         }
     }
+}
+
+/** The set-manager sort: icon-only [SortMenu] over the four name/score orders. */
+@Composable
+private fun SetSortMenu(sortMode: SetSort, onSelect: (SetSort) -> Unit) {
+    SortMenu(
+        contentDescription = "Sort sets",
+        label = null,
+        options = SET_SORT_OPTIONS,
+        selected = sortMode,
+        onSelect = onSelect,
+    )
 }
 
 private val SET_SORT_OPTIONS = listOf(

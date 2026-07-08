@@ -20,7 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.drawing.canvas.CanvasState
@@ -46,6 +49,13 @@ fun PracticeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val canvasState = remember { CanvasState() }
+
+    // Re-check the Japanese TTS voice each time the app resumes, so a voice the
+    // user just installed (via the pronunciation button's download prompt)
+    // flips the button from "download" to "play" without a restart.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshTtsAvailability()
+    }
 
     // Start from a blank sheet on every advance — each review, each
     // practice rep, each word, and every phase change bump this
@@ -111,6 +121,10 @@ fun PracticeScreen(
                     lastWordScores = uiState.lastWordScores,
                     lastWordAverage = uiState.lastWordAverage,
                     inkColor = Color(uiState.brushInkColor),
+                    characterForm = uiState.characterForm,
+                    glyphStrokesFor = uiState::ghostStrokesFor,
+                    onSpeak = viewModel::speakTts,
+                    ttsStatus = uiState.ttsStatus,
                 )
             }
 
@@ -137,6 +151,8 @@ fun PracticeScreen(
                     onClose = viewModel::closeLibrary,
                     isGridView = uiState.isLibraryGridView,
                     onSetGridView = viewModel::setLibraryGridView,
+                    characterForm = uiState.characterForm,
+                    onSetCharacterForm = viewModel::setCharacterForm,
                     initialTab = uiState.librarySection,
                     onSelectTab = viewModel::setLibrarySection,
                     pronunciation = uiState::pronunciationOf,
@@ -153,6 +169,8 @@ fun PracticeScreen(
                     onPracticeSet = viewModel::practiceSet,
                     openSetsManagerSignal = uiState.pendingOpenSetsManager,
                     onConsumeOpenSetsManager = viewModel::consumeOpenSetsManager,
+                    onSpeak = viewModel::speakTts,
+                    ttsStatus = uiState.ttsStatus,
                 )
             }
 
@@ -182,8 +200,7 @@ private fun PracticeContent(
     Column(modifier = Modifier.fillMaxSize()) {
         CharacterGuidePanel(
             character = character,
-            position = uiState.currentIndex + 1,
-            total = uiState.freeCharacters.size,
+            positionLabel = uiState.practicePositionLabel,
             word = activeWord,
             wordCharacters = activeWord?.let(uiState::wordUnitCharacters) ?: emptyList(),
             pronunciation = activeWord?.let(uiState::pronunciationOf),
@@ -194,6 +211,8 @@ private fun PracticeContent(
             onToggleGhost = viewModel::toggleGhost,
             practiceLayout = uiState.practiceLayout,
             onSelectLayout = viewModel::setPracticeLayout,
+            onSpeak = viewModel::speakTts,
+            ttsStatus = uiState.ttsStatus,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.25f),
@@ -211,6 +230,12 @@ private fun PracticeContent(
                 showGhost = uiState.isGhostEnabled,
                 layout = uiState.practiceLayout,
                 inkColor = Color(uiState.brushInkColor),
+                characterForm = uiState.characterForm,
+                glyphStrokes = if (uiState.characterForm == CharacterForm.HANDWRITTEN) {
+                    uiState.canvasGhostStrokes
+                } else {
+                    emptyList()
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 14.dp),

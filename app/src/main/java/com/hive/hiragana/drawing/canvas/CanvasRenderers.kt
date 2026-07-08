@@ -5,10 +5,14 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 
@@ -88,5 +92,35 @@ fun DrawScope.drawGhostCharacter(character: String, cell: Rect, paint: Paint) {
     val baseline = cell.center.y - (metrics.ascent + metrics.descent) / 2f
     drawIntoCanvas { canvas ->
         canvas.nativeCanvas.drawText(character, cell.center.x, baseline, paint)
+    }
+}
+
+/** Handwritten-ghost stroke width as a fraction of the KanjiVG viewBox. */
+private const val GHOST_STROKE_WIDTH_FRACTION = 0.1f
+
+/**
+ * Draws the character's KanjiVG strokes as a light-grey round-capped brush,
+ * scaled uniformly into the (square) [cell] — the HANDWRITTEN-form ghost, an
+ * alternative to the font-rendered [drawGhostCharacter]. It uses the very same
+ * geometry as the stroke-order demo and the scorer, so tracing it lines up with
+ * both.
+ *
+ * [paths] are pre-parsed Compose paths in viewBox space (the caller caches them
+ * so nothing is parsed per frame); [viewBox] is the KanjiVG box (109). No-op if
+ * there are no paths — the caller then falls back to the font ghost.
+ */
+fun DrawScope.drawGhostStrokes(paths: List<Path>, cell: Rect, viewBox: Float, color: Color) {
+    if (paths.isEmpty() || viewBox <= 0f) return
+    val scale = cell.width / viewBox
+    val style = Stroke(
+        width = viewBox * GHOST_STROKE_WIDTH_FRACTION,
+        cap = StrokeCap.Round,
+        join = StrokeJoin.Round,
+    )
+    withTransform({
+        translate(cell.left, cell.top)
+        scale(scale, scale, pivot = Offset.Zero)
+    }) {
+        paths.forEach { drawPath(path = it, color = color, style = style) }
     }
 }
