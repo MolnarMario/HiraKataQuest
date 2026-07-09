@@ -18,8 +18,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * [AppUpdater] backed by the repo's **GitHub Releases** (distribution outside the
- * Play Store). Reads `/releases/latest`, compares the release tag to this build's
+ * [AppUpdater] backed by a **public GitHub Releases repo** (distribution outside
+ * the Play Store; the source repo stays private, so releases live in a separate
+ * public repo the app can read unauthenticated — see [REPO]). Reads
+ * `/releases/latest`, compares the release tag to this build's
  * [BuildConfig.VERSION_NAME], and — if newer and carrying an `.apk` asset —
  * downloads it to the private cache and launches the system package installer via
  * a [FileProvider] `content://` URI. No third-party HTTP dependency: plain
@@ -148,7 +150,9 @@ class GithubAppUpdater(private val context: Context) : AppUpdater {
 
     companion object {
         private const val TAG = "AppUpdater"
-        private const val REPO = "MolnarMario/HiraKataQuest"
+        // A dedicated PUBLIC repo holds only the release APKs so the app can read
+        // them unauthenticated; the source repo stays private. Publish releases here.
+        private const val REPO = "MolnarMario/HiraKataQuest-releases"
         private const val LATEST_RELEASE_URL =
             "https://api.github.com/repos/$REPO/releases/latest"
 
