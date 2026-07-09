@@ -4,14 +4,19 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import com.hive.hiragana.domain.update.UpdateState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,6 +75,7 @@ fun PracticeScreen(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
+        Box(modifier = Modifier.fillMaxSize()) {
         when {
             uiState.isLoading -> CenteredBox { CircularProgressIndicator() }
 
@@ -248,6 +254,17 @@ fun PracticeScreen(
                 )
             }
         }
+
+            // Update-available overlay — a Dialog window, so it floats over any
+            // branch above (incl. the opening/home screen where it usually appears).
+            UpdateDialog(
+                state = uiState.updateState,
+                onUpdate = viewModel::startUpdate,
+                onRetry = viewModel::retryUpdate,
+                onLater = viewModel::dismissUpdate,
+                onSkip = viewModel::skipUpdate,
+            )
+        }
     }
 }
 
@@ -386,5 +403,75 @@ private fun CenteredBox(content: @Composable () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         content()
+    }
+}
+
+/**
+ * The in-app update flow, rendered as a dialog window (so it floats over whatever
+ * screen is showing). [UpdateState.Idle]/[UpdateState.Checking]/
+ * [UpdateState.UpToDate]/[UpdateState.Installing] render nothing. See
+ * [com.hive.hiragana.domain.update.AppUpdater].
+ */
+@Composable
+private fun UpdateDialog(
+    state: UpdateState,
+    onUpdate: () -> Unit,
+    onRetry: () -> Unit,
+    onLater: () -> Unit,
+    onSkip: () -> Unit,
+) {
+    when (state) {
+        is UpdateState.Available -> AlertDialog(
+            onDismissRequest = onLater,
+            title = { Text("Update available") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Version ${state.info.versionName} is ready to install.")
+                    if (state.info.notes.isNotBlank()) {
+                        Text(
+                            text = state.info.notes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = onUpdate) { Text("Update") } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = onSkip) { Text("Skip") }
+                    TextButton(onClick = onLater) { Text("Later") }
+                }
+            },
+        )
+
+        is UpdateState.Downloading -> AlertDialog(
+            // Non-cancellable while downloading (tapping outside / Back does nothing).
+            onDismissRequest = {},
+            title = { Text("Downloading update") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Version ${state.info.versionName} — ${state.percent}%")
+                    LinearProgressIndicator(
+                        progress = { state.percent / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {},
+        )
+
+        is UpdateState.Failed -> AlertDialog(
+            onDismissRequest = onLater,
+            title = { Text("Update failed") },
+            text = { Text(state.message) },
+            confirmButton = { TextButton(onClick = onRetry) { Text("Try again") } },
+            dismissButton = { TextButton(onClick = onLater) { Text("Later") } },
+        )
+
+        UpdateState.Idle,
+        UpdateState.Checking,
+        UpdateState.Installing,
+        UpdateState.UpToDate -> Unit
     }
 }

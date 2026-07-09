@@ -17,3 +17,7 @@ app/build/
 *.dex
 # AI Hive coordination metadata (internal tooling, not part of the app)
 .aihive/
+# release signing secrets — NEVER commit these
+keystore.properties
+*.jks
+*.keystore

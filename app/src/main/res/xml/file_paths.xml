@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exposes the app's cache/updates/ dir (where the updater saves the downloaded
+     APK) to the FileProvider so it can be handed to the package installer. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

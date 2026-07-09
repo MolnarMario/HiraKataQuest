@@ -12,6 +12,24 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-09 — In-app updates (no Play Store)
+
+#### Added
+- **In-app self-updater** — on launch the app checks the project's **GitHub
+  Releases** for a newer version and, if one exists, shows an **"Update available"**
+  dialog. Tap **Update** to download the new APK and hand it to Android's installer
+  (**Later** dismisses; **Skip** silences that one version). No Play Store, no extra
+  app. Uses plain `HttpURLConnection` (no new dependency); a flaky/offline network
+  fails silently. The one-time "install unknown apps" grant is requested on first use.
+- **Proper release signing** — release builds are now signed with a dedicated
+  release keystore (via a gitignored `keystore.properties`), so update-over-install
+  works reliably. `BuildConfig` is enabled for the version comparison.
+
+#### Changed
+- Version bumped to **0.1.1** (`versionCode 2`).
+- New permissions: `INTERNET`, `REQUEST_INSTALL_PACKAGES`; added a `FileProvider`
+  to serve the downloaded APK to the installer.
+
 ### 2026-07-08 — Reading/Writing split: opening screen, reading quiz & flashcards
 
 #### Added

@@ -113,6 +113,13 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putString(KEY_APP_MODE, mode.prefValue).apply()
     }
 
+    override fun getSkippedUpdateVersion(): String? =
+        prefs.getString(KEY_SKIPPED_UPDATE_VERSION, null)
+
+    override fun setSkippedUpdateVersion(versionName: String) {
+        prefs.edit().putString(KEY_SKIPPED_UPDATE_VERSION, versionName).apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "settings"
         const val KEY_GRID_ENABLED = "grid_enabled"
@@ -129,6 +136,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_BRUSH_INK_COLOR = "brush_ink_color"
         const val KEY_CHARACTER_FORM = "character_form"
         const val KEY_APP_MODE = "app_mode"
+        const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"
 
         // Default ARGB = presentation.theme.InkBlack (0xFF20222E); hardcoded so
         // the data layer needn't depend on a Compose Color.

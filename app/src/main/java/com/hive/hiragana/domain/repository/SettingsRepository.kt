@@ -123,4 +123,13 @@ interface SettingsRepository {
     fun getAppMode(): AppMode?
 
     fun setAppMode(mode: AppMode)
+
+    /**
+     * The app version the user chose to skip in the in-app updater ("Skip"), or
+     * null if none. The updater won't re-offer a matching [UpdateInfo.versionName]
+     * (a newer one still prompts).
+     */
+    fun getSkippedUpdateVersion(): String?
+
+    fun setSkippedUpdateVersion(versionName: String)
 }
