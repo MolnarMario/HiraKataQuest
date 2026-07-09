@@ -102,7 +102,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
-import com.hive.hiragana.domain.model.CharacterForm
+import com.hive.hiragana.domain.model.AppMode
+import com.hive.hiragana.domain.model.ReadingProgress
 import com.hive.hiragana.domain.model.FlowSection
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.KanaChartBuilder
@@ -147,9 +148,16 @@ private fun CharacterScoreSummary?.avgScore(): Int? = this?.avgForm ?: this?.avg
 /** The best score used for sorting: best form, falling back to best fit. */
 private fun CharacterScoreSummary?.bestScore(): Int? = this?.bestForm ?: this?.bestFit
 
-/** Sort orders for the character/word lists (browse + selection), by scored history. */
-private enum class ItemSort { DEFAULT, AVG_DESC, AVG_ASC, BEST_DESC, BEST_ASC }
+/**
+ * Sort orders for the character/word lists. Writing mode uses AVG/BEST (from the
+ * handwriting scorer); Reading mode uses AVG/MC/TYPE (the reading percentages).
+ * DEFAULT is the incoming gojūon order.
+ */
+private enum class ItemSort {
+    DEFAULT, AVG_DESC, AVG_ASC, BEST_DESC, BEST_ASC, MC_DESC, MC_ASC, TYPE_DESC, TYPE_ASC
+}
 
+/** Writing-mode sort options (average + best). */
 private val ITEM_SORT_OPTIONS = listOf(
     ItemSort.DEFAULT to "Default order",
     ItemSort.AVG_DESC to "Average: High → Low",
@@ -158,20 +166,55 @@ private val ITEM_SORT_OPTIONS = listOf(
     ItemSort.BEST_ASC to "Best: Low → High",
 )
 
+/** Reading-mode sort options: alphabetical + the three reading percentages, both ways. */
+private val READING_SORT_OPTIONS = listOf(
+    ItemSort.DEFAULT to "Default order",
+    ItemSort.AVG_DESC to "Average: High → Low",
+    ItemSort.AVG_ASC to "Average: Low → High",
+    ItemSort.MC_DESC to "Multiple choice: High → Low",
+    ItemSort.MC_ASC to "Multiple choice: Low → High",
+    ItemSort.TYPE_DESC to "Typed: High → Low",
+    ItemSort.TYPE_ASC to "Typed: Low → High",
+)
+
 /**
- * Reorder a list by scored history (average or best). Unscored items — those the
- * user has not practiced yet — sink to the end in BOTH directions. Stable, so the
- * incoming (gojūon) order breaks ties and DEFAULT is a no-op.
+ * Reorder a list by handwriting-scored history (average or best). Unscored items
+ * sink to the end in BOTH directions. Stable, so the gojūon order breaks ties and
+ * DEFAULT is a no-op. Reading-only sort modes fall through to DEFAULT here.
  */
 private fun <T> List<T>.sortedByScore(
     mode: ItemSort,
     scoreOf: (T) -> CharacterScoreSummary?,
 ): List<T> = when (mode) {
-    ItemSort.DEFAULT -> this
     ItemSort.AVG_DESC -> sortedByDescending { scoreOf(it).avgScore() ?: Int.MIN_VALUE }
     ItemSort.AVG_ASC -> sortedBy { scoreOf(it).avgScore() ?: Int.MAX_VALUE }
     ItemSort.BEST_DESC -> sortedByDescending { scoreOf(it).bestScore() ?: Int.MIN_VALUE }
     ItemSort.BEST_ASC -> sortedBy { scoreOf(it).bestScore() ?: Int.MAX_VALUE }
+    else -> this
+}
+
+/**
+ * Reorder a list by reading accuracy (average / multiple-choice / typed). Items
+ * not yet quizzed in that style sink to the end in both directions.
+ */
+private fun <T> List<T>.sortedByReading(
+    mode: ItemSort,
+    statOf: (T) -> ReadingProgress?,
+): List<T> = when (mode) {
+    ItemSort.AVG_DESC -> sortedByDescending { statOf(it)?.colorPercent ?: Int.MIN_VALUE }
+    ItemSort.AVG_ASC -> sortedBy { statOf(it)?.colorPercent ?: Int.MAX_VALUE }
+    ItemSort.MC_DESC -> sortedByDescending { statOf(it)?.mcqPercent ?: Int.MIN_VALUE }
+    ItemSort.MC_ASC -> sortedBy { statOf(it)?.mcqPercent ?: Int.MAX_VALUE }
+    ItemSort.TYPE_DESC -> sortedByDescending { statOf(it)?.typePercent ?: Int.MIN_VALUE }
+    ItemSort.TYPE_ASC -> sortedBy { statOf(it)?.typePercent ?: Int.MAX_VALUE }
+    else -> this
+}
+
+/** Reading-mode list-row subtitle: the three percentages (– until that style is tried). */
+private fun readingSubtitle(stat: ReadingProgress?): String {
+    if (stat == null) return "Not quizzed yet"
+    fun p(v: Int?) = v?.let { "$it%" } ?: "–"
+    return "MC ${p(stat.mcqPercent)} · Type ${p(stat.typePercent)} · Avg ${p(stat.colorPercent)}"
 }
 
 /**
@@ -227,7 +270,11 @@ private fun <T> List<T>.sortedByScore(
 fun LibraryScreen(
     characters: List<HiraganaCharacter>,
     words: List<VocabularyWord>,
-    scoreStats: Map<String, CharacterScoreSummary> = emptyMap(),
+    // Writing-mode per-glyph handwriting history (avg/best). In Reading mode the
+    // cells are instead colored/scored from [readingStats]; the body derives a
+    // single `scoreStats` that switches on [appMode].
+    writingScoreStats: Map<String, CharacterScoreSummary> = emptyMap(),
+    readingStats: Map<String, ReadingProgress> = emptyMap(),
     activeScript: Script,
     onSelectScript: (Script) -> Unit,
     includeDiacritics: Boolean,
@@ -244,8 +291,8 @@ fun LibraryScreen(
     onSetGridView: (Boolean) -> Unit = {},
     // Traced-ghost form (Printed / Handwritten) + its setter, surfaced as a
     // selector in the Study-scope sheet.
-    characterForm: CharacterForm = CharacterForm.PRINTED,
-    onSetCharacterForm: (CharacterForm) -> Unit = {},
+    appMode: AppMode = AppMode.WRITING,
+    onSetAppMode: (AppMode) -> Unit = {},
     // Which tab to open on (0 = Characters, 1 = Words), seeded from the
     // persisted last-used section; [onSelectTab] persists the learner's switch.
     initialTab: Int = 0,
@@ -269,6 +316,27 @@ fun LibraryScreen(
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
     modifier: Modifier = Modifier,
 ) {
+    // The score map the whole Library colors + sorts by. Writing mode uses the
+    // handwriting history; Reading mode derives a summary from readingStats
+    // whose "average" dial is the reading colorPercent (average of the MCQ% and
+    // typed% the learner has done, or the single one) and which has no "best" —
+    // reading is pass/fail. Everything downstream is unchanged.
+    val scoreStats: Map<String, CharacterScoreSummary> =
+        if (appMode == AppMode.READING) {
+            readingStats.mapValues { (key, r) ->
+                CharacterScoreSummary(
+                    character = key,
+                    attempts = r.mcqAttempts + r.typeAttempts,
+                    avgForm = r.colorPercent,
+                    bestForm = null,
+                    avgFit = null,
+                    bestFit = null,
+                )
+            }
+        } else {
+            writingScoreStats
+        }
+
     var query by rememberSaveable { mutableStateOf("") }
     var selectedTab by rememberSaveable { mutableIntStateOf(initialTab) }
     var searching by rememberSaveable { mutableStateOf(false) }
@@ -390,11 +458,19 @@ fun LibraryScreen(
     // List-mode sort by scored history (both tabs share one order). Session-local
     // like the sets-manager sort; the chart/grid and tab counts stay unsorted.
     var listSort by remember { mutableStateOf(ItemSort.DEFAULT) }
-    val sortedCharacters = remember(filteredCharacters, listSort, scoreStats) {
-        filteredCharacters.sortedByScore(listSort) { scoreStats[it.character] }
+    val sortedCharacters = remember(filteredCharacters, listSort, scoreStats, readingStats, appMode) {
+        if (appMode == AppMode.READING) {
+            filteredCharacters.sortedByReading(listSort) { readingStats[it.character] }
+        } else {
+            filteredCharacters.sortedByScore(listSort) { scoreStats[it.character] }
+        }
     }
-    val sortedWords = remember(filteredWords, listSort, scoreStats) {
-        filteredWords.sortedByScore(listSort) { scoreStats[it.kana] }
+    val sortedWords = remember(filteredWords, listSort, scoreStats, readingStats, appMode) {
+        if (appMode == AppMode.READING) {
+            filteredWords.sortedByReading(listSort) { readingStats[it.kana] }
+        } else {
+            filteredWords.sortedByScore(listSort) { scoreStats[it.kana] }
+        }
     }
     // Jump back to the top whenever the order changes, so the new first items are
     // visible instead of being left scrolled down in the previous order's tail.
@@ -489,6 +565,7 @@ fun LibraryScreen(
                 showSort = !gridMode,
                 sortMode = listSort,
                 onSortSelected = { listSort = it },
+                sortOptions = if (appMode == AppMode.READING) READING_SORT_OPTIONS else ITEM_SORT_OPTIONS,
             )
 
             TabRow(selectedTabIndex = selectedTab) {
@@ -535,10 +612,14 @@ fun LibraryScreen(
                                 onClick = { onPracticeCharacter(character) },
                                 glyph = character.character,
                                 title = character.romaji,
-                                subtitle = characterSubtitle(
-                                    character.strokeCount,
-                                    scoreStats[character.character],
-                                ),
+                                subtitle = if (appMode == AppMode.READING) {
+                                    readingSubtitle(readingStats[character.character])
+                                } else {
+                                    characterSubtitle(
+                                        character.strokeCount,
+                                        scoreStats[character.character],
+                                    )
+                                },
                                 score = scoreStats[character.character].avgScore(),
                                 showPronunciation = true,
                                 onSpeak = onSpeak,
@@ -554,7 +635,11 @@ fun LibraryScreen(
                                 onClick = { onPracticeWord(word) },
                                 glyph = word.kana,
                                 title = word.meaning,
-                                subtitle = pronunciation(word),
+                                subtitle = if (appMode == AppMode.READING) {
+                                    readingSubtitle(readingStats[word.kana])
+                                } else {
+                                    pronunciation(word)
+                                },
                                 score = scoreStats[word.kana].avgScore(),
                                 showPronunciation = true,
                                 onSpeak = onSpeak,
@@ -590,8 +675,8 @@ fun LibraryScreen(
                 ScopeSheetContent(
                     activeScript = activeScript,
                     onSelectScript = onSelectScript,
-                    characterForm = characterForm,
-                    onSetCharacterForm = onSetCharacterForm,
+                    appMode = appMode,
+                    onSetAppMode = onSetAppMode,
                     includeDiacritics = includeDiacritics,
                     onToggleDiacritics = onToggleDiacritics,
                     includeYoon = includeYoon,
@@ -662,6 +747,7 @@ private fun LibraryTopBar(
     showSort: Boolean,
     sortMode: ItemSort,
     onSortSelected: (ItemSort) -> Unit,
+    sortOptions: List<Pair<ItemSort, String>> = ITEM_SORT_OPTIONS,
 ) {
     TopAppBar(
         windowInsets = WindowInsets(0, 0, 0, 0),
@@ -777,7 +863,7 @@ private fun LibraryTopBar(
                     SortMenu(
                         contentDescription = "Sort list",
                         label = null,
-                        options = ITEM_SORT_OPTIONS,
+                        options = sortOptions,
                         selected = sortMode,
                         onSelect = onSortSelected,
                     )
@@ -828,8 +914,8 @@ private fun LibraryTopBar(
 private fun ScopeSheetContent(
     activeScript: Script,
     onSelectScript: (Script) -> Unit,
-    characterForm: CharacterForm,
-    onSetCharacterForm: (CharacterForm) -> Unit,
+    appMode: AppMode,
+    onSetAppMode: (AppMode) -> Unit,
     includeDiacritics: Boolean,
     onToggleDiacritics: (Boolean) -> Unit,
     includeYoon: Boolean,
@@ -899,63 +985,65 @@ private fun ScopeSheetContent(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
-        // How the traced guide glyph is drawn. Printed = the typographic form
-        // learners meet when reading (default); Handwritten = the kaisho stroke
-        // form, drawn from the same strokes the demo and scorer use. Rendering
-        // only — it never changes what is studied, demonstrated, or scored.
+        // Top-level track. Reading = recognize the printed forms; Writing =
+        // handwriting practice. Switching here flips the whole app in place (the
+        // Library stays open) — the same choice offered on the opening screen.
         Text(
-            text = "Character style",
+            text = "I want to practice",
             style = MaterialTheme.typography.titleSmall,
         )
         Text(
-            text = "Printed is what you read on signs and screens; Handwritten " +
-                "shows the brush stroke form used when writing by hand.",
+            text = "Reading recognizes the printed kana you meet in the wild; " +
+                "Writing practices handwriting with stroke-order feedback.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            CharacterForm.entries.forEachIndexed { index, form ->
+            AppMode.entries.forEachIndexed { index, mode ->
                 SegmentedButton(
-                    selected = form == characterForm,
-                    onClick = { onSetCharacterForm(form) },
+                    selected = mode == appMode,
+                    onClick = { onSetAppMode(mode) },
                     shape = SegmentedButtonDefaults.itemShape(
                         index = index,
-                        count = CharacterForm.entries.size,
+                        count = AppMode.entries.size,
                     ),
                     icon = {},
-                    label = { Text(form.displayLabel) },
+                    label = { Text(mode.displayLabel) },
                 )
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+        // Scoring is a Writing-only concern; hidden in Reading mode.
+        if (appMode == AppMode.WRITING) {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
-        // How practice writing is judged (also used by the quiz). This is the
-        // one global scoring setting; the quiz setup card shows the same picker.
-        // "Off" means no score — and in FREE practice it drops the Submit step,
-        // leaving just Clear · Next (see FreePracticeActionBar).
-        Text(
-            text = "Score my writing",
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Text(
-            text = "Form rewards correct shape and stroke order; Fit rewards " +
-                "filling the box. Off skips scoring (no Submit in practice).",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SCORING_CHOICES.forEachIndexed { index, (mode, label) ->
-                SegmentedButton(
-                    selected = mode == scoringMode,
-                    onClick = { onSetScoringMode(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = SCORING_CHOICES.size,
-                    ),
-                    icon = {},
-                    label = { Text(label) },
-                )
+            // How practice writing is judged (also used by the quiz). This is the
+            // one global scoring setting; the quiz setup card shows the same picker.
+            // "Off" means no score — and in FREE practice it drops the Submit step,
+            // leaving just Clear · Next (see FreePracticeActionBar).
+            Text(
+                text = "Score my writing",
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                text = "Form rewards correct shape and stroke order; Fit rewards " +
+                    "filling the box. Off skips scoring (no Submit in practice).",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SCORING_CHOICES.forEachIndexed { index, (scoreMode, label) ->
+                    SegmentedButton(
+                        selected = scoreMode == scoringMode,
+                        onClick = { onSetScoringMode(scoreMode) },
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = SCORING_CHOICES.size,
+                        ),
+                        icon = {},
+                        label = { Text(label) },
+                    )
+                }
             }
         }
 

@@ -24,8 +24,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         VocabularyProgressEntity::class,
         PracticeSetEntity::class,
         PracticeSetItemEntity::class,
+        ReadingProgressEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class HiraganaDatabase : RoomDatabase() {
@@ -35,6 +36,7 @@ abstract class HiraganaDatabase : RoomDatabase() {
     abstract fun characterProgressDao(): CharacterProgressDao
     abstract fun vocabularyProgressDao(): VocabularyProgressDao
     abstract fun practiceSetDao(): PracticeSetDao
+    abstract fun readingProgressDao(): ReadingProgressDao
 
     companion object {
         /**
@@ -135,13 +137,35 @@ abstract class HiraganaDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v4 -> v5: adds the `reading_progress` table (per-item reading-quiz
+         * accuracy for the Reading track). Purely additive; existing data is
+         * untouched. Column names match [ReadingProgressEntity] exactly.
+         */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `reading_progress` (
+                        `itemKey` TEXT NOT NULL,
+                        `mcqAttempts` INTEGER NOT NULL,
+                        `mcqCorrect` INTEGER NOT NULL,
+                        `typeAttempts` INTEGER NOT NULL,
+                        `typeCorrect` INTEGER NOT NULL,
+                        PRIMARY KEY(`itemKey`)
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
         fun build(context: Context): HiraganaDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 HiraganaDatabase::class.java,
                 "hiragana-practice.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
     }
 }

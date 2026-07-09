@@ -12,6 +12,35 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-08 — Reading/Writing split: opening screen, reading quiz & flashcards
+
+#### Added
+- **An opening screen (home) to pick Reading or Writing** — the app now starts on a
+  top-level chooser, and you can switch modes anytime from the new **Reading | Writing**
+  toggle in the Study-scope sheet.
+- **Reading mode** — two new ways to study without handwriting:
+  - a **reading quiz** — see the printed glyph or word and answer by **multiple choice**
+    or by **typing the romaji** (lenient matching); word items can optionally also test
+    the **English meaning**.
+  - a **flashcard** study mode — flip a printed card to reveal the reading, audio, and
+    meaning; a **"Type the reading"** toggle adds a romaji input field.
+- **Reading accuracy tracking** — recorded per glyph/word as **two independent
+  percentages** (multiple-choice and typed). The Library tints cells by their **average**
+  (no "best" — reading is pass/fail), shows both percentages in list rows, and can sort
+  by **Average / Multiple-choice / Typed**, ascending or descending.
+- New **Room v5** table `reading_progress` (`MIGRATION_4_5`).
+
+#### Changed
+- **Writing mode always uses the handwritten (KanjiVG-stroke) ghost.** The old
+  **Printed / Handwritten** "Character style" selector is **replaced** by the
+  Reading | Writing mode toggle.
+- The Activity now uses `windowSoftInputMode=adjustResize` and the flashcard card is
+  responsive, so nothing clips behind the on-screen keyboard.
+
+#### Tests
+- Build + unit tests green (added `RomajiMatchTest`); device-verified on a Pixel 7,
+  including the live v4→v5 migration.
+
 ### 2026-07-08 — Library sorting, smart set-building & Options-sheet polish
 
 #### Added

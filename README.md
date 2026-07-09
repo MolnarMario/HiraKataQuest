@@ -1,7 +1,22 @@
 # HiraKataQuest
 
-**HiraKataQuest** is an Android app for practising Japanese kana handwriting with a stylus.
-Covers the **complete kana inventory for both scripts** — hiragana and
+**HiraKataQuest** is an Android app for learning Japanese kana, split into **two
+tracks you pick from an opening screen**:
+
+- **Reading** — learn to recognize the **printed (gothic) kana** you meet on
+  signs, apps, and online. A reading **quiz** (see a printed character or word,
+  answer by multiple choice or by typing the romaji — with lenient matching;
+  words can optionally also test the English meaning) and a **flashcard** study
+  mode (flip a printed card to reveal its reading, audio, and meaning; a "Type
+  the reading" toggle adds a romaji field).
+- **Writing** — the handwriting practice: trace the **handwritten (kaisho)**
+  stroke form over a ghost glyph, watch the stroke-order demo, and get advisory
+  geometry + ML Kit scoring.
+
+You switch tracks anytime from the opening screen or from the **Reading |
+Writing** toggle in the Library's Study-scope sheet.
+
+It covers the **complete kana inventory for both scripts** — hiragana and
 katakana — with animated stroke-order demonstrations, free-practice tracing, a
 write-from-memory quiz, and advisory handwriting scoring. Structured study comes
 from **built-in, editable default practice sets** (gojūon rows, kana categories,
@@ -42,20 +57,38 @@ study, quiz, and browse; progress for the two scripts is tracked independently.
   scored per kana); **handwriting-quality scoring** (geometry form/fit + ML
   Kit recognition, advisory only); user-curated **practice sets** — plus
   **built-in default sets** per script — to quiz or free-practice hand-picked
-  characters/words (on **Room v4**); a configurable
-  **brush ink color**; and a **rebrand to "HiraKataQuest"** with a new hinomaru
-  launcher icon (vermilion circle + white あ/ア).
+  characters/words; a configurable **brush ink color**; a split into **Reading
+  and Writing tracks** (a printed-kana reading quiz + flashcards alongside the
+  handwriting practice, reading accuracy tracked on **Room v5**); and a
+  **rebrand to "HiraKataQuest"** with a new hinomaru launcher icon (vermilion
+  circle + white あ/ア).
 - See [docs/HISTORY.md](docs/HISTORY.md) for how the project got here (the
   original build session was lost; the docs are the recovery record).
 
 ## What the app does
 
-The app **opens into free practice** — it picks up a random character (or word)
-from the section of the Library you last browsed, scoped to whatever you're
-studying, so you can start writing immediately. Whether your writing is scored
-is decided entirely by the **Score my writing** setting (on ⇒ write → Submit →
-feedback; off ⇒ just Clear · Next). There is no timed or graded "session" —
-tracing, the quiz, and the practice sets are all self-directed.
+The app **opens on a track picker**: choose **Reading** (recognize printed kana)
+or **Writing** (handwriting practice). You can switch at any time from that
+screen or from the **Reading | Writing** toggle in the Library's Study-scope
+sheet (which replaced the old Printed / Handwritten "Character style" option).
+
+- **Reading track** — study the printed gothic kana with a **reading quiz** and a
+  **flashcard** mode. In the quiz you see a printed character or word and answer
+  either by **multiple choice** or by **typing the romaji** (lenient matching, so
+  minor spelling slips still pass); for words you can optionally also be tested on
+  the **English meaning**. Flashcards flip from the printed front to reveal the
+  reading, audio, and meaning, with a **"Type the reading"** toggle that adds a
+  romaji field. Reading accuracy is tracked per item as **two percentages** — a
+  multiple-choice % and a typed % — and their average tints the Library (reading
+  is pass/fail, so there's no "best" score).
+- **Writing track** — the handwriting practice below: it **opens into free
+  practice**, picking up a random character (or word) from the section of the
+  Library you last browsed, scoped to whatever you're studying, so you can start
+  writing immediately. Writing always uses the **handwritten** ghost glyph.
+  Whether your writing is scored is decided entirely by the **Score my writing**
+  setting (on ⇒ write → Submit → feedback; off ⇒ just Clear · Next). There is no
+  timed or graded "session" — tracing, the quiz, and the practice sets are all
+  self-directed.
 
 Structured practice comes from the **Library**: browse every character and word,
 tap anything to practice it, quiz yourself, and use the **practice sets** — both
@@ -66,7 +99,7 @@ practice opens the Library, and pressing Back again from the Library exits the a
 
 - **Stroke-order demonstrations** — the guide panel plays an animated demo of the current character (strokes draw themselves with the recorded rhythm and visible pen lifts, with play/pause, replay, speed and auto-repeat controls). Words show a **stroke-order demo per kana**, sharing one set of playback controls — the same controls single characters get.
 - **Hear the pronunciation** — a small speaker button next to every reading (guide panel, Library rows and word cards, the quiz prompt and summary) says the kana or word aloud using the device's built-in Japanese text-to-speech. If the phone doesn't have a Japanese voice installed, tapping the button opens the system "install voice data" screen so it can be downloaded for free; the button re-enables itself when you return. On a device with no Japanese-capable TTS engine at all, the button is simply greyed out.
-- **Library** — browse every character and word, and tap anything to free-practice it; nothing is gated behind progress. Each character square / word card is **tinted by your average score** on a red → orange → yellow → green spectrum, with the score shown small in its top-right corner — in both the list and the chart views — so you can see at a glance what still needs work (word practice feeds each kana's stats, so the individual kana light up too). Unscored items keep a neutral tint. A **Hiragana / Katakana** selector at the top (next to "Quiz me!") switches the active script: it scopes what the library lists and what the quiz draws from. The choice persists across restarts (default Hiragana), and each script keeps its own independent progress. Beside it, three independent opt-in toggles (all off by default) fold extra kana into the active script: **Voiced kana (゛゜)** adds the dakuten/handakuten (が, ぱ …), **Combined kana (ゃゅょ)** adds the yōon contracted syllables (きゃ, しゅ …), and **Extended kana (っ ァ)** adds the small tsu, small vowels, and foreign-sound combos (ファ, ティ, ウェ …). Until you turn one on, the quiz and the lists show only the base gojūon, so a beginner is never confronted with が or ファ before the basics. Any progress you make on a group is kept if you toggle it back off. (The Study scope sheet also hosts the **Practice sets** section — see below — and opens to its full content height on a normal screen, scrolling only as a fallback on short ones.)
+- **Library** — browse every character and word, and tap anything to free-practice it; nothing is gated behind progress. Each character square / word card is **tinted by your average score** on a red → orange → yellow → green spectrum, with the score shown small in its top-right corner — in both the list and the chart views — so you can see at a glance what still needs work (word practice feeds each kana's stats, so the individual kana light up too). Unscored items keep a neutral tint. A **Hiragana / Katakana** selector at the top (next to "Quiz me!") switches the active script: it scopes what the library lists and what the quiz draws from. The choice persists across restarts (default Hiragana), and each script keeps its own independent progress. Beside it, three independent opt-in toggles (all off by default) fold extra kana into the active script: **Voiced kana (゛゜)** adds the dakuten/handakuten (が, ぱ …), **Combined kana (ゃゅょ)** adds the yōon contracted syllables (きゃ, しゅ …), and **Extended kana (っ ァ)** adds the small tsu, small vowels, and foreign-sound combos (ファ, ティ, ウェ …). Until you turn one on, the quiz and the lists show only the base gojūon, so a beginner is never confronted with が or ファ before the basics. Any progress you make on a group is kept if you toggle it back off. The Study scope sheet also carries a **Reading | Writing** toggle for switching tracks (it replaced the old Printed / Handwritten "Character style" option) and hosts the **Practice sets** section — see below — and opens to its full content height on a normal screen, scrolling only as a fallback on short ones. In the Reading track the Library tint comes from your reading accuracy (the average of the multiple-choice and typed percentages) instead of a handwriting score.
 - **Quiz me!** — from the library: pick how many items (5/10/20/All presets, or type/step an exact number in the box they pre-populate), then write each from its romaji prompt alone — no ghost guide while writing, while the crosshair practice grid is a per-quiz switch (it doesn't change your normal setting). The quiz handles **words as well as single characters**: a word is written whole and scored **per kana with an average**, the same way whole-word practice is. A **source dropdown** on the setup screen lets you quiz your normal study scope or any saved practice set. **Show answer** reveals the kana and the light-grey guide strokes on the canvas for self-checking; auto-scored, or move freely with **Back/Next** (Next becomes **Finish** on the last item; ungraded items show as Skipped in the per-item summary). Quiz attempts record as `QUIZ`.
 - **Practice sets** — hand-picked lists of specific characters *or* words (never mixed) that you curate and save to quiz or free-practice later. Unlike the **Study scope** toggles (which switch whole categories on or off), a set is an explicit membership list — the exact items you chose. The app **ships with a batch of built-in default sets** for each script (the 10 gojūon rows, the Voiced / Combined / Extended kana categories, and a few starter word sets like Colors, Nature, Food & drink), seeded into your library the first time you open it; these are ordinary sets afterwards, so you can rename, edit, or delete them (a deleted default does not come back). Build your own from the Library's **Study scope** sheet (the Filter icon): **Add practice set** drops the current tab (Characters or Words, in the active script) into a **selection mode** that shows the full list ignoring the scope toggles, with a **list/grid view toggle** — tap an item to toggle it, or click-and-drag across items to toggle a range in one gesture (no hold delay; both work the same in either layout), with **Select all / Deselect all / Save** (Save asks for a name). **See existing practice sets** opens a manager where each set's card is **tinted by its average score** (the same red → orange → yellow → green coloring as the character and word cards — the average across that set's members, from scored practice and quizzes only, so a set only ever practiced with scoring off shows no score), with a **sort control** (a menu offering name A→Z, name Z→A, score high→low, and score low→high). Each saved set offers **Quiz**, **Practice** (free practice over the set), **Edit** (change its membership), **Rename**, and **Delete**. After you save a set (new or edited), and after you finish a quiz launched from a set, you land back on the list of practice sets rather than the browse view. Sets persist across restarts.
 - **Handwriting scoring** — after each single (1×1) character you write, an advisory quality score appears (it never changes your self-grade or review schedule). When you practice a whole **word** in the 1×1 layout, **each kana is scored separately**: per-kana score chips appear above the canvas (with quick coaching like "Use 2 strokes"), plus the word's average below — and each kana's stats feed back into the Library. The multi-copy **2×2 / 3×3** layouts are pure repetition worksheets, so nothing is scored there (the bar reads **Clear · Next**); scoring applies only to single 1×1 writing. A **Score my writing** setting (Form / Fit / Both / Off — on the quiz setup card **and** in the Library's Study Scope sheet) chooses what it judges: **Form** rewards correct shape, stroke order, direction and proportion — normalized so writing bigger/smaller or off-centre in the box is *not* penalized (how Japanese handwriting is actually graded); **Fit** rewards filling and centring the guide cell; **Off** turns practice into pure practice — no score is computed and **no attempt is recorded** (there's nothing to score), so free practice drops the Submit step and just offers **Clear · Next**. A hybrid engine combines our own stroke geometry with on-device **ML Kit Digital Ink** recognition (Japanese) for a legibility check; recognition works offline once its model has downloaded and degrades gracefully to geometry-only until then. The Library shows each character's average and best score so you can track progress over time.
@@ -84,7 +117,7 @@ Kotlin · Jetpack Compose (Material 3) · Compose Canvas · MVVM · Room (KSP) �
 | [CLAUDE.md](CLAUDE.md) | Build commands (including machine-specific toolchain paths) and instructions for AI agent sessions. |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer map, state ownership (`PracticeViewModel` vs `CanvasState`), and the manual-DI wiring. |
 | [docs/DRAWING.md](docs/DRAWING.md) | Input capture (`StrokeCapture`), rendering pipeline, pressure-to-width model. |
-| [docs/DATA.md](docs/DATA.md) | Character/vocabulary asset JSON format and the Room persistence layer (v2). |
+| [docs/DATA.md](docs/DATA.md) | Character/vocabulary asset JSON format and the Room persistence layer (v5). |
 | [docs/PHASE3-DESIGN.md](docs/PHASE3-DESIGN.md) | Phase 3 contract: SRS scheduler, lesson generator, vocabulary unlocking, Room v2 migration, session UI — plus as-built amendments. (Guided study removed 2026-07-05; retained for history.) |
 | [docs/HISTORY.md](docs/HISTORY.md) | Project provenance: phases, what was built when, and known warts. |
 
@@ -120,7 +153,7 @@ app/src/main/java/com/hive/hiragana/
 │   │                              # (LearningRepository retained but dormant)
 ├── data/
 │   ├── assets/                   # JSON loader for assets/hiragana/ (characters + vocabulary.json)
-│   ├── local/                    # Room v4: 6 entities/DAOs, MIGRATION_1_2 + MIGRATION_2_3 + MIGRATION_3_4, exportSchema=true
+│   ├── local/                    # Room v5: entities/DAOs, MIGRATION_1_2 … MIGRATION_4_5 (adds reading_progress), exportSchema=true
 │   └── repository/               # repo implementations
 └── drawing/
     ├── stroke/                   # StrokePoint, UserStroke, DrawingSession, StrokeCapture
@@ -217,8 +250,10 @@ standalone words) appears in at least one word.
   (`review_cards`, `character_progress`, `vocabulary_progress`) remain in the
   schema but are **dormant** — the guided study session that read them was
   removed 2026-07-05, and dropping the tables would need a destructive
-  migration, so the database stays at v4 with them unused. Two more tables
-  (`practice_sets`, `practice_set_items`) back the practice sets.
+  migration, so those tables stay unused. Two more tables
+  (`practice_sets`, `practice_set_items`) back the practice sets, and a
+  `reading_progress` table (added in the v4→v5 migration) records the Reading
+  track's per-item multiple-choice and typed accuracy. The database is at **v5**.
 - **Practice is self-directed, two-step**: writing anything is a write →
   **Submit** (auto-score + record a `FREE` attempt, keeping the ink) →
   **Again** (rewrite the same character) / **Next** (advance) flow, mirroring

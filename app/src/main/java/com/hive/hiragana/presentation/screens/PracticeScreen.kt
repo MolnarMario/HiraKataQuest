@@ -23,8 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
+import com.hive.hiragana.presentation.viewmodels.QuizKind
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.presentation.components.CharacterGuidePanel
@@ -87,6 +89,11 @@ fun PracticeScreen(
                 }
             }
 
+            uiState.appMode == null -> {
+                // Home: pick a track. Back here falls through to the system (exit).
+                OpeningScreen(onPick = viewModel::setAppMode)
+            }
+
             uiState.quiz != null -> {
                 BackHandler { viewModel.closeQuiz() }
                 QuizScreen(
@@ -121,22 +128,39 @@ fun PracticeScreen(
                     lastWordScores = uiState.lastWordScores,
                     lastWordAverage = uiState.lastWordAverage,
                     inkColor = Color(uiState.brushInkColor),
-                    characterForm = uiState.characterForm,
+                    characterForm = CharacterForm.HANDWRITTEN,
                     glyphStrokesFor = uiState::ghostStrokesFor,
+                    onReadingResult = viewModel::readingResult,
+                    onSetAnswerStyle = viewModel::setReadingAnswerStyle,
+                    onSetTestMeaning = viewModel::setReadingTestMeaning,
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
                 )
             }
 
-            uiState.isLibraryOpen -> {
-                // No BackHandler here: the Library is "home", so a hardware
-                // Back press falls through to the system and exits the app
-                // (Practice → Back → Library → Back → exit). The in-app
-                // Back arrow still returns to practice via onClose.
+            uiState.readingFlashcard != null -> {
+                BackHandler { viewModel.closeReadingFlashcards() }
+                ReadingFlashcardScreen(
+                    state = uiState.readingFlashcard ?: return@Surface,
+                    onReveal = viewModel::flashcardReveal,
+                    onNext = viewModel::flashcardNext,
+                    onClose = viewModel::closeReadingFlashcards,
+                    onSpeak = viewModel::speakTts,
+                    ttsStatus = uiState.ttsStatus,
+                )
+            }
+
+            uiState.appMode == AppMode.READING || uiState.isLibraryOpen -> {
+                // The Library is the shared hub: Reading always lands here;
+                // Writing opens it on demand. Hardware Back goes to the opening
+                // "home" screen (home → Back → exit). The in-app Back arrow
+                // returns to writing practice via onClose.
+                BackHandler { viewModel.goToOpening() }
                 LibraryScreen(
                     characters = uiState.characters,
                     words = uiState.allWords,
-                    scoreStats = uiState.scoreStats,
+                    writingScoreStats = uiState.scoreStats,
+                    readingStats = uiState.readingStats,
                     activeScript = uiState.activeScript,
                     onSelectScript = viewModel::setActiveScript,
                     includeDiacritics = uiState.includeDiacritics,
@@ -145,14 +169,44 @@ fun PracticeScreen(
                     onToggleYoon = viewModel::setIncludeYoon,
                     includeExtended = uiState.includeExtended,
                     onToggleExtended = viewModel::setIncludeExtended,
-                    onPracticeCharacter = viewModel::practiceCharacter,
-                    onPracticeWord = viewModel::practiceWord,
-                    onStartQuiz = { viewModel.openQuiz() },
-                    onClose = viewModel::closeLibrary,
+                    onPracticeCharacter = { ch ->
+                        // Reading mode: tapping an item opens the flashcard flip;
+                        // Writing mode: free handwriting practice (as before).
+                        if (uiState.appMode == AppMode.READING) {
+                            viewModel.openReadingFlashcardsForCharacter(ch)
+                        } else {
+                            viewModel.practiceCharacter(ch)
+                        }
+                    },
+                    onPracticeWord = { w ->
+                        if (uiState.appMode == AppMode.READING) {
+                            viewModel.openReadingFlashcardsForWord(w)
+                        } else {
+                            viewModel.practiceWord(w)
+                        }
+                    },
+                    onStartQuiz = {
+                        viewModel.openQuiz(
+                            kind = if (uiState.appMode == AppMode.READING) {
+                                QuizKind.READING
+                            } else {
+                                QuizKind.WRITING
+                            },
+                        )
+                    },
+                    onClose = {
+                        // Reading has no underlying tracing screen to return to,
+                        // so its Library closes to the opening "home".
+                        if (uiState.appMode == AppMode.READING) {
+                            viewModel.goToOpening()
+                        } else {
+                            viewModel.closeLibrary()
+                        }
+                    },
                     isGridView = uiState.isLibraryGridView,
                     onSetGridView = viewModel::setLibraryGridView,
-                    characterForm = uiState.characterForm,
-                    onSetCharacterForm = viewModel::setCharacterForm,
+                    appMode = uiState.appMode ?: AppMode.WRITING,
+                    onSetAppMode = viewModel::setAppMode,
                     initialTab = uiState.librarySection,
                     onSelectTab = viewModel::setLibrarySection,
                     pronunciation = uiState::pronunciationOf,
@@ -165,7 +219,16 @@ fun PracticeScreen(
                     onUpdateSetMembers = viewModel::updatePracticeSetMembers,
                     onRenameSet = viewModel::renamePracticeSet,
                     onDeleteSet = viewModel::deletePracticeSet,
-                    onLaunchSetQuiz = { id -> viewModel.openQuiz(id) },
+                    onLaunchSetQuiz = { id ->
+                        viewModel.openQuiz(
+                            id,
+                            kind = if (uiState.appMode == AppMode.READING) {
+                                QuizKind.READING
+                            } else {
+                                QuizKind.WRITING
+                            },
+                        )
+                    },
                     onPracticeSet = viewModel::practiceSet,
                     openSetsManagerSignal = uiState.pendingOpenSetsManager,
                     onConsumeOpenSetsManager = viewModel::consumeOpenSetsManager,
@@ -230,12 +293,10 @@ private fun PracticeContent(
                 showGhost = uiState.isGhostEnabled,
                 layout = uiState.practiceLayout,
                 inkColor = Color(uiState.brushInkColor),
-                characterForm = uiState.characterForm,
-                glyphStrokes = if (uiState.characterForm == CharacterForm.HANDWRITTEN) {
-                    uiState.canvasGhostStrokes
-                } else {
-                    emptyList()
-                },
+                // Writing always traces the handwritten (KanjiVG) ghost — the
+                // form you actually write, coherent with the demo and scorer.
+                characterForm = CharacterForm.HANDWRITTEN,
+                glyphStrokes = uiState.canvasGhostStrokes,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 14.dp),

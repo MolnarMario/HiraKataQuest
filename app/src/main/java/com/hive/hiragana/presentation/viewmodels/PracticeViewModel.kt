@@ -26,7 +26,10 @@ import com.hive.hiragana.domain.repository.HandwritingRecognizer
 import com.hive.hiragana.domain.repository.PracticeRepository
 import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
+import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
+import com.hive.hiragana.domain.model.ReadingProgress
+import com.hive.hiragana.domain.repository.ReadingProgressRepository
 import com.hive.hiragana.domain.repository.SettingsRepository
 import com.hive.hiragana.domain.repository.VocabularyRepository
 import com.hive.hiragana.domain.scoring.CellRect
@@ -67,6 +70,28 @@ enum class SessionPhase {
 
 /** Stage of the library-launched "Quiz me!" overlay. */
 enum class QuizStage { SETUP, RUNNING, SUMMARY }
+
+/** Which track a quiz belongs to — Writing (handwriting) or Reading (recall). */
+enum class QuizKind { WRITING, READING }
+
+/** How the learner answers a READING quiz item. */
+enum class ReadingAnswerStyle { CHOICE, TYPE }
+
+/** One reading flashcard: the printed glyph/word on the front, reading + meaning on the back. */
+data class ReadingCard(val glyph: String, val romaji: String, val meaning: String?)
+
+/**
+ * Reading-track flashcard study state: a flip through the scoped deck/words.
+ * Self-graded (Got it / Missed) — pure study, so it does NOT feed the reading
+ * quiz percentages. Transient (like [QuizState]); not carried across rebuilds.
+ */
+data class ReadingFlashcardState(
+    val cards: List<ReadingCard>,
+    val index: Int = 0,
+    val revealed: Boolean = false,
+) {
+    val current: ReadingCard? get() = cards.getOrNull(index)
+}
 
 /**
  * State of the "Quiz me!" overlay: write [characters] one at a time from
@@ -135,6 +160,12 @@ data class QuizState(
     // Which source the quiz draws from: null = the active-script character
     // scope (the original behaviour); otherwise a saved practice set's id.
     val selectedSetId: Long? = null,
+    // Reading-quiz configuration (ignored by writing quizzes). READING shows the
+    // printed glyph and asks for the reading; answered by multiple choice or by
+    // typing romaji; words optionally also test the English meaning.
+    val kind: QuizKind = QuizKind.WRITING,
+    val readingAnswerStyle: ReadingAnswerStyle = ReadingAnswerStyle.CHOICE,
+    val readingTestMeaning: Boolean = false,
 ) {
     val current: QuizItem? get() = items.getOrNull(index)
 
@@ -187,6 +218,9 @@ data class PracticeUiState(
     // QUIZ (write-from-memory overlay, launched from the library; renders
     // above the library so closing it drops back into browsing)
     val quiz: QuizState? = null,
+    // READING flashcard study overlay (Reading mode: tap a Library item to flip
+    // through the scoped deck/words). Transient, like [quiz].
+    val readingFlashcard: ReadingFlashcardState? = null,
     // One-shot: set true when a SET-launched quiz closes, so the library
     // reopens the practice-sets manager (not the browse page) underneath.
     // Consumed by LibraryScreen once acted on. Transient (not in rebuilt()).
@@ -223,6 +257,10 @@ data class PracticeUiState(
     // rendering choice — the stroke-order demo and the scorer always use the
     // KanjiVG strokes, so this switches only the ghost's rendering.
     val characterForm: CharacterForm = CharacterForm.PRINTED,
+    // The chosen top-level track (Reading / Writing). null = not chosen yet →
+    // the opening screen is shown. Durable across scope rebuilds; reset to null
+    // only when the learner goes back to the opening "home".
+    val appMode: AppMode? = null,
     // Latest computed quality score, shown as advisory feedback after a graded
     // single character. Null when scoring is off/unavailable or on word steps.
     // Purely transient UI state — never persisted.
@@ -240,8 +278,12 @@ data class PracticeUiState(
     // canvas). Null when there are no per-kana word scores.
     val lastWordAverage: Int? = null,
     // Per-glyph quality history (avg/best), keyed by glyph string, for the
-    // Library rows. Sourced from the DB, carried across session resets.
+    // Library rows in WRITING mode. Sourced from the DB, carried across resets.
     val scoreStats: Map<String, CharacterScoreSummary> = emptyMap(),
+    // Per-glyph/word reading-quiz accuracy (MCQ% + typed%), keyed by glyph/kana
+    // string, for the Library tint + rows in READING mode. From the DB, carried
+    // across resets.
+    val readingStats: Map<String, ReadingProgress> = emptyMap(),
     // The device's Japanese TTS voice status — gates the pronunciation button
     // (play / offer download / disabled). Set by the VM's status collector.
     val ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
@@ -379,6 +421,7 @@ class PracticeViewModel(
     private val vocabularyRepository: VocabularyRepository,
     private val settingsRepository: SettingsRepository,
     private val practiceSetRepository: PracticeSetRepository,
+    private val readingProgressRepository: ReadingProgressRepository,
     private val handwritingRecognizer: HandwritingRecognizer,
     // Speaks readings aloud via the device's built-in Japanese TTS.
     private val ttsPlayer: PronunciationPlayer,
@@ -445,6 +488,13 @@ class PracticeViewModel(
         viewModelScope.launch {
             practiceSetRepository.observeSets().collect { sets ->
                 _uiState.update { it.copy(practiceSets = sets) }
+            }
+        }
+        // Long-lived: keeps per-glyph reading-quiz accuracy live for the
+        // Library's Reading-mode tint + rows. Independent of session resets.
+        viewModelScope.launch {
+            readingProgressRepository.observe().collect { stats ->
+                _uiState.update { it.copy(readingStats = stats.associateBy { s -> s.itemKey }) }
             }
         }
         // Long-lived: mirrors the TTS engine's async status into UI state so the
@@ -514,7 +564,13 @@ class PracticeViewModel(
                 }
                 if (load.characters.isNotEmpty()) {
                     seedDefaultSetsIfNeeded(load.characters, load.allWords)
-                    enterFreePracticeFromLastSection()
+                    // Don't auto-enter a track on launch — the opening screen
+                    // (appMode == null) lets the learner pick Reading or Writing.
+                    // Only Writing needs its free-practice item set up eagerly;
+                    // Reading renders the Library hub via its own screen branch.
+                    if (_uiState.value.appMode == AppMode.WRITING) {
+                        enterFreePracticeFromLastSection()
+                    }
                 }
             }.onFailure { error ->
                 Log.w(TAG, "Failed to start practice", error)
@@ -747,11 +803,13 @@ class PracticeViewModel(
         practiceLayout = practiceLayout,
         scoringMode = scoringMode,
         scoreStats = scoreStats,
+        readingStats = readingStats,
         activeScript = activeScript,
         includeDiacritics = includeDiacritics,
         includeYoon = includeYoon,
         includeExtended = includeExtended,
         characterForm = characterForm,
+        appMode = appMode,
         canvasClearKey = canvasClearKey + 1,
     )
 
@@ -876,6 +934,25 @@ class PracticeViewModel(
         if (form == _uiState.value.characterForm) return
         settingsRepository.setCharacterForm(form)
         _uiState.update { it.copy(characterForm = form) }
+    }
+
+    /**
+     * Picks (or switches to) a top-level track. Persisted. Writing sets up its
+     * free-practice item eagerly; Reading is rendered as the Library hub by its
+     * own screen branch. Called both from the opening screen and from the
+     * Study-scope Reading/Writing toggle (which lives inside the Library, so it
+     * reads as an in-place switch — the Library stays open across the flip).
+     */
+    fun setAppMode(mode: AppMode) {
+        if (mode == _uiState.value.appMode) return
+        settingsRepository.setAppMode(mode)
+        _uiState.update { it.copy(appMode = mode) }
+        if (mode == AppMode.WRITING) enterFreePracticeFromLastSection()
+    }
+
+    /** Returns to the opening screen ("home"); keeps the persisted last mode. */
+    fun goToOpening() {
+        _uiState.update { it.copy(appMode = null, isLibraryOpen = false) }
     }
 
     /**
@@ -1123,7 +1200,7 @@ class PracticeViewModel(
      * preselect that set as the quiz source (the setup card's source picker
      * lets the learner change it either way).
      */
-    fun openQuiz(setId: Long? = null) {
+    fun openQuiz(setId: Long? = null, kind: QuizKind = QuizKind.WRITING) {
         _uiState.update { state ->
             // Only preselect a set that still exists; otherwise fall back to
             // the default source so the picker never starts on a dangling id.
@@ -1135,6 +1212,7 @@ class PracticeViewModel(
                     requestedCount = 5.coerceAtMost(poolSize),
                     showGrid = state.isGridEnabled,
                     selectedSetId = source,
+                    kind = kind,
                 ),
             )
         }
@@ -1156,6 +1234,105 @@ class PracticeViewModel(
                 ),
             )
         }
+    }
+
+    /** Reading-quiz setup: multiple-choice vs typed romaji. */
+    fun setReadingAnswerStyle(style: ReadingAnswerStyle) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            state.copy(quiz = quiz.copy(readingAnswerStyle = style))
+        }
+    }
+
+    /** Reading-quiz setup: also test the English meaning (word sources only). */
+    fun setReadingTestMeaning(enabled: Boolean) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            state.copy(quiz = quiz.copy(readingTestMeaning = enabled))
+        }
+    }
+
+    /**
+     * Records a READING answer for the current item: correct → 100, wrong → 0
+     * in [QuizState.results] (the summary reads it), and reveals the item so the
+     * running screen shows the answer + audio before Next. Session-only for now;
+     * persistent reading stats arrive with the reading_progress table.
+     */
+    fun readingResult(correct: Boolean) {
+        val quiz = _uiState.value.quiz ?: return
+        val item = quiz.current ?: return
+        val typed = quiz.readingAnswerStyle == ReadingAnswerStyle.TYPE
+        _uiState.update { state ->
+            val q = state.quiz ?: return@update state
+            state.copy(
+                quiz = q.copy(
+                    revealed = true,
+                    submitted = true,
+                    results = q.results + (item.key to if (correct) 100 else 0),
+                    submittedKeys = q.submittedKeys + item.key,
+                ),
+            )
+        }
+        // Persist the pass/fail into the reading tally (keyed by the glyph/word,
+        // split by answer style). Fire-and-forget; the Library tint updates via
+        // the readingStats collector.
+        viewModelScope.launch {
+            runCatching { readingProgressRepository.record(item.answer, typed, correct) }
+                .onFailure { Log.w(TAG, "Failed to record reading result for ${item.answer}", it) }
+        }
+    }
+
+    // ---- Reading flashcards (study mode) --------------------------------
+
+    /** Opens the reading flashcard flip over the scoped characters, starting at [character]. */
+    fun openReadingFlashcardsForCharacter(character: HiraganaCharacter) {
+        val state = _uiState.value
+        val chars = state.activeScriptCharacters
+        if (chars.isEmpty()) return
+        val cards = chars.map { ReadingCard(it.character, it.romaji, null) }
+        val start = chars.indexOfFirst { it.id == character.id }.coerceAtLeast(0)
+        _uiState.update { it.copy(readingFlashcard = ReadingFlashcardState(cards, start)) }
+    }
+
+    /** Opens the reading flashcard flip over the scoped words, starting at [word]. */
+    fun openReadingFlashcardsForWord(word: VocabularyWord) {
+        val state = _uiState.value
+        val words = ScriptScope.scopedWords(
+            state.allWords,
+            state.activeScript,
+            state.includeDiacritics,
+            state.includeYoon,
+            state.includeExtended,
+        )
+        if (words.isEmpty()) return
+        val cards = words.map { ReadingCard(it.kana, state.pronunciationOf(it), it.meaning) }
+        val start = words.indexOfFirst { it.kana == word.kana }.coerceAtLeast(0)
+        _uiState.update { it.copy(readingFlashcard = ReadingFlashcardState(cards, start)) }
+    }
+
+    /** Flips the current flashcard to reveal its reading + meaning. */
+    fun flashcardReveal() {
+        _uiState.update { s ->
+            val fc = s.readingFlashcard ?: return@update s
+            s.copy(readingFlashcard = fc.copy(revealed = true))
+        }
+    }
+
+    /**
+     * Advances to the next flashcard (wraps), face-down again. Self-graded, so
+     * "Got it" and "Missed" both simply move on — flashcards are study, not scored.
+     */
+    fun flashcardNext() {
+        _uiState.update { s ->
+            val fc = s.readingFlashcard ?: return@update s
+            val next = if (fc.cards.isEmpty()) 0 else (fc.index + 1) % fc.cards.size
+            s.copy(readingFlashcard = fc.copy(index = next, revealed = false))
+        }
+    }
+
+    /** Closes the flashcard overlay, back to the reading Library. */
+    fun closeReadingFlashcards() {
+        _uiState.update { it.copy(readingFlashcard = null) }
     }
 
     /**
@@ -1669,6 +1846,7 @@ class PracticeViewModel(
                     vocabularyRepository = application.container.vocabularyRepository,
                     settingsRepository = application.container.settingsRepository,
                     practiceSetRepository = application.container.practiceSetRepository,
+                    readingProgressRepository = application.container.readingProgressRepository,
                     handwritingRecognizer = application.container.handwritingRecognizer,
                     ttsPlayer = application.container.ttsPronunciationPlayer,
                 )

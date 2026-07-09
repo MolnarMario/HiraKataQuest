@@ -1,5 +1,6 @@
 package com.hive.hiragana.domain.repository
 
+import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.Script
@@ -113,4 +114,13 @@ interface SettingsRepository {
     fun getCharacterForm(): CharacterForm
 
     fun setCharacterForm(form: CharacterForm)
+
+    /**
+     * The top-level track the learner last chose: [AppMode.READING] or
+     * [AppMode.WRITING]. `null` means not chosen yet → the opening screen is
+     * shown so the learner can pick.
+     */
+    fun getAppMode(): AppMode?
+
+    fun setAppMode(mode: AppMode)
 }

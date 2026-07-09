@@ -11,6 +11,8 @@ import com.hive.hiragana.data.repository.PrefsSettingsRepository
 import com.hive.hiragana.data.repository.RoomLearningRepository
 import com.hive.hiragana.data.repository.RoomPracticeRepository
 import com.hive.hiragana.data.repository.RoomPracticeSetRepository
+import com.hive.hiragana.data.repository.RoomReadingProgressRepository
+import com.hive.hiragana.domain.repository.ReadingProgressRepository
 import com.hive.hiragana.data.repository.RoomVocabularyRepository
 import com.hive.hiragana.domain.audio.PronunciationPlayer
 import com.hive.hiragana.domain.repository.CharacterRepository
@@ -77,6 +79,10 @@ class AppContainer(context: Context) {
 
     val practiceSetRepository: PracticeSetRepository by lazy {
         RoomPracticeSetRepository(database.practiceSetDao())
+    }
+
+    val readingProgressRepository: ReadingProgressRepository by lazy {
+        RoomReadingProgressRepository(database.readingProgressDao())
     }
 
     val settingsRepository: SettingsRepository by lazy {
