@@ -23,6 +23,8 @@ import com.hive.hiragana.domain.repository.PracticeRepository
 import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
 import com.hive.hiragana.domain.repository.SettingsRepository
+import com.hive.hiragana.domain.update.AppUpdater
+import com.hive.hiragana.domain.update.UpdateInfo
 import com.hive.hiragana.domain.repository.VocabularyRepository
 import com.hive.hiragana.domain.scoring.CellRect
 import com.hive.hiragana.domain.scoring.CharacterScoreSummary
@@ -146,6 +148,7 @@ class PracticeViewModelTest {
         readingProgressRepository = FakeReadingProgressRepository(),
         handwritingRecognizer = recognizer,
         ttsPlayer = FakePronunciationPlayer(),
+        appUpdater = FakeAppUpdater(),
         clock = fixedClock,
     )
 
@@ -678,6 +681,19 @@ class PracticeViewModelTest {
         private var appModeValue: AppMode? = null
         override fun getAppMode(): AppMode? = appModeValue
         override fun setAppMode(mode: AppMode) { appModeValue = mode }
+        private var skippedUpdate: String? = null
+        override fun getSkippedUpdateVersion(): String? = skippedUpdate
+        override fun setSkippedUpdateVersion(versionName: String) { skippedUpdate = versionName }
+    }
+
+    /** No-op updater: the launch check finds nothing, so no dialog is offered. */
+    private class FakeAppUpdater : AppUpdater {
+        override suspend fun check(): UpdateInfo? = null
+        override suspend fun download(info: UpdateInfo, onProgress: (Int) -> Unit) =
+            java.io.File("unused")
+        override fun canInstall(): Boolean = true
+        override fun requestInstallPermission() {}
+        override fun install(apk: java.io.File) {}
     }
 
     /** In-memory practice sets, backing a [MutableStateFlow] for observation. */

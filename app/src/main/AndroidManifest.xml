@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- In-app updater: fetch the latest GitHub release + download the APK. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Hand the downloaded APK to the system installer (user still confirms). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:name=".HiraganaApplication"
         android:allowBackup="true"
@@ -23,6 +28,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Serves the downloaded update APK to the package installer via a
+             content:// URI (required on minSdk 26+; file:// is not allowed). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

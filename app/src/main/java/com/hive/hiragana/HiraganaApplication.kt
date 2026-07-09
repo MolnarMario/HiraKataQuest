@@ -6,6 +6,8 @@ import com.hive.hiragana.data.assets.HiraganaAssetDataSource
 import com.hive.hiragana.data.audio.TtsPronunciationPlayer
 import com.hive.hiragana.data.local.HiraganaDatabase
 import com.hive.hiragana.data.recognition.MlKitHandwritingRecognizer
+import com.hive.hiragana.data.update.GithubAppUpdater
+import com.hive.hiragana.domain.update.AppUpdater
 import com.hive.hiragana.data.repository.AssetCharacterRepository
 import com.hive.hiragana.data.repository.PrefsSettingsRepository
 import com.hive.hiragana.data.repository.RoomLearningRepository
@@ -97,5 +99,10 @@ class AppContainer(context: Context) {
     // PracticeViewModel.onCleared().
     val ttsPronunciationPlayer: PronunciationPlayer by lazy {
         TtsPronunciationPlayer(appContext)
+    }
+
+    // In-app updater: checks GitHub Releases and installs newer APKs (no Play Store).
+    val appUpdater: AppUpdater by lazy {
+        GithubAppUpdater(appContext)
     }
 }

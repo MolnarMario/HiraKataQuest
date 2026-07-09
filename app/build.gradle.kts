@@ -1,8 +1,19 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+}
+
+// Release signing is driven by a gitignored keystore.properties at the repo root
+// (storeFile/storePassword/keyAlias/keyPassword). When it's absent (e.g. a fresh
+// clone or CI without the secret), release builds fall back to debug signing so
+// the project still assembles — but such an APK will NOT update installed copies.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
 
 android {
@@ -13,8 +24,19 @@ android {
         applicationId = "com.hive.hiragana"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
+    }
+
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -24,6 +46,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Use the release keystore when configured; otherwise leave unset
+            // (debug-signed fallback) so the build still succeeds without the secret.
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
@@ -38,6 +63,9 @@ android {
 
     buildFeatures {
         compose = true
+        // Generates BuildConfig.VERSION_NAME / VERSION_CODE for the updater's
+        // "am I older than the latest release?" comparison.
+        buildConfig = true
     }
 
     testOptions {

@@ -32,6 +32,9 @@ import com.hive.hiragana.domain.model.ReadingProgress
 import com.hive.hiragana.domain.repository.ReadingProgressRepository
 import com.hive.hiragana.domain.repository.SettingsRepository
 import com.hive.hiragana.domain.repository.VocabularyRepository
+import com.hive.hiragana.domain.update.AppUpdater
+import com.hive.hiragana.domain.update.UpdateInfo
+import com.hive.hiragana.domain.update.UpdateState
 import com.hive.hiragana.domain.scoring.CellRect
 import com.hive.hiragana.domain.scoring.CharacterScore
 import com.hive.hiragana.domain.scoring.CharacterScoreSummary
@@ -261,6 +264,9 @@ data class PracticeUiState(
     // the opening screen is shown. Durable across scope rebuilds; reset to null
     // only when the learner goes back to the opening "home".
     val appMode: AppMode? = null,
+    // In-app self-update flow (GitHub Releases). Idle = no dialog shown. Transient
+    // UI state, never persisted; a quiet launch check that finds nothing stays Idle.
+    val updateState: UpdateState = UpdateState.Idle,
     // Latest computed quality score, shown as advisory feedback after a graded
     // single character. Null when scoring is off/unavailable or on word steps.
     // Purely transient UI state — never persisted.
@@ -425,6 +431,8 @@ class PracticeViewModel(
     private val handwritingRecognizer: HandwritingRecognizer,
     // Speaks readings aloud via the device's built-in Japanese TTS.
     private val ttsPlayer: PronunciationPlayer,
+    // Checks GitHub Releases for a newer build and installs it (no Play Store).
+    private val appUpdater: AppUpdater,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
 
@@ -504,6 +512,80 @@ class PracticeViewModel(
                 _uiState.update { it.copy(ttsStatus = status) }
             }
         }
+        // Quiet, one-shot check for a newer GitHub release on launch. Shows the
+        // "Update available" dialog only if there's a newer version the user
+        // hasn't skipped; any failure stays silent (Idle).
+        checkForUpdate()
+    }
+
+    // --- In-app update (GitHub Releases; see AppUpdater/GithubAppUpdater) ---
+
+    /** The update offered by the last successful check; drives download/retry. */
+    private var pendingUpdate: UpdateInfo? = null
+
+    /**
+     * Check GitHub for a newer release. No-op unless currently [UpdateState.Idle]
+     * (so it never interrupts an open dialog or in-progress download). Skips a
+     * version the user chose to skip. Safe to call on launch and on resume.
+     */
+    fun checkForUpdate() {
+        if (_uiState.value.updateState !is UpdateState.Idle) return
+        viewModelScope.launch {
+            val info = appUpdater.check() ?: return@launch
+            if (info.versionName == settingsRepository.getSkippedUpdateVersion()) return@launch
+            pendingUpdate = info
+            _uiState.update { it.copy(updateState = UpdateState.Available(info)) }
+        }
+    }
+
+    /**
+     * Download the pending update and hand it to the installer. If the app can't
+     * yet request installs, sends the user to grant the permission and leaves the
+     * dialog up (they grant it, come back, and tap Update again).
+     */
+    fun startUpdate() {
+        val info = pendingUpdate ?: return
+        if (!appUpdater.canInstall()) {
+            appUpdater.requestInstallPermission()
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(updateState = UpdateState.Downloading(info, 0)) }
+            try {
+                val apk = appUpdater.download(info) { pct ->
+                    _uiState.update { st ->
+                        if (st.updateState is UpdateState.Downloading) {
+                            st.copy(updateState = UpdateState.Downloading(info, pct))
+                        } else {
+                            st
+                        }
+                    }
+                }
+                _uiState.update { it.copy(updateState = UpdateState.Installing) }
+                appUpdater.install(apk)
+                // The system installer takes over; reset so re-opening the app
+                // mid-flow doesn't re-nag, and a cancelled install just clears.
+                _uiState.update { it.copy(updateState = UpdateState.Idle) }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(updateState = UpdateState.Failed(e.message ?: "Couldn't download the update."))
+                }
+            }
+        }
+    }
+
+    /** Retry after a failed download (the pending update is still remembered). */
+    fun retryUpdate() = startUpdate()
+
+    /** Dismiss the update dialog for now ("Later"); it re-offers next launch. */
+    fun dismissUpdate() {
+        _uiState.update { it.copy(updateState = UpdateState.Idle) }
+    }
+
+    /** Don't offer this specific version again ("Skip"). */
+    fun skipUpdate() {
+        pendingUpdate?.let { settingsRepository.setSkippedUpdateVersion(it.versionName) }
+        _uiState.update { it.copy(updateState = UpdateState.Idle) }
     }
 
     /** Speak [glyph] via the device's built-in Japanese TTS. */
@@ -1849,6 +1931,7 @@ class PracticeViewModel(
                     readingProgressRepository = application.container.readingProgressRepository,
                     handwritingRecognizer = application.container.handwritingRecognizer,
                     ttsPlayer = application.container.ttsPronunciationPlayer,
+                    appUpdater = application.container.appUpdater,
                 )
             }
         }
