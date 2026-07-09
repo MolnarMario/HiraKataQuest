@@ -1746,23 +1746,28 @@ private fun SelectionModeContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            IconButton(onClick = onCancel) {
+          // Compact the icon buttons (40dp, no 48dp min-touch reservation) so the
+          // title + search/sort/grid/All/None/Save all fit one row without the
+          // title column being crushed into an ugly multi-line wrap.
+          CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+            IconButton(onClick = onCancel, modifier = Modifier.size(40.dp)) {
                 Icon(imageVector = Icons.Filled.Close, contentDescription = "Cancel selection")
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    // Up to two lines so the title is always fully visible even
-                    // when the toolbar actions squeeze the column; the "N selected"
-                    // line below carries the count.
+                    // One line (ellipsized) so the crowded action row never forces
+                    // an ugly wrap; the "N selected" line below carries the count.
                     text = if (editing) "Edit $noun" else "Select $noun",
                     style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = "${selectedValues.size} selected",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             // Search the selectable list by glyph / reading / meaning. Toggles a
@@ -1909,6 +1914,7 @@ private fun SelectionModeContent(
                 enabled = selectedValues.isNotEmpty(),
                 contentPadding = PaddingValues(horizontal = 12.dp),
             ) { Text("Save") }
+          }
         }
         if (searching) {
             PracticeSetSearchField(
