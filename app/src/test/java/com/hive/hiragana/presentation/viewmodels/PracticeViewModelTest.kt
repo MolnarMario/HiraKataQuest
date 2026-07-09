@@ -5,6 +5,8 @@ import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.Grade
+import com.hive.hiragana.domain.model.ReadingProgress
+import com.hive.hiragana.domain.repository.ReadingProgressRepository
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeAttempt
 import com.hive.hiragana.domain.model.PracticeLayout
@@ -141,6 +143,7 @@ class PracticeViewModelTest {
         vocabularyRepository = FakeVocabularyRepository(words),
         settingsRepository = settings,
         practiceSetRepository = practiceSetRepository,
+        readingProgressRepository = FakeReadingProgressRepository(),
         handwritingRecognizer = recognizer,
         ttsPlayer = FakePronunciationPlayer(),
         clock = fixedClock,
@@ -678,6 +681,11 @@ class PracticeViewModelTest {
     }
 
     /** In-memory practice sets, backing a [MutableStateFlow] for observation. */
+    private class FakeReadingProgressRepository : ReadingProgressRepository {
+        override fun observe(): Flow<List<ReadingProgress>> = MutableStateFlow(emptyList())
+        override suspend fun record(itemKey: String, typed: Boolean, correct: Boolean) {}
+    }
+
     private class FakePracticeSetRepository : PracticeSetRepository {
         private val sets = MutableStateFlow<List<PracticeSet>>(emptyList())
         private var nextId = 1L

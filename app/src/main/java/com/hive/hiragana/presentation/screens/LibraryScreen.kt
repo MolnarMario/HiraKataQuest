@@ -103,6 +103,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import com.hive.hiragana.domain.model.AppMode
+import com.hive.hiragana.domain.model.ReadingProgress
 import com.hive.hiragana.domain.model.FlowSection
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.KanaChartBuilder
@@ -227,7 +228,11 @@ private fun <T> List<T>.sortedByScore(
 fun LibraryScreen(
     characters: List<HiraganaCharacter>,
     words: List<VocabularyWord>,
-    scoreStats: Map<String, CharacterScoreSummary> = emptyMap(),
+    // Writing-mode per-glyph handwriting history (avg/best). In Reading mode the
+    // cells are instead colored/scored from [readingStats]; the body derives a
+    // single `scoreStats` that switches on [appMode].
+    writingScoreStats: Map<String, CharacterScoreSummary> = emptyMap(),
+    readingStats: Map<String, ReadingProgress> = emptyMap(),
     activeScript: Script,
     onSelectScript: (Script) -> Unit,
     includeDiacritics: Boolean,
@@ -269,6 +274,27 @@ fun LibraryScreen(
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
     modifier: Modifier = Modifier,
 ) {
+    // The score map the whole Library colors + sorts by. Writing mode uses the
+    // handwriting history; Reading mode derives a summary from readingStats
+    // whose "average" dial is the reading colorPercent (average of the MCQ% and
+    // typed% the learner has done, or the single one) and which has no "best" —
+    // reading is pass/fail. Everything downstream is unchanged.
+    val scoreStats: Map<String, CharacterScoreSummary> =
+        if (appMode == AppMode.READING) {
+            readingStats.mapValues { (key, r) ->
+                CharacterScoreSummary(
+                    character = key,
+                    attempts = r.mcqAttempts + r.typeAttempts,
+                    avgForm = r.colorPercent,
+                    bestForm = null,
+                    avgFit = null,
+                    bestFit = null,
+                )
+            }
+        } else {
+            writingScoreStats
+        }
+
     var query by rememberSaveable { mutableStateOf("") }
     var selectedTab by rememberSaveable { mutableIntStateOf(initialTab) }
     var searching by rememberSaveable { mutableStateOf(false) }

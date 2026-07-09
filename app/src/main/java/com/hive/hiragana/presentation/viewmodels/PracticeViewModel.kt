@@ -28,6 +28,8 @@ import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
 import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
+import com.hive.hiragana.domain.model.ReadingProgress
+import com.hive.hiragana.domain.repository.ReadingProgressRepository
 import com.hive.hiragana.domain.repository.SettingsRepository
 import com.hive.hiragana.domain.repository.VocabularyRepository
 import com.hive.hiragana.domain.scoring.CellRect
@@ -257,8 +259,12 @@ data class PracticeUiState(
     // canvas). Null when there are no per-kana word scores.
     val lastWordAverage: Int? = null,
     // Per-glyph quality history (avg/best), keyed by glyph string, for the
-    // Library rows. Sourced from the DB, carried across session resets.
+    // Library rows in WRITING mode. Sourced from the DB, carried across resets.
     val scoreStats: Map<String, CharacterScoreSummary> = emptyMap(),
+    // Per-glyph/word reading-quiz accuracy (MCQ% + typed%), keyed by glyph/kana
+    // string, for the Library tint + rows in READING mode. From the DB, carried
+    // across resets.
+    val readingStats: Map<String, ReadingProgress> = emptyMap(),
     // The device's Japanese TTS voice status — gates the pronunciation button
     // (play / offer download / disabled). Set by the VM's status collector.
     val ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
@@ -396,6 +402,7 @@ class PracticeViewModel(
     private val vocabularyRepository: VocabularyRepository,
     private val settingsRepository: SettingsRepository,
     private val practiceSetRepository: PracticeSetRepository,
+    private val readingProgressRepository: ReadingProgressRepository,
     private val handwritingRecognizer: HandwritingRecognizer,
     // Speaks readings aloud via the device's built-in Japanese TTS.
     private val ttsPlayer: PronunciationPlayer,
@@ -462,6 +469,13 @@ class PracticeViewModel(
         viewModelScope.launch {
             practiceSetRepository.observeSets().collect { sets ->
                 _uiState.update { it.copy(practiceSets = sets) }
+            }
+        }
+        // Long-lived: keeps per-glyph reading-quiz accuracy live for the
+        // Library's Reading-mode tint + rows. Independent of session resets.
+        viewModelScope.launch {
+            readingProgressRepository.observe().collect { stats ->
+                _uiState.update { it.copy(readingStats = stats.associateBy { s -> s.itemKey }) }
             }
         }
         // Long-lived: mirrors the TTS engine's async status into UI state so the
@@ -770,6 +784,7 @@ class PracticeViewModel(
         practiceLayout = practiceLayout,
         scoringMode = scoringMode,
         scoreStats = scoreStats,
+        readingStats = readingStats,
         activeScript = activeScript,
         includeDiacritics = includeDiacritics,
         includeYoon = includeYoon,
@@ -1225,17 +1240,26 @@ class PracticeViewModel(
      * persistent reading stats arrive with the reading_progress table.
      */
     fun readingResult(correct: Boolean) {
+        val quiz = _uiState.value.quiz ?: return
+        val item = quiz.current ?: return
+        val typed = quiz.readingAnswerStyle == ReadingAnswerStyle.TYPE
         _uiState.update { state ->
-            val quiz = state.quiz ?: return@update state
-            val item = quiz.current ?: return@update state
+            val q = state.quiz ?: return@update state
             state.copy(
-                quiz = quiz.copy(
+                quiz = q.copy(
                     revealed = true,
                     submitted = true,
-                    results = quiz.results + (item.key to if (correct) 100 else 0),
-                    submittedKeys = quiz.submittedKeys + item.key,
+                    results = q.results + (item.key to if (correct) 100 else 0),
+                    submittedKeys = q.submittedKeys + item.key,
                 ),
             )
+        }
+        // Persist the pass/fail into the reading tally (keyed by the glyph/word,
+        // split by answer style). Fire-and-forget; the Library tint updates via
+        // the readingStats collector.
+        viewModelScope.launch {
+            runCatching { readingProgressRepository.record(item.answer, typed, correct) }
+                .onFailure { Log.w(TAG, "Failed to record reading result for ${item.answer}", it) }
         }
     }
 
@@ -1750,6 +1774,7 @@ class PracticeViewModel(
                     vocabularyRepository = application.container.vocabularyRepository,
                     settingsRepository = application.container.settingsRepository,
                     practiceSetRepository = application.container.practiceSetRepository,
+                    readingProgressRepository = application.container.readingProgressRepository,
                     handwritingRecognizer = application.container.handwritingRecognizer,
                     ttsPlayer = application.container.ttsPronunciationPlayer,
                 )

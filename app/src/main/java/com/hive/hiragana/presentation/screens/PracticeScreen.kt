@@ -147,7 +147,8 @@ fun PracticeScreen(
                 LibraryScreen(
                     characters = uiState.characters,
                     words = uiState.allWords,
-                    scoreStats = uiState.scoreStats,
+                    writingScoreStats = uiState.scoreStats,
+                    readingStats = uiState.readingStats,
                     activeScript = uiState.activeScript,
                     onSelectScript = viewModel::setActiveScript,
                     includeDiacritics = uiState.includeDiacritics,
