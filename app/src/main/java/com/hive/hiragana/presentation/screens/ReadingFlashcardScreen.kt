@@ -3,6 +3,8 @@ package com.hive.hiragana.presentation.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +41,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.presentation.components.PronunciationButton
@@ -62,6 +65,7 @@ import com.hive.hiragana.presentation.viewmodels.ReadingFlashcardState
  * overlap. The field keeps focus across card flips, so the keyboard stays open
  * for a smooth run; it only closes when the toggle is turned off.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReadingFlashcardScreen(
     state: ReadingFlashcardState,
@@ -141,17 +145,24 @@ fun ReadingFlashcardScreen(
                     .fillMaxWidth(),
             ) {
                 val avail = maxHeight
-                val glyphStyle = when {
-                    avail >= 360.dp -> MaterialTheme.typography.displayLarge
-                    avail >= 240.dp -> MaterialTheme.typography.displayMedium
-                    else -> MaterialTheme.typography.displaySmall
-                }
+                // Glyph as large as fits: scaled to the card's width (so longer
+                // words shrink and never overflow), to the available height, and
+                // to a cap — device-responsive. dp values are used as sp (≈ at
+                // the default font scale). The single-line reveal below leaves
+                // more height for the glyph than the old stacked layout.
+                val glyphCount = card.glyph.length.coerceAtLeast(1)
+                val innerWidth = (maxWidth.value - 88f).coerceAtLeast(48f)
+                val glyphSize = minOf(
+                    (innerWidth / glyphCount) * 0.92f,
+                    avail.value * 0.34f,
+                    120f,
+                ).coerceAtLeast(40f).sp
                 val vPad = when {
-                    avail >= 360.dp -> 36.dp
-                    avail >= 240.dp -> 22.dp
+                    avail >= 360.dp -> 32.dp
+                    avail >= 240.dp -> 20.dp
                     else -> 14.dp
                 }
-                val gap = if (avail >= 360.dp) 14.dp else 8.dp
+                val gap = if (avail >= 320.dp) 16.dp else 10.dp
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -170,13 +181,17 @@ fun ReadingFlashcardScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = vPad, horizontal = 24.dp),
+                                .padding(vertical = vPad, horizontal = 20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(gap),
                         ) {
                             Text(
                                 text = card.glyph,
-                                style = glyphStyle,
+                                style = MaterialTheme.typography.displayLarge.copy(
+                                    fontSize = glyphSize,
+                                    lineHeight = glyphSize,
+                                ),
+                                maxLines = 1,
                                 textAlign = TextAlign.Center,
                             )
                             if (state.revealed) {
@@ -191,7 +206,16 @@ fun ReadingFlashcardScreen(
                                     },
                                 )
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Reading · audio · meaning on ONE line; wraps only if
+                            // it truly can't fit (responsive on narrow screens).
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(
+                                    8.dp,
+                                    Alignment.CenterHorizontally,
+                                ),
+                                verticalArrangement = Arrangement.Center,
+                            ) {
                                 Text(
                                     text = card.romaji,
                                     style = MaterialTheme.typography.headlineSmall,
@@ -200,16 +224,14 @@ fun ReadingFlashcardScreen(
                                     glyph = card.glyph,
                                     status = ttsStatus,
                                     onSpeak = onSpeak,
-                                    modifier = Modifier.padding(start = 6.dp),
                                 )
-                            }
-                            card.meaning?.let { meaning ->
-                                Text(
-                                    text = meaning,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center,
-                                )
+                                card.meaning?.let { meaning ->
+                                    Text(
+                                        text = "·  $meaning",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
                     }
