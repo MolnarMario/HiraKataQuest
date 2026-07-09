@@ -127,7 +127,7 @@ fun PracticeScreen(
                     lastWordScores = uiState.lastWordScores,
                     lastWordAverage = uiState.lastWordAverage,
                     inkColor = Color(uiState.brushInkColor),
-                    characterForm = uiState.characterForm,
+                    characterForm = CharacterForm.HANDWRITTEN,
                     glyphStrokesFor = uiState::ghostStrokesFor,
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
@@ -166,8 +166,8 @@ fun PracticeScreen(
                     },
                     isGridView = uiState.isLibraryGridView,
                     onSetGridView = viewModel::setLibraryGridView,
-                    characterForm = uiState.characterForm,
-                    onSetCharacterForm = viewModel::setCharacterForm,
+                    appMode = uiState.appMode ?: AppMode.WRITING,
+                    onSetAppMode = viewModel::setAppMode,
                     initialTab = uiState.librarySection,
                     onSelectTab = viewModel::setLibrarySection,
                     pronunciation = uiState::pronunciationOf,
@@ -245,12 +245,10 @@ private fun PracticeContent(
                 showGhost = uiState.isGhostEnabled,
                 layout = uiState.practiceLayout,
                 inkColor = Color(uiState.brushInkColor),
-                characterForm = uiState.characterForm,
-                glyphStrokes = if (uiState.characterForm == CharacterForm.HANDWRITTEN) {
-                    uiState.canvasGhostStrokes
-                } else {
-                    emptyList()
-                },
+                // Writing always traces the handwritten (KanjiVG) ghost — the
+                // form you actually write, coherent with the demo and scorer.
+                characterForm = CharacterForm.HANDWRITTEN,
+                glyphStrokes = uiState.canvasGhostStrokes,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 14.dp),

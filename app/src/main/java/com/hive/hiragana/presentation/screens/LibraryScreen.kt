@@ -102,7 +102,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
-import com.hive.hiragana.domain.model.CharacterForm
+import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.FlowSection
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.KanaChartBuilder
@@ -244,8 +244,8 @@ fun LibraryScreen(
     onSetGridView: (Boolean) -> Unit = {},
     // Traced-ghost form (Printed / Handwritten) + its setter, surfaced as a
     // selector in the Study-scope sheet.
-    characterForm: CharacterForm = CharacterForm.PRINTED,
-    onSetCharacterForm: (CharacterForm) -> Unit = {},
+    appMode: AppMode = AppMode.WRITING,
+    onSetAppMode: (AppMode) -> Unit = {},
     // Which tab to open on (0 = Characters, 1 = Words), seeded from the
     // persisted last-used section; [onSelectTab] persists the learner's switch.
     initialTab: Int = 0,
@@ -590,8 +590,8 @@ fun LibraryScreen(
                 ScopeSheetContent(
                     activeScript = activeScript,
                     onSelectScript = onSelectScript,
-                    characterForm = characterForm,
-                    onSetCharacterForm = onSetCharacterForm,
+                    appMode = appMode,
+                    onSetAppMode = onSetAppMode,
                     includeDiacritics = includeDiacritics,
                     onToggleDiacritics = onToggleDiacritics,
                     includeYoon = includeYoon,
@@ -828,8 +828,8 @@ private fun LibraryTopBar(
 private fun ScopeSheetContent(
     activeScript: Script,
     onSelectScript: (Script) -> Unit,
-    characterForm: CharacterForm,
-    onSetCharacterForm: (CharacterForm) -> Unit,
+    appMode: AppMode,
+    onSetAppMode: (AppMode) -> Unit,
     includeDiacritics: Boolean,
     onToggleDiacritics: (Boolean) -> Unit,
     includeYoon: Boolean,
@@ -899,63 +899,65 @@ private fun ScopeSheetContent(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
-        // How the traced guide glyph is drawn. Printed = the typographic form
-        // learners meet when reading (default); Handwritten = the kaisho stroke
-        // form, drawn from the same strokes the demo and scorer use. Rendering
-        // only — it never changes what is studied, demonstrated, or scored.
+        // Top-level track. Reading = recognize the printed forms; Writing =
+        // handwriting practice. Switching here flips the whole app in place (the
+        // Library stays open) — the same choice offered on the opening screen.
         Text(
-            text = "Character style",
+            text = "I want to practice",
             style = MaterialTheme.typography.titleSmall,
         )
         Text(
-            text = "Printed is what you read on signs and screens; Handwritten " +
-                "shows the brush stroke form used when writing by hand.",
+            text = "Reading recognizes the printed kana you meet in the wild; " +
+                "Writing practices handwriting with stroke-order feedback.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            CharacterForm.entries.forEachIndexed { index, form ->
+            AppMode.entries.forEachIndexed { index, mode ->
                 SegmentedButton(
-                    selected = form == characterForm,
-                    onClick = { onSetCharacterForm(form) },
+                    selected = mode == appMode,
+                    onClick = { onSetAppMode(mode) },
                     shape = SegmentedButtonDefaults.itemShape(
                         index = index,
-                        count = CharacterForm.entries.size,
+                        count = AppMode.entries.size,
                     ),
                     icon = {},
-                    label = { Text(form.displayLabel) },
+                    label = { Text(mode.displayLabel) },
                 )
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+        // Scoring is a Writing-only concern; hidden in Reading mode.
+        if (appMode == AppMode.WRITING) {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
-        // How practice writing is judged (also used by the quiz). This is the
-        // one global scoring setting; the quiz setup card shows the same picker.
-        // "Off" means no score — and in FREE practice it drops the Submit step,
-        // leaving just Clear · Next (see FreePracticeActionBar).
-        Text(
-            text = "Score my writing",
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Text(
-            text = "Form rewards correct shape and stroke order; Fit rewards " +
-                "filling the box. Off skips scoring (no Submit in practice).",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SCORING_CHOICES.forEachIndexed { index, (mode, label) ->
-                SegmentedButton(
-                    selected = mode == scoringMode,
-                    onClick = { onSetScoringMode(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = SCORING_CHOICES.size,
-                    ),
-                    icon = {},
-                    label = { Text(label) },
-                )
+            // How practice writing is judged (also used by the quiz). This is the
+            // one global scoring setting; the quiz setup card shows the same picker.
+            // "Off" means no score — and in FREE practice it drops the Submit step,
+            // leaving just Clear · Next (see FreePracticeActionBar).
+            Text(
+                text = "Score my writing",
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                text = "Form rewards correct shape and stroke order; Fit rewards " +
+                    "filling the box. Off skips scoring (no Submit in practice).",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SCORING_CHOICES.forEachIndexed { index, (scoreMode, label) ->
+                    SegmentedButton(
+                        selected = scoreMode == scoringMode,
+                        onClick = { onSetScoringMode(scoreMode) },
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = SCORING_CHOICES.size,
+                        ),
+                        icon = {},
+                        label = { Text(label) },
+                    )
+                }
             }
         }
 
