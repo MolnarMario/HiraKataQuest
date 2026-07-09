@@ -77,6 +77,22 @@ enum class QuizKind { WRITING, READING }
 /** How the learner answers a READING quiz item. */
 enum class ReadingAnswerStyle { CHOICE, TYPE }
 
+/** One reading flashcard: the printed glyph/word on the front, reading + meaning on the back. */
+data class ReadingCard(val glyph: String, val romaji: String, val meaning: String?)
+
+/**
+ * Reading-track flashcard study state: a flip through the scoped deck/words.
+ * Self-graded (Got it / Missed) — pure study, so it does NOT feed the reading
+ * quiz percentages. Transient (like [QuizState]); not carried across rebuilds.
+ */
+data class ReadingFlashcardState(
+    val cards: List<ReadingCard>,
+    val index: Int = 0,
+    val revealed: Boolean = false,
+) {
+    val current: ReadingCard? get() = cards.getOrNull(index)
+}
+
 /**
  * State of the "Quiz me!" overlay: write [characters] one at a time from
  * their romaji prompt alone. The ghost tracing guide stays off while
@@ -202,6 +218,9 @@ data class PracticeUiState(
     // QUIZ (write-from-memory overlay, launched from the library; renders
     // above the library so closing it drops back into browsing)
     val quiz: QuizState? = null,
+    // READING flashcard study overlay (Reading mode: tap a Library item to flip
+    // through the scoped deck/words). Transient, like [quiz].
+    val readingFlashcard: ReadingFlashcardState? = null,
     // One-shot: set true when a SET-launched quiz closes, so the library
     // reopens the practice-sets manager (not the browse page) underneath.
     // Consumed by LibraryScreen once acted on. Transient (not in rebuilt()).
@@ -1261,6 +1280,59 @@ class PracticeViewModel(
             runCatching { readingProgressRepository.record(item.answer, typed, correct) }
                 .onFailure { Log.w(TAG, "Failed to record reading result for ${item.answer}", it) }
         }
+    }
+
+    // ---- Reading flashcards (study mode) --------------------------------
+
+    /** Opens the reading flashcard flip over the scoped characters, starting at [character]. */
+    fun openReadingFlashcardsForCharacter(character: HiraganaCharacter) {
+        val state = _uiState.value
+        val chars = state.activeScriptCharacters
+        if (chars.isEmpty()) return
+        val cards = chars.map { ReadingCard(it.character, it.romaji, null) }
+        val start = chars.indexOfFirst { it.id == character.id }.coerceAtLeast(0)
+        _uiState.update { it.copy(readingFlashcard = ReadingFlashcardState(cards, start)) }
+    }
+
+    /** Opens the reading flashcard flip over the scoped words, starting at [word]. */
+    fun openReadingFlashcardsForWord(word: VocabularyWord) {
+        val state = _uiState.value
+        val words = ScriptScope.scopedWords(
+            state.allWords,
+            state.activeScript,
+            state.includeDiacritics,
+            state.includeYoon,
+            state.includeExtended,
+        )
+        if (words.isEmpty()) return
+        val cards = words.map { ReadingCard(it.kana, state.pronunciationOf(it), it.meaning) }
+        val start = words.indexOfFirst { it.kana == word.kana }.coerceAtLeast(0)
+        _uiState.update { it.copy(readingFlashcard = ReadingFlashcardState(cards, start)) }
+    }
+
+    /** Flips the current flashcard to reveal its reading + meaning. */
+    fun flashcardReveal() {
+        _uiState.update { s ->
+            val fc = s.readingFlashcard ?: return@update s
+            s.copy(readingFlashcard = fc.copy(revealed = true))
+        }
+    }
+
+    /**
+     * Advances to the next flashcard (wraps), face-down again. Self-graded, so
+     * "Got it" and "Missed" both simply move on — flashcards are study, not scored.
+     */
+    fun flashcardNext() {
+        _uiState.update { s ->
+            val fc = s.readingFlashcard ?: return@update s
+            val next = if (fc.cards.isEmpty()) 0 else (fc.index + 1) % fc.cards.size
+            s.copy(readingFlashcard = fc.copy(index = next, revealed = false))
+        }
+    }
+
+    /** Closes the flashcard overlay, back to the reading Library. */
+    fun closeReadingFlashcards() {
+        _uiState.update { it.copy(readingFlashcard = null) }
     }
 
     /**

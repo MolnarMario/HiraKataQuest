@@ -138,6 +138,18 @@ fun PracticeScreen(
                 )
             }
 
+            uiState.readingFlashcard != null -> {
+                BackHandler { viewModel.closeReadingFlashcards() }
+                ReadingFlashcardScreen(
+                    state = uiState.readingFlashcard ?: return@Surface,
+                    onReveal = viewModel::flashcardReveal,
+                    onNext = viewModel::flashcardNext,
+                    onClose = viewModel::closeReadingFlashcards,
+                    onSpeak = viewModel::speakTts,
+                    ttsStatus = uiState.ttsStatus,
+                )
+            }
+
             uiState.appMode == AppMode.READING || uiState.isLibraryOpen -> {
                 // The Library is the shared hub: Reading always lands here;
                 // Writing opens it on demand. Hardware Back goes to the opening
@@ -157,8 +169,22 @@ fun PracticeScreen(
                     onToggleYoon = viewModel::setIncludeYoon,
                     includeExtended = uiState.includeExtended,
                     onToggleExtended = viewModel::setIncludeExtended,
-                    onPracticeCharacter = viewModel::practiceCharacter,
-                    onPracticeWord = viewModel::practiceWord,
+                    onPracticeCharacter = { ch ->
+                        // Reading mode: tapping an item opens the flashcard flip;
+                        // Writing mode: free handwriting practice (as before).
+                        if (uiState.appMode == AppMode.READING) {
+                            viewModel.openReadingFlashcardsForCharacter(ch)
+                        } else {
+                            viewModel.practiceCharacter(ch)
+                        }
+                    },
+                    onPracticeWord = { w ->
+                        if (uiState.appMode == AppMode.READING) {
+                            viewModel.openReadingFlashcardsForWord(w)
+                        } else {
+                            viewModel.practiceWord(w)
+                        }
+                    },
                     onStartQuiz = {
                         viewModel.openQuiz(
                             kind = if (uiState.appMode == AppMode.READING) {
