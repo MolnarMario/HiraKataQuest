@@ -1,5 +1,6 @@
 package com.hive.hiragana.presentation.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -69,7 +70,12 @@ fun ReadingFlashcardScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                // Tapping the card reveals the answer too (not just the button).
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !state.revealed, onClick = onReveal),
+                ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
