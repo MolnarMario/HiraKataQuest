@@ -26,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
+import com.hive.hiragana.presentation.viewmodels.QuizKind
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.presentation.components.CharacterGuidePanel
@@ -129,6 +130,9 @@ fun PracticeScreen(
                     inkColor = Color(uiState.brushInkColor),
                     characterForm = CharacterForm.HANDWRITTEN,
                     glyphStrokesFor = uiState::ghostStrokesFor,
+                    onReadingResult = viewModel::readingResult,
+                    onSetAnswerStyle = viewModel::setReadingAnswerStyle,
+                    onSetTestMeaning = viewModel::setReadingTestMeaning,
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
                 )
@@ -154,7 +158,15 @@ fun PracticeScreen(
                     onToggleExtended = viewModel::setIncludeExtended,
                     onPracticeCharacter = viewModel::practiceCharacter,
                     onPracticeWord = viewModel::practiceWord,
-                    onStartQuiz = { viewModel.openQuiz() },
+                    onStartQuiz = {
+                        viewModel.openQuiz(
+                            kind = if (uiState.appMode == AppMode.READING) {
+                                QuizKind.READING
+                            } else {
+                                QuizKind.WRITING
+                            },
+                        )
+                    },
                     onClose = {
                         // Reading has no underlying tracing screen to return to,
                         // so its Library closes to the opening "home".
@@ -180,7 +192,16 @@ fun PracticeScreen(
                     onUpdateSetMembers = viewModel::updatePracticeSetMembers,
                     onRenameSet = viewModel::renamePracticeSet,
                     onDeleteSet = viewModel::deletePracticeSet,
-                    onLaunchSetQuiz = { id -> viewModel.openQuiz(id) },
+                    onLaunchSetQuiz = { id ->
+                        viewModel.openQuiz(
+                            id,
+                            kind = if (uiState.appMode == AppMode.READING) {
+                                QuizKind.READING
+                            } else {
+                                QuizKind.WRITING
+                            },
+                        )
+                    },
                     onPracticeSet = viewModel::practiceSet,
                     openSetsManagerSignal = uiState.pendingOpenSetsManager,
                     onConsumeOpenSetsManager = viewModel::consumeOpenSetsManager,

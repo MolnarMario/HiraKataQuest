@@ -69,6 +69,12 @@ enum class SessionPhase {
 /** Stage of the library-launched "Quiz me!" overlay. */
 enum class QuizStage { SETUP, RUNNING, SUMMARY }
 
+/** Which track a quiz belongs to — Writing (handwriting) or Reading (recall). */
+enum class QuizKind { WRITING, READING }
+
+/** How the learner answers a READING quiz item. */
+enum class ReadingAnswerStyle { CHOICE, TYPE }
+
 /**
  * State of the "Quiz me!" overlay: write [characters] one at a time from
  * their romaji prompt alone. The ghost tracing guide stays off while
@@ -136,6 +142,12 @@ data class QuizState(
     // Which source the quiz draws from: null = the active-script character
     // scope (the original behaviour); otherwise a saved practice set's id.
     val selectedSetId: Long? = null,
+    // Reading-quiz configuration (ignored by writing quizzes). READING shows the
+    // printed glyph and asks for the reading; answered by multiple choice or by
+    // typing romaji; words optionally also test the English meaning.
+    val kind: QuizKind = QuizKind.WRITING,
+    val readingAnswerStyle: ReadingAnswerStyle = ReadingAnswerStyle.CHOICE,
+    val readingTestMeaning: Boolean = false,
 ) {
     val current: QuizItem? get() = items.getOrNull(index)
 
@@ -1154,7 +1166,7 @@ class PracticeViewModel(
      * preselect that set as the quiz source (the setup card's source picker
      * lets the learner change it either way).
      */
-    fun openQuiz(setId: Long? = null) {
+    fun openQuiz(setId: Long? = null, kind: QuizKind = QuizKind.WRITING) {
         _uiState.update { state ->
             // Only preselect a set that still exists; otherwise fall back to
             // the default source so the picker never starts on a dangling id.
@@ -1166,6 +1178,7 @@ class PracticeViewModel(
                     requestedCount = 5.coerceAtMost(poolSize),
                     showGrid = state.isGridEnabled,
                     selectedSetId = source,
+                    kind = kind,
                 ),
             )
         }
@@ -1184,6 +1197,43 @@ class PracticeViewModel(
                 quiz = quiz.copy(
                     selectedSetId = setId,
                     requestedCount = quiz.requestedCount.coerceIn(1, poolSize.coerceAtLeast(1)),
+                ),
+            )
+        }
+    }
+
+    /** Reading-quiz setup: multiple-choice vs typed romaji. */
+    fun setReadingAnswerStyle(style: ReadingAnswerStyle) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            state.copy(quiz = quiz.copy(readingAnswerStyle = style))
+        }
+    }
+
+    /** Reading-quiz setup: also test the English meaning (word sources only). */
+    fun setReadingTestMeaning(enabled: Boolean) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            state.copy(quiz = quiz.copy(readingTestMeaning = enabled))
+        }
+    }
+
+    /**
+     * Records a READING answer for the current item: correct → 100, wrong → 0
+     * in [QuizState.results] (the summary reads it), and reveals the item so the
+     * running screen shows the answer + audio before Next. Session-only for now;
+     * persistent reading stats arrive with the reading_progress table.
+     */
+    fun readingResult(correct: Boolean) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            val item = quiz.current ?: return@update state
+            state.copy(
+                quiz = quiz.copy(
+                    revealed = true,
+                    submitted = true,
+                    results = quiz.results + (item.key to if (correct) 100 else 0),
+                    submittedKeys = quiz.submittedKeys + item.key,
                 ),
             )
         }

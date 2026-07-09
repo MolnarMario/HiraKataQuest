@@ -2,6 +2,7 @@ package com.hive.hiragana.presentation.viewmodels
 
 import com.hive.hiragana.domain.audio.PronunciationPlayer
 import com.hive.hiragana.domain.audio.VoiceStatus
+import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.Grade
 import com.hive.hiragana.domain.model.HiraganaCharacter
@@ -246,6 +247,8 @@ class PracticeViewModelTest {
     fun `launch enters free practice on a character by default`() = runTest(dispatcher) {
         val vm = buildViewModel() // librarySection defaults to 0 (Characters)
         advanceUntilIdle()
+        // Launch now shows the opening screen; picking Writing enters free practice.
+        vm.setAppMode(AppMode.WRITING)
 
         val state = vm.uiState.value
         assertEquals(SessionPhase.FREE, state.phase)
@@ -266,6 +269,7 @@ class PracticeViewModelTest {
         settings.sectionPref = 1 // Words
         val vm = buildViewModel(settings = settings, words = listOf(aiWord()))
         advanceUntilIdle()
+        vm.setAppMode(AppMode.WRITING)
 
         val state = vm.uiState.value
         assertEquals(SessionPhase.FREE, state.phase)
@@ -285,6 +289,7 @@ class PracticeViewModelTest {
         settings.sectionPref = 1 // Words, but the fake vocab repo has none
         val vm = buildViewModel(settings = settings)
         advanceUntilIdle()
+        vm.setAppMode(AppMode.WRITING)
 
         val state = vm.uiState.value
         assertEquals(SessionPhase.FREE, state.phase)
@@ -667,6 +672,9 @@ class PracticeViewModelTest {
         override fun setBrushInkColor(color: Int) { brushInkColor = color }
         override fun getCharacterForm(): CharacterForm = characterForm
         override fun setCharacterForm(form: CharacterForm) { characterForm = form }
+        private var appModeValue: AppMode? = null
+        override fun getAppMode(): AppMode? = appModeValue
+        override fun setAppMode(mode: AppMode) { appModeValue = mode }
     }
 
     /** In-memory practice sets, backing a [MutableStateFlow] for observation. */

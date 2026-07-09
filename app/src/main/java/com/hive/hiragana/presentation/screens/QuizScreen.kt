@@ -58,14 +58,18 @@ import com.hive.hiragana.domain.scoring.WordUnitScore
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.presentation.components.PronunciationButton
+import kotlin.random.Random
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
 import com.hive.hiragana.presentation.components.WordAverageCard
 import com.hive.hiragana.presentation.components.WordScoreChips
 import com.hive.hiragana.presentation.theme.InkBlack
 import kotlin.math.roundToInt
+import com.hive.hiragana.domain.model.RomajiMatch
+import com.hive.hiragana.presentation.viewmodels.QuizKind
 import com.hive.hiragana.presentation.viewmodels.QuizStage
 import com.hive.hiragana.presentation.viewmodels.QuizState
+import com.hive.hiragana.presentation.viewmodels.ReadingAnswerStyle
 import com.hive.hiragana.presentation.viewmodels.WordQuizItem
 
 /**
@@ -111,6 +115,10 @@ fun QuizScreen(
     // (the quiz reveals the ghost only after Submit); PRINTED keeps the font.
     characterForm: CharacterForm = CharacterForm.PRINTED,
     glyphStrokesFor: (List<String>) -> List<List<String>> = { emptyList() },
+    // Reading-quiz callbacks (ignored by writing quizzes).
+    onReadingResult: (Boolean) -> Unit = {},
+    onSetAnswerStyle: (ReadingAnswerStyle) -> Unit = {},
+    onSetTestMeaning: (Boolean) -> Unit = {},
     // Pronunciation (device TTS).
     onSpeak: (String) -> Unit = {},
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
@@ -132,25 +140,39 @@ fun QuizScreen(
                 onClose = onClose,
                 scoringMode = scoringMode,
                 onSetScoringMode = onSetScoringMode,
+                onSetAnswerStyle = onSetAnswerStyle,
+                onSetTestMeaning = onSetTestMeaning,
             )
-            QuizStage.RUNNING -> QuizRunning(
-                quiz = quiz,
-                canvasState = canvasState,
-                onToggleGrid = onToggleGrid,
-                onSubmit = onSubmit,
-                onAdvance = onAdvance,
-                onBack = onBack,
-                onClose = onClose,
-                lastScore = lastScore,
-                lastScoredCharacter = lastScoredCharacter,
-                lastWordScores = lastWordScores,
-                lastWordAverage = lastWordAverage,
-                inkColor = inkColor,
-                characterForm = characterForm,
-                glyphStrokesFor = glyphStrokesFor,
-                onSpeak = onSpeak,
-                ttsStatus = ttsStatus,
-            )
+            QuizStage.RUNNING -> if (quiz.kind == QuizKind.READING) {
+                ReadingQuizRunning(
+                    quiz = quiz,
+                    onReadingResult = onReadingResult,
+                    onAdvance = onAdvance,
+                    onBack = onBack,
+                    onClose = onClose,
+                    onSpeak = onSpeak,
+                    ttsStatus = ttsStatus,
+                )
+            } else {
+                QuizRunning(
+                    quiz = quiz,
+                    canvasState = canvasState,
+                    onToggleGrid = onToggleGrid,
+                    onSubmit = onSubmit,
+                    onAdvance = onAdvance,
+                    onBack = onBack,
+                    onClose = onClose,
+                    lastScore = lastScore,
+                    lastScoredCharacter = lastScoredCharacter,
+                    lastWordScores = lastWordScores,
+                    lastWordAverage = lastWordAverage,
+                    inkColor = inkColor,
+                    characterForm = characterForm,
+                    glyphStrokesFor = glyphStrokesFor,
+                    onSpeak = onSpeak,
+                    ttsStatus = ttsStatus,
+                )
+            }
             QuizStage.SUMMARY -> QuizSummary(
                 quiz = quiz,
                 onQuizAgain = onQuizAgain,
@@ -161,6 +183,12 @@ fun QuizScreen(
         }
     }
 }
+
+/** Reading-quiz answer styles shown on the setup card. */
+private val READING_ANSWER_CHOICES = listOf(
+    ReadingAnswerStyle.CHOICE to "Choose",
+    ReadingAnswerStyle.TYPE to "Type",
+)
 
 /** Scoring-mode chips shown on the quiz setup card. */
 private val SCORING_CHOICES = listOf(
@@ -186,10 +214,13 @@ private fun QuizSetup(
     onClose: () -> Unit,
     scoringMode: ScoringMode,
     onSetScoringMode: (ScoringMode) -> Unit,
+    onSetAnswerStyle: (ReadingAnswerStyle) -> Unit,
+    onSetTestMeaning: (Boolean) -> Unit,
 ) {
     val selectedSet = practiceSets.firstOrNull { it.id == quiz.selectedSetId }
     val isWordSource = selectedSet?.type == PracticeSetType.WORDS
     val itemNoun = if (isWordSource) "words" else "characters"
+    val reading = quiz.kind == QuizKind.READING
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -223,13 +254,18 @@ private fun QuizSetup(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Text(
-                        text = "Write from memory",
+                        text = if (reading) "Read from sight" else "Write from memory",
                         style = MaterialTheme.typography.titleLarge,
                     )
                     Text(
-                        text = "Each item is prompted by its sound only — no ghost " +
-                            "guide to trace. Write it, check the answer, see your " +
-                            "score.",
+                        text = if (reading) {
+                            "See the printed character or word and recall its " +
+                                "reading — by choosing or typing the romaji."
+                        } else {
+                            "Each item is prompted by its sound only — no ghost " +
+                                "guide to trace. Write it, check the answer, see your " +
+                                "score."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -274,45 +310,85 @@ private fun QuizSetup(
                         deckSize = deckSize,
                         onSetCount = onSetCount,
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Practice grid",
-                                style = MaterialTheme.typography.titleSmall,
-                            )
-                            Text(
-                                text = "The crosshair cell behind your writing",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    if (reading) {
+                        Text(
+                            text = "How do you want to answer?",
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            READING_ANSWER_CHOICES.forEachIndexed { index, (style, label) ->
+                                SegmentedButton(
+                                    selected = style == quiz.readingAnswerStyle,
+                                    onClick = { onSetAnswerStyle(style) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = READING_ANSWER_CHOICES.size,
+                                    ),
+                                    icon = {},
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                        if (isWordSource) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Also test meaning",
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        text = "As well as the reading, ask what the word means.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Switch(
+                                    checked = quiz.readingTestMeaning,
+                                    onCheckedChange = onSetTestMeaning,
+                                )
+                            }
+                        }
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Practice grid",
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Text(
+                                    text = "The crosshair cell behind your writing",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = quiz.showGrid,
+                                onCheckedChange = { onToggleGrid() },
                             )
                         }
-                        Switch(
-                            checked = quiz.showGrid,
-                            onCheckedChange = { onToggleGrid() },
+                        Text(
+                            text = "Score my writing",
+                            style = MaterialTheme.typography.titleSmall,
                         )
-                    }
-                    Text(
-                        text = "Score my writing",
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(
-                        text = "Form rewards correct shape and stroke order; Fit rewards " +
-                            "filling the box. This setting sticks across all practice.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        SCORING_CHOICES.forEachIndexed { index, (mode, label) ->
-                            SegmentedButton(
-                                selected = mode == scoringMode,
-                                onClick = { onSetScoringMode(mode) },
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = SCORING_CHOICES.size,
-                                ),
-                                icon = {},
-                                label = { Text(label) },
-                            )
+                        Text(
+                            text = "Form rewards correct shape and stroke order; Fit rewards " +
+                                "filling the box. This setting sticks across all practice.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SCORING_CHOICES.forEachIndexed { index, (mode, label) ->
+                                SegmentedButton(
+                                    selected = mode == scoringMode,
+                                    onClick = { onSetScoringMode(mode) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = SCORING_CHOICES.size,
+                                    ),
+                                    icon = {},
+                                    label = { Text(label) },
+                                )
+                            }
                         }
                     }
                     Button(
@@ -322,6 +398,247 @@ private fun QuizSetup(
                         Text("Start quiz")
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The READING quiz's running screen: show the printed (gothic) glyph/word and
+ * have the learner recall its reading — by picking or typing the romaji, and
+ * optionally the English meaning for words. No canvas. On answering, the item
+ * reveals (correctness + reading + meaning + audio) via [onReadingResult]; Next
+ * advances. The prompt is [QuizItem.answer] (the glyph) — the inverse of the
+ * writing quiz, whose prompt is the romaji.
+ */
+@Composable
+private fun ReadingQuizRunning(
+    quiz: QuizState,
+    onReadingResult: (Boolean) -> Unit,
+    onAdvance: () -> Unit,
+    onBack: () -> Unit,
+    onClose: () -> Unit,
+    onSpeak: (String) -> Unit,
+    ttsStatus: VoiceStatus,
+) {
+    val current = quiz.current ?: return
+    var showExitConfirm by rememberSaveable { mutableStateOf(false) }
+    val needMeaning = quiz.readingTestMeaning && current.subtitle != null
+
+    // Per-item answer state; resets when the index changes.
+    var romajiOk by remember(quiz.index) { mutableStateOf<Boolean?>(null) }
+    var meaningOk by remember(quiz.index) { mutableStateOf<Boolean?>(null) }
+    var typed by remember(quiz.index) { mutableStateOf("") }
+
+    val romajiOptions = remember(quiz.index) {
+        readingOptions(current.prompt, quiz.items.map { it.prompt }, quiz.index)
+    }
+    val meaningOptions = remember(quiz.index) {
+        readingOptions(current.subtitle.orEmpty(), quiz.items.mapNotNull { it.subtitle }, quiz.index + 7)
+    }
+
+    fun finish() {
+        onReadingResult(romajiOk == true && (!needMeaning || meaningOk == true))
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(onClick = { showExitConfirm = true }) { Text("Exit") }
+            IconButton(onClick = onBack, enabled = quiz.index > 0) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous")
+            }
+            Text(
+                text = "Read ${quiz.index + 1}/${quiz.items.size}",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // The printed prompt — the real-world (gothic) form to recognize.
+            Text(
+                text = current.answer,
+                style = MaterialTheme.typography.displayMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 20.dp),
+            )
+
+            if (quiz.revealed) {
+                ReadingRevealCard(
+                    item = current,
+                    romajiOk = romajiOk == true,
+                    meaningOk = if (needMeaning) meaningOk == true else null,
+                    onSpeak = onSpeak,
+                    ttsStatus = ttsStatus,
+                )
+            } else if (romajiOk == null) {
+                Text("What's the reading?", style = MaterialTheme.typography.titleSmall)
+                ReadingAnswerInput(
+                    style = quiz.readingAnswerStyle,
+                    options = romajiOptions,
+                    expected = current.prompt,
+                    typed = typed,
+                    onTypedChange = { typed = it },
+                    onAnswered = { ok ->
+                        romajiOk = ok
+                        typed = ""
+                        if (!needMeaning) finish()
+                    },
+                )
+            } else {
+                // Romaji answered; if meaning is being tested, ask it (always as
+                // multiple choice — typing an English gloss would be too strict).
+                Text(
+                    text = "Reading: ${current.prompt}  ${if (romajiOk == true) "✓" else "✗"}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (romajiOk == true) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+                if (needMeaning && meaningOk == null) {
+                    Text("What does it mean?", style = MaterialTheme.typography.titleSmall)
+                    ReadingAnswerInput(
+                        style = ReadingAnswerStyle.CHOICE,
+                        options = meaningOptions,
+                        expected = current.subtitle.orEmpty(),
+                        typed = "",
+                        onTypedChange = {},
+                        onAnswered = { ok -> meaningOk = ok; finish() },
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            if (quiz.revealed) {
+                Button(onClick = onAdvance) {
+                    Text(if (quiz.isLast) "Finish" else "Next")
+                }
+            } else {
+                TextButton(onClick = onAdvance) { Text("Skip") }
+            }
+        }
+    }
+
+    if (showExitConfirm) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirm = false },
+            title = { Text("Exit quiz?") },
+            text = { Text("Your answered items are saved.") },
+            confirmButton = {
+                TextButton(onClick = { showExitConfirm = false; onClose() }) { Text("Exit") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitConfirm = false }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+/** MCQ options for one reading item: the correct answer plus up to 3 distinct distractors, order fixed per item. */
+private fun readingOptions(correct: String, pool: List<String>, seed: Int): List<String> {
+    val distractors = pool.filter { it != correct }.distinct().shuffled(Random(seed.toLong())).take(3)
+    return (distractors + correct).shuffled(Random(seed.toLong() + 1))
+}
+
+/** One reading answer surface: a column of choice buttons, or a romaji text field + Check. */
+@Composable
+private fun ReadingAnswerInput(
+    style: ReadingAnswerStyle,
+    options: List<String>,
+    expected: String,
+    typed: String,
+    onTypedChange: (String) -> Unit,
+    onAnswered: (Boolean) -> Unit,
+) {
+    if (style == ReadingAnswerStyle.CHOICE) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            options.forEach { option ->
+                OutlinedButton(
+                    onClick = { onAnswered(option == expected) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(option)
+                }
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            OutlinedTextField(
+                value = typed,
+                onValueChange = onTypedChange,
+                singleLine = true,
+                label = { Text("Type the romaji") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = { onAnswered(RomajiMatch.matches(typed, expected)) },
+                enabled = typed.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Check")
+            }
+        }
+    }
+}
+
+/** Post-answer reveal: correctness, the reading, the meaning, and an audio button. */
+@Composable
+private fun ReadingRevealCard(
+    item: com.hive.hiragana.presentation.viewmodels.QuizItem,
+    romajiOk: Boolean,
+    meaningOk: Boolean?,
+    onSpeak: (String) -> Unit,
+    ttsStatus: VoiceStatus,
+) {
+    val allOk = romajiOk && (meaningOk != false)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = if (allOk) "Correct!" else "Not quite",
+                style = MaterialTheme.typography.titleMedium,
+                color = if (allOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = item.prompt,
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                PronunciationButton(
+                    glyph = item.answer,
+                    status = ttsStatus,
+                    onSpeak = onSpeak,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+            item.subtitle?.let { meaning ->
+                Text(text = meaning, style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
