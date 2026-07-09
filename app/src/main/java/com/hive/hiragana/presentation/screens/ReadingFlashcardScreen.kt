@@ -2,6 +2,7 @@ package com.hive.hiragana.presentation.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -129,37 +130,56 @@ fun ReadingFlashcardScreen(
                 Switch(checked = typingMode, onCheckedChange = { typingMode = it })
             }
 
-            // Card area — scrollable + weighted so the glyph stays visible when
-            // the keyboard shrinks the available height.
-            Column(
+            // Card area — sizes itself to the available height so the WHOLE card
+            // (glyph + the revealed reading, audio, and meaning) stays within
+            // view. When the keyboard shrinks the space the glyph scales down
+            // (display → medium → small) and paddings tighten, instead of the
+            // reveal overflowing; a scroll is kept as a last-resort safety net.
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+                    .fillMaxWidth(),
             ) {
-                Card(
+                val avail = maxHeight
+                val glyphStyle = when {
+                    avail >= 360.dp -> MaterialTheme.typography.displayLarge
+                    avail >= 240.dp -> MaterialTheme.typography.displayMedium
+                    else -> MaterialTheme.typography.displaySmall
+                }
+                val vPad = when {
+                    avail >= 360.dp -> 36.dp
+                    avail >= 240.dp -> 22.dp
+                    else -> 14.dp
+                }
+                val gap = if (avail >= 360.dp) 14.dp else 8.dp
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        // Tapping the card reveals too — but only in reveal mode
-                        // (typing mode reveals via Check / the keyboard's Done).
-                        .clickable(enabled = !state.revealed && !typingMode, onClick = onReveal),
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
-                    Column(
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 40.dp, horizontal = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                            // Tapping the card reveals too — but only in reveal mode
+                            // (typing mode reveals via Check / the keyboard's Done).
+                            .clickable(enabled = !state.revealed && !typingMode, onClick = onReveal),
                     ) {
-                        Text(
-                            text = card.glyph,
-                            style = MaterialTheme.typography.displayLarge,
-                            textAlign = TextAlign.Center,
-                        )
-                        if (state.revealed) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = vPad, horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(gap),
+                        ) {
+                            Text(
+                                text = card.glyph,
+                                style = glyphStyle,
+                                textAlign = TextAlign.Center,
+                            )
+                            if (state.revealed) {
                             if (typingMode && typedCorrect != null) {
                                 Text(
                                     text = if (typedCorrect == true) "Correct!" else "Not quite",
@@ -194,6 +214,7 @@ fun ReadingFlashcardScreen(
                         }
                     }
                 }
+            }
             }
 
             // Bottom section: field (typing mode) + the primary action.
