@@ -426,6 +426,7 @@ fun LibraryScreen(
                     words.filter { it.script == selectionScript }
                 },
                 scoreStats = scoreStats,
+                pronunciation = pronunciation,
                 selectedValues = selectedValues,
                 onToggle = { value ->
                     if (value in selectedValues) selectedValues.remove(value)
@@ -1542,6 +1543,39 @@ private fun VocabularyWord.matches(query: String, romaji: String): Boolean =
         meaning.searchNormalize().contains(query) ||
         romaji.searchNormalize().contains(query)
 
+/**
+ * A slim autofocused search field used by the practice-set screens (the set
+ * builder's item list and the sets manager): a leading magnifier plus a trailing
+ * clear that empties the query. Toggled open by a magnifier icon in each header.
+ */
+@Composable
+private fun PracticeSetSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester),
+        placeholder = { Text(placeholder) },
+        leadingIcon = { Icon(imageVector = Icons.Filled.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(imageVector = Icons.Filled.Close, contentDescription = "Clear search")
+                }
+            }
+        },
+        singleLine = true,
+    )
+}
+
 @Composable
 private fun NoMatchesMessage(query: String, what: String) {
     Text(
@@ -1622,7 +1656,13 @@ private fun LibraryRow(
 // ---- Practice-set selection mode & manager -----------------------------
 
 /** One selectable entry (character glyph or word kana) shown during selection. */
-private data class SelectionRow(val value: String, val glyph: String, val label: String)
+private data class SelectionRow(
+    val value: String,
+    val glyph: String,
+    val label: String,
+    // Pre-normalized glyph + reading + meaning/id, for whitespace/case-insensitive search.
+    val search: String,
+)
 
 /**
  * Selection mode: the FULL list for one tab+script (ignoring the Study Scope
@@ -1638,6 +1678,7 @@ private fun SelectionModeContent(
     characters: List<HiraganaCharacter>,
     words: List<VocabularyWord>,
     scoreStats: Map<String, CharacterScoreSummary>,
+    pronunciation: (VocabularyWord) -> String,
     selectedValues: List<String>,
     onToggle: (String) -> Unit,
     onSetSelected: (String, Boolean) -> Unit,
@@ -1648,9 +1689,23 @@ private fun SelectionModeContent(
 ) {
     val rows = remember(type, characters, words) {
         if (type == PracticeSetType.CHARACTERS) {
-            characters.map { SelectionRow(it.character, it.character, it.romaji) }
+            characters.map {
+                SelectionRow(
+                    value = it.character,
+                    glyph = it.character,
+                    label = it.romaji,
+                    search = "${it.character} ${it.romaji} ${it.id}".searchNormalize(),
+                )
+            }
         } else {
-            words.map { SelectionRow(it.kana, it.kana, it.meaning) }
+            words.map {
+                SelectionRow(
+                    value = it.kana,
+                    glyph = it.kana,
+                    label = it.meaning,
+                    search = "${it.kana} ${pronunciation(it)} ${it.meaning}".searchNormalize(),
+                )
+            }
         }
     }
     // O(1) membership for the rows (the backing list's .contains is O(n)); this
@@ -1660,10 +1715,19 @@ private fun SelectionModeContent(
 
     var gridView by remember { mutableStateOf(false) }
 
+    // Search filters the list/grid by glyph, reading, or meaning (session-local).
+    var searching by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val normalizedQuery = remember(query) { query.trim().searchNormalize() }
+    val filteredRows = remember(rows, normalizedQuery) {
+        if (normalizedQuery.isEmpty()) rows
+        else rows.filter { it.search.contains(normalizedQuery) }
+    }
+
     // List-mode sort by scored history (session-local); grid mode keeps deck order.
     var selectionSort by remember { mutableStateOf(ItemSort.DEFAULT) }
-    val sortedRows = remember(rows, selectionSort, scoreStats) {
-        rows.sortedByScore(selectionSort) { scoreStats[it.value] }
+    val sortedRows = remember(filteredRows, selectionSort, scoreStats) {
+        filteredRows.sortedByScore(selectionSort) { scoreStats[it.value] }
     }
 
     // "All" opens a smart-select popup: cap the selection to items scoring under
@@ -1699,6 +1763,24 @@ private fun SelectionModeContent(
                     text = "${selectedValues.size} selected",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Search the selectable list by glyph / reading / meaning. Toggles a
+            // full-width field below the header; closing it clears the query.
+            IconButton(
+                onClick = {
+                    if (searching) {
+                        searching = false
+                        query = ""
+                    } else {
+                        searching = true
+                    }
+                },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    imageVector = if (searching) Icons.Filled.Close else Icons.Filled.Search,
+                    contentDescription = if (searching) "Close search" else "Search $noun",
                 )
             }
             // Sort by scored history — list mode only (grid keeps deck order),
@@ -1828,11 +1910,19 @@ private fun SelectionModeContent(
                 contentPadding = PaddingValues(horizontal = 12.dp),
             ) { Text("Save") }
         }
+        if (searching) {
+            PracticeSetSearchField(
+                query = query,
+                onQueryChange = { query = it },
+                placeholder = "Search $noun",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
         HorizontalDivider()
-        if (gridView) {
-            SelectableGrid(rows, selectedSet, onToggle, onSetSelected)
-        } else {
-            SelectableList(sortedRows, selectedSet, scoreStats, onToggle, onSetSelected)
+        when {
+            filteredRows.isEmpty() -> NoMatchesMessage(query.trim(), noun)
+            gridView -> SelectableGrid(filteredRows, selectedSet, onToggle, onSetSelected)
+            else -> SelectableList(sortedRows, selectedSet, scoreStats, onToggle, onSetSelected)
         }
     }
 }
@@ -2256,6 +2346,14 @@ private fun SetsManagerContent(
             SetSort.SCORE_ASC -> practiceSets.sortedBy { scoreOf[it.id] ?: Int.MAX_VALUE }
         }
     }
+    // Search filters the (already sorted) sets by name (session-local).
+    var searching by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val normalizedQuery = remember(query) { query.trim().searchNormalize() }
+    val visibleSets = remember(sortedSets, normalizedQuery) {
+        if (normalizedQuery.isEmpty()) sortedSets
+        else sortedSets.filter { it.name.searchNormalize().contains(normalizedQuery) }
+    }
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -2274,12 +2372,38 @@ private fun SetsManagerContent(
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.weight(1f),
             )
+            if (practiceSets.isNotEmpty()) {
+                IconButton(
+                    onClick = {
+                        if (searching) {
+                            searching = false
+                            query = ""
+                        } else {
+                            searching = true
+                        }
+                    },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        imageVector = if (searching) Icons.Filled.Close else Icons.Filled.Search,
+                        contentDescription = if (searching) "Close search" else "Search sets",
+                    )
+                }
+            }
             if (practiceSets.size > 1) {
                 SetSortMenu(sortMode = sortMode, onSelect = { sortMode = it })
             }
             TextButton(onClick = onAddSet) {
                 Text("New", style = MaterialTheme.typography.titleMedium)
             }
+        }
+        if (searching) {
+            PracticeSetSearchField(
+                query = query,
+                onQueryChange = { query = it },
+                placeholder = "Search sets",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
         }
         HorizontalDivider()
         if (practiceSets.isEmpty()) {
@@ -2290,13 +2414,20 @@ private fun SetsManagerContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(16.dp),
             )
+        } else if (visibleSets.isEmpty()) {
+            Text(
+                text = "No sets match “${query.trim()}”.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(16.dp),
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(sortedSets, key = { it.id }) { set ->
+                items(visibleSets, key = { it.id }) { set ->
                     SetManagerRow(
                         set = set,
                         score = scoreOf[set.id],
