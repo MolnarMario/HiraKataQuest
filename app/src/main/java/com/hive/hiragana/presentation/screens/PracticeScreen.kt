@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.scoring.ScoringMode
@@ -87,6 +88,11 @@ fun PracticeScreen(
                 }
             }
 
+            uiState.appMode == null -> {
+                // Home: pick a track. Back here falls through to the system (exit).
+                OpeningScreen(onPick = viewModel::setAppMode)
+            }
+
             uiState.quiz != null -> {
                 BackHandler { viewModel.closeQuiz() }
                 QuizScreen(
@@ -128,11 +134,12 @@ fun PracticeScreen(
                 )
             }
 
-            uiState.isLibraryOpen -> {
-                // No BackHandler here: the Library is "home", so a hardware
-                // Back press falls through to the system and exits the app
-                // (Practice → Back → Library → Back → exit). The in-app
-                // Back arrow still returns to practice via onClose.
+            uiState.appMode == AppMode.READING || uiState.isLibraryOpen -> {
+                // The Library is the shared hub: Reading always lands here;
+                // Writing opens it on demand. Hardware Back goes to the opening
+                // "home" screen (home → Back → exit). The in-app Back arrow
+                // returns to writing practice via onClose.
+                BackHandler { viewModel.goToOpening() }
                 LibraryScreen(
                     characters = uiState.characters,
                     words = uiState.allWords,
@@ -148,7 +155,15 @@ fun PracticeScreen(
                     onPracticeCharacter = viewModel::practiceCharacter,
                     onPracticeWord = viewModel::practiceWord,
                     onStartQuiz = { viewModel.openQuiz() },
-                    onClose = viewModel::closeLibrary,
+                    onClose = {
+                        // Reading has no underlying tracing screen to return to,
+                        // so its Library closes to the opening "home".
+                        if (uiState.appMode == AppMode.READING) {
+                            viewModel.goToOpening()
+                        } else {
+                            viewModel.closeLibrary()
+                        }
+                    },
                     isGridView = uiState.isLibraryGridView,
                     onSetGridView = viewModel::setLibraryGridView,
                     characterForm = uiState.characterForm,

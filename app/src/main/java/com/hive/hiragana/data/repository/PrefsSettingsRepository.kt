@@ -2,6 +2,7 @@ package com.hive.hiragana.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.Script
@@ -105,6 +106,13 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putString(KEY_CHARACTER_FORM, form.prefValue).apply()
     }
 
+    override fun getAppMode(): AppMode? =
+        AppMode.fromPrefValue(prefs.getString(KEY_APP_MODE, null))
+
+    override fun setAppMode(mode: AppMode) {
+        prefs.edit().putString(KEY_APP_MODE, mode.prefValue).apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "settings"
         const val KEY_GRID_ENABLED = "grid_enabled"
@@ -120,6 +128,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_DEFAULT_SETS_SEEDED = "default_sets_seeded"
         const val KEY_BRUSH_INK_COLOR = "brush_ink_color"
         const val KEY_CHARACTER_FORM = "character_form"
+        const val KEY_APP_MODE = "app_mode"
 
         // Default ARGB = presentation.theme.InkBlack (0xFF20222E); hardcoded so
         // the data layer needn't depend on a Compose Color.

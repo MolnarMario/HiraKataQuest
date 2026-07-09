@@ -26,6 +26,7 @@ import com.hive.hiragana.domain.repository.HandwritingRecognizer
 import com.hive.hiragana.domain.repository.PracticeRepository
 import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
+import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.repository.SettingsRepository
 import com.hive.hiragana.domain.repository.VocabularyRepository
@@ -223,6 +224,10 @@ data class PracticeUiState(
     // rendering choice — the stroke-order demo and the scorer always use the
     // KanjiVG strokes, so this switches only the ghost's rendering.
     val characterForm: CharacterForm = CharacterForm.PRINTED,
+    // The chosen top-level track (Reading / Writing). null = not chosen yet →
+    // the opening screen is shown. Durable across scope rebuilds; reset to null
+    // only when the learner goes back to the opening "home".
+    val appMode: AppMode? = null,
     // Latest computed quality score, shown as advisory feedback after a graded
     // single character. Null when scoring is off/unavailable or on word steps.
     // Purely transient UI state — never persisted.
@@ -514,7 +519,13 @@ class PracticeViewModel(
                 }
                 if (load.characters.isNotEmpty()) {
                     seedDefaultSetsIfNeeded(load.characters, load.allWords)
-                    enterFreePracticeFromLastSection()
+                    // Don't auto-enter a track on launch — the opening screen
+                    // (appMode == null) lets the learner pick Reading or Writing.
+                    // Only Writing needs its free-practice item set up eagerly;
+                    // Reading renders the Library hub via its own screen branch.
+                    if (_uiState.value.appMode == AppMode.WRITING) {
+                        enterFreePracticeFromLastSection()
+                    }
                 }
             }.onFailure { error ->
                 Log.w(TAG, "Failed to start practice", error)
@@ -752,6 +763,7 @@ class PracticeViewModel(
         includeYoon = includeYoon,
         includeExtended = includeExtended,
         characterForm = characterForm,
+        appMode = appMode,
         canvasClearKey = canvasClearKey + 1,
     )
 
@@ -876,6 +888,25 @@ class PracticeViewModel(
         if (form == _uiState.value.characterForm) return
         settingsRepository.setCharacterForm(form)
         _uiState.update { it.copy(characterForm = form) }
+    }
+
+    /**
+     * Picks (or switches to) a top-level track. Persisted. Writing sets up its
+     * free-practice item eagerly; Reading is rendered as the Library hub by its
+     * own screen branch. Called both from the opening screen and from the
+     * Study-scope Reading/Writing toggle (which lives inside the Library, so it
+     * reads as an in-place switch — the Library stays open across the flip).
+     */
+    fun setAppMode(mode: AppMode) {
+        if (mode == _uiState.value.appMode) return
+        settingsRepository.setAppMode(mode)
+        _uiState.update { it.copy(appMode = mode) }
+        if (mode == AppMode.WRITING) enterFreePracticeFromLastSection()
+    }
+
+    /** Returns to the opening screen ("home"); keeps the persisted last mode. */
+    fun goToOpening() {
+        _uiState.update { it.copy(appMode = null, isLibraryOpen = false) }
     }
 
     /**
