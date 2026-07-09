@@ -148,9 +148,16 @@ private fun CharacterScoreSummary?.avgScore(): Int? = this?.avgForm ?: this?.avg
 /** The best score used for sorting: best form, falling back to best fit. */
 private fun CharacterScoreSummary?.bestScore(): Int? = this?.bestForm ?: this?.bestFit
 
-/** Sort orders for the character/word lists (browse + selection), by scored history. */
-private enum class ItemSort { DEFAULT, AVG_DESC, AVG_ASC, BEST_DESC, BEST_ASC }
+/**
+ * Sort orders for the character/word lists. Writing mode uses AVG/BEST (from the
+ * handwriting scorer); Reading mode uses AVG/MC/TYPE (the reading percentages).
+ * DEFAULT is the incoming gojūon order.
+ */
+private enum class ItemSort {
+    DEFAULT, AVG_DESC, AVG_ASC, BEST_DESC, BEST_ASC, MC_DESC, MC_ASC, TYPE_DESC, TYPE_ASC
+}
 
+/** Writing-mode sort options (average + best). */
 private val ITEM_SORT_OPTIONS = listOf(
     ItemSort.DEFAULT to "Default order",
     ItemSort.AVG_DESC to "Average: High → Low",
@@ -159,20 +166,55 @@ private val ITEM_SORT_OPTIONS = listOf(
     ItemSort.BEST_ASC to "Best: Low → High",
 )
 
+/** Reading-mode sort options: alphabetical + the three reading percentages, both ways. */
+private val READING_SORT_OPTIONS = listOf(
+    ItemSort.DEFAULT to "Default order",
+    ItemSort.AVG_DESC to "Average: High → Low",
+    ItemSort.AVG_ASC to "Average: Low → High",
+    ItemSort.MC_DESC to "Multiple choice: High → Low",
+    ItemSort.MC_ASC to "Multiple choice: Low → High",
+    ItemSort.TYPE_DESC to "Typed: High → Low",
+    ItemSort.TYPE_ASC to "Typed: Low → High",
+)
+
 /**
- * Reorder a list by scored history (average or best). Unscored items — those the
- * user has not practiced yet — sink to the end in BOTH directions. Stable, so the
- * incoming (gojūon) order breaks ties and DEFAULT is a no-op.
+ * Reorder a list by handwriting-scored history (average or best). Unscored items
+ * sink to the end in BOTH directions. Stable, so the gojūon order breaks ties and
+ * DEFAULT is a no-op. Reading-only sort modes fall through to DEFAULT here.
  */
 private fun <T> List<T>.sortedByScore(
     mode: ItemSort,
     scoreOf: (T) -> CharacterScoreSummary?,
 ): List<T> = when (mode) {
-    ItemSort.DEFAULT -> this
     ItemSort.AVG_DESC -> sortedByDescending { scoreOf(it).avgScore() ?: Int.MIN_VALUE }
     ItemSort.AVG_ASC -> sortedBy { scoreOf(it).avgScore() ?: Int.MAX_VALUE }
     ItemSort.BEST_DESC -> sortedByDescending { scoreOf(it).bestScore() ?: Int.MIN_VALUE }
     ItemSort.BEST_ASC -> sortedBy { scoreOf(it).bestScore() ?: Int.MAX_VALUE }
+    else -> this
+}
+
+/**
+ * Reorder a list by reading accuracy (average / multiple-choice / typed). Items
+ * not yet quizzed in that style sink to the end in both directions.
+ */
+private fun <T> List<T>.sortedByReading(
+    mode: ItemSort,
+    statOf: (T) -> ReadingProgress?,
+): List<T> = when (mode) {
+    ItemSort.AVG_DESC -> sortedByDescending { statOf(it)?.colorPercent ?: Int.MIN_VALUE }
+    ItemSort.AVG_ASC -> sortedBy { statOf(it)?.colorPercent ?: Int.MAX_VALUE }
+    ItemSort.MC_DESC -> sortedByDescending { statOf(it)?.mcqPercent ?: Int.MIN_VALUE }
+    ItemSort.MC_ASC -> sortedBy { statOf(it)?.mcqPercent ?: Int.MAX_VALUE }
+    ItemSort.TYPE_DESC -> sortedByDescending { statOf(it)?.typePercent ?: Int.MIN_VALUE }
+    ItemSort.TYPE_ASC -> sortedBy { statOf(it)?.typePercent ?: Int.MAX_VALUE }
+    else -> this
+}
+
+/** Reading-mode list-row subtitle: the three percentages (– until that style is tried). */
+private fun readingSubtitle(stat: ReadingProgress?): String {
+    if (stat == null) return "Not quizzed yet"
+    fun p(v: Int?) = v?.let { "$it%" } ?: "–"
+    return "MC ${p(stat.mcqPercent)} · Type ${p(stat.typePercent)} · Avg ${p(stat.colorPercent)}"
 }
 
 /**
@@ -416,11 +458,19 @@ fun LibraryScreen(
     // List-mode sort by scored history (both tabs share one order). Session-local
     // like the sets-manager sort; the chart/grid and tab counts stay unsorted.
     var listSort by remember { mutableStateOf(ItemSort.DEFAULT) }
-    val sortedCharacters = remember(filteredCharacters, listSort, scoreStats) {
-        filteredCharacters.sortedByScore(listSort) { scoreStats[it.character] }
+    val sortedCharacters = remember(filteredCharacters, listSort, scoreStats, readingStats, appMode) {
+        if (appMode == AppMode.READING) {
+            filteredCharacters.sortedByReading(listSort) { readingStats[it.character] }
+        } else {
+            filteredCharacters.sortedByScore(listSort) { scoreStats[it.character] }
+        }
     }
-    val sortedWords = remember(filteredWords, listSort, scoreStats) {
-        filteredWords.sortedByScore(listSort) { scoreStats[it.kana] }
+    val sortedWords = remember(filteredWords, listSort, scoreStats, readingStats, appMode) {
+        if (appMode == AppMode.READING) {
+            filteredWords.sortedByReading(listSort) { readingStats[it.kana] }
+        } else {
+            filteredWords.sortedByScore(listSort) { scoreStats[it.kana] }
+        }
     }
     // Jump back to the top whenever the order changes, so the new first items are
     // visible instead of being left scrolled down in the previous order's tail.
@@ -515,6 +565,7 @@ fun LibraryScreen(
                 showSort = !gridMode,
                 sortMode = listSort,
                 onSortSelected = { listSort = it },
+                sortOptions = if (appMode == AppMode.READING) READING_SORT_OPTIONS else ITEM_SORT_OPTIONS,
             )
 
             TabRow(selectedTabIndex = selectedTab) {
@@ -561,10 +612,14 @@ fun LibraryScreen(
                                 onClick = { onPracticeCharacter(character) },
                                 glyph = character.character,
                                 title = character.romaji,
-                                subtitle = characterSubtitle(
-                                    character.strokeCount,
-                                    scoreStats[character.character],
-                                ),
+                                subtitle = if (appMode == AppMode.READING) {
+                                    readingSubtitle(readingStats[character.character])
+                                } else {
+                                    characterSubtitle(
+                                        character.strokeCount,
+                                        scoreStats[character.character],
+                                    )
+                                },
                                 score = scoreStats[character.character].avgScore(),
                                 showPronunciation = true,
                                 onSpeak = onSpeak,
@@ -580,7 +635,11 @@ fun LibraryScreen(
                                 onClick = { onPracticeWord(word) },
                                 glyph = word.kana,
                                 title = word.meaning,
-                                subtitle = pronunciation(word),
+                                subtitle = if (appMode == AppMode.READING) {
+                                    readingSubtitle(readingStats[word.kana])
+                                } else {
+                                    pronunciation(word)
+                                },
                                 score = scoreStats[word.kana].avgScore(),
                                 showPronunciation = true,
                                 onSpeak = onSpeak,
@@ -688,6 +747,7 @@ private fun LibraryTopBar(
     showSort: Boolean,
     sortMode: ItemSort,
     onSortSelected: (ItemSort) -> Unit,
+    sortOptions: List<Pair<ItemSort, String>> = ITEM_SORT_OPTIONS,
 ) {
     TopAppBar(
         windowInsets = WindowInsets(0, 0, 0, 0),
@@ -803,7 +863,7 @@ private fun LibraryTopBar(
                     SortMenu(
                         contentDescription = "Sort list",
                         label = null,
-                        options = ITEM_SORT_OPTIONS,
+                        options = sortOptions,
                         selected = sortMode,
                         onSelect = onSortSelected,
                     )
