@@ -434,6 +434,16 @@ private fun UpdateDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    // Calm the sideload-install scare: Android/Play Protect shows a
+                    // security warning for apps not from the Play Store. Tell the
+                    // user up front so "Install anyway" reads as expected, not alarming.
+                    Text(
+                        text = "Heads up: Android may show a security warning — tap " +
+                            "\"More details\", then \"Install anyway\". That's expected " +
+                            "for apps installed outside the Play Store.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             },
             confirmButton = { TextButton(onClick = onUpdate) { Text("Update") } },
