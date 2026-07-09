@@ -33,17 +33,18 @@ Since the post-Phase-3 stroke rework, the `strokes[]` geometry in those assets i
 <http://kanjivg.tagaini.net>) rather than hand-authored — see the import
 pipeline in §1; yōon and extended-katakana composites have no single KanjiVG
 file, so their strokes are **composed** from the base kana + a small kana. Room
-is **v4** and **unchanged by the content additions above**: those characters
+is **v5** and **unchanged by the content additions above**: those characters
 (ids like `kata_a`, `ga`, `kya`, `kata_fu_a`, `sokuon`) and words are just new
-rows in the existing tables — no migration. The schema itself grew three times: the
+rows in the existing tables — no migration. The schema itself grew four times: the
 Phase 3 v1→v2 migration renamed the original graded-attempts table to
 `practice_history` and added three tables for spaced-repetition state,
 introduction progress, and vocabulary unlocks; a later v2→v3 migration added
-three nullable handwriting-score columns to `practice_history`; and a v3→v4
+three nullable handwriting-score columns to `practice_history`; a v3→v4
 migration added two tables for **practice sets** — user-curated lists of
-characters or words (§5). No network, no user-editable *asset* data; the three
-migrations (`MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`) are the project's
-only ones.
+characters or words (§5); and a v4→v5 migration added the `reading_progress`
+table for the **Reading track**'s per-item quiz accuracy (§5). No network, no
+user-editable *asset* data; the four migrations (`MIGRATION_1_2`,
+`MIGRATION_2_3`, `MIGRATION_3_4`, `MIGRATION_4_5`) are the project's only ones.
 
 [Script]: ../app/src/main/java/com/hive/hiragana/domain/model/Script.kt
 [KanaKind]: ../app/src/main/java/com/hive/hiragana/domain/model/KanaKind.kt
@@ -421,21 +422,22 @@ and `vocabulary_progress` tables one-for-one (§5).
 
 ## 5. Room persistence
 
-All in `app/src/main/java/com/hive/hiragana/data/local/`. The schema is at **v4**.
+All in `app/src/main/java/com/hive/hiragana/data/local/`. The schema is at **v5**.
 **Phase 3 upgraded the database from v1 to v2** — additive changes plus one rename,
 via a real `Migration`, no destructive fallback — a later handwriting-scoring
-change upgraded **v2 to v3**, purely additive (three nullable columns), and the
-practice-sets feature upgraded **v3 to v4**, purely additive (two new tables).
+change upgraded **v2 to v3**, purely additive (three nullable columns), the
+practice-sets feature upgraded **v3 to v4**, purely additive (two new tables), and
+the Reading track upgraded **v4 to v5**, purely additive (one new table).
 
 ### Database
 
-`HiraganaDatabase` — `version = 4` (was 1, then 2, then 3), **`exportSchema = true`** (was
+`HiraganaDatabase` — `version = 5` (was 1, then 2, then 3, then 4), **`exportSchema = true`** (was
 `false` — this closes a wart §7 had flagged since Phase 1), file name
 `"hiragana-practice.db"` (unchanged), built via the `HiraganaDatabase.build(context)`
-companion helper (`Room.databaseBuilder(...).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()`).
+companion helper (`Room.databaseBuilder(...).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()`).
 Instantiated lazily in `AppContainer`. The exported schema history is committed at
 `app/schemas/com.hive.hiragana.data.local.HiraganaDatabase/` — `2.json`, `3.json`,
-and `4.json` all exist; future schema changes must add a new numbered file here via a
+`4.json`, and `5.json` all exist; future schema changes must add a new numbered file here via a
 real `Migration`, never a destructive fallback.
 
 ### `MIGRATION_1_2`
@@ -498,7 +500,7 @@ change, both the per-kana word rows and the word-level average row carry non-nul
 form/fit (see §6). These persist the advisory
 handwriting score alongside each attempt (§4/§5 entity below); they never feed the SRS
 scheduler or any gate — the score is coaching feedback only. `HiraganaDatabase.build`
-registers all three migrations (`.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)`).
+registers all four migrations (`.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)`).
 
 ### `MIGRATION_3_4`
 
@@ -533,6 +535,28 @@ parent set via the `ON DELETE CASCADE` foreign key; the `index_practice_set_item
 index backs the relation read. Practice sets are plain user data (an explicit membership
 list, not SRS state), so no clock injection is involved. The tables start empty on any
 v3 database — nothing to backfill.
+
+### `MIGRATION_4_5`
+
+A single `Migration(4, 5)` object (the **Reading track** — recognizing the printed
+gothic forms, quizzed by multiple-choice or typed romaji rather than handwriting),
+**purely additive** — one new table, no rename, no touch to any existing data:
+
+```sql
+CREATE TABLE IF NOT EXISTS `reading_progress` (
+    `itemKey` TEXT NOT NULL,
+    `mcqAttempts` INTEGER NOT NULL,
+    `mcqCorrect` INTEGER NOT NULL,
+    `typeAttempts` INTEGER NOT NULL,
+    `typeCorrect` INTEGER NOT NULL,
+    PRIMARY KEY(`itemKey`)
+);
+```
+
+The Reading quiz records its tallies **here, not in `practice_history`** (that table
+stays exclusively the handwriting-attempt log). The Reading **flashcard** study mode
+is self-graded and records **nothing**. The table starts empty on any v4 database —
+nothing to backfill.
 
 ### Table: `practice_history` (`PracticeAttemptEntity`) — renamed from `practice_attempts`
 
@@ -685,6 +709,54 @@ word's `kana` for `WORDS`), in selection order.
 `position`; `createSet` stamps `createdAt = System.currentTimeMillis()` (practice sets
 are plain user data, not SRS state, so they do **not** use the injected scheduler
 clock). Wired via `AppContainer.practiceSetRepository`.
+
+### Table: `reading_progress` (`ReadingProgressEntity`) — v5
+
+Per-item **Reading-quiz** accuracy (`data/local/ReadingProgressEntity.kt`). One row
+per glyph/word records two **independent** answer-style tallies — multiple-choice and
+typed-romaji — so a learner's success rate in each style is tracked separately.
+Reading is **pass/fail**, so — unlike the handwriting scorer — there is **no "best"**;
+the meaningful figures are the two success percentages.
+
+| Column | SQL type | Entity property | Notes |
+|---|---|---|---|
+| `itemKey` | `TEXT` PRIMARY KEY | `itemKey: String` | The printed glyph/kana string — the **same key the Library tints cells by** (glyph for a character, whole kana for a word) |
+| `mcqAttempts` | `INTEGER` | `mcqAttempts: Int = 0` | Multiple-choice questions faced for this item |
+| `mcqCorrect` | `INTEGER` | `mcqCorrect: Int = 0` | …of which answered correctly |
+| `typeAttempts` | `INTEGER` | `typeAttempts: Int = 0` | Typed-romaji questions faced |
+| `typeCorrect` | `INTEGER` | `typeCorrect: Int = 0` | …of which answered correctly |
+
+**DAO (`ReadingProgressDao`)**: `observeAll(): Flow<List<ReadingProgressEntity>>`;
+plus an **ensure-then-increment pair** used to record one answer — `ensure(row)` via
+`@Insert(onConflict = OnConflictStrategy.IGNORE)` guarantees a zeroed row exists, then
+`increment(key, mcqAttempts, mcqCorrect, typeAttempts, typeCorrect)` is a raw `UPDATE
+… SET mcqAttempts = mcqAttempts + :mcqAttempts, …` that adds to the relevant style's
+counters. This two-step is **portable across all supported SQLite versions** — it
+deliberately avoids `UPSERT`/`ON CONFLICT DO UPDATE`, which needs SQLite 3.24 / API 30+
+(the app's `minSdk` is 26).
+
+**Domain model (`ReadingProgress`)**: `domain/model/ReadingProgress.kt` — mirrors the
+row (`itemKey` + the four counters) and computes the read-side figures: `mcqPercent` /
+`typePercent` (each null until that style has ≥ 1 attempt) and **`colorPercent`** — the
+average of whichever styles have been attempted (both, one, or `null` if neither) — the
+single figure that tints a Library cell.
+
+**Repository (`RoomReadingProgressRepository`)**: implements `ReadingProgressRepository`
+(`observe(): Flow<List<ReadingProgress>>` mapping rows to domain, and
+`record(itemKey, typed, correct)`, which runs the ensure-then-increment pair — `typed`
+routes the count into the mcq vs typed tally). `domain/repository/ReadingProgressRepository.kt`
+is the interface. The **Reading flashcard** study mode is self-graded and writes nothing
+here.
+
+Which track the learner is in is **not** Room state — it persists as a new
+SharedPreferences key `app_mode` (`SettingsRepository.getAppMode()`/`setAppMode()`,
+`PrefsSettingsRepository.KEY_APP_MODE = "app_mode"`), stored as the `AppMode` enum's
+`prefValue` (`"reading"`/`"writing"`); an unrecognised or **absent** value decodes to
+`null`, meaning "not chosen yet" → the opening screen. It sits alongside the existing
+`PrefsSettingsRepository` keys (`grid_enabled`, `ghost_enabled`, `practice_layout_span`,
+`active_script`, `diacritics_included`, `yoon_included`, `extended_included`,
+`library_grid_view`, `library_section`, `scoring_mode`, `brush_ink_color`,
+`default_sets_seeded`) — plain `SharedPreferences`, not DataStore and not Room.
 
 ### Gradle/KSP wiring
 

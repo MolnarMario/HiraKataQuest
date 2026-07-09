@@ -56,6 +56,16 @@ config). Sets persist to two new additive Room tables (DB **v4**,
 the same feature generalized the quiz to handle **words** as well as characters
 (`QuizItem` sealed interface, per-kana feedback) and re-sized the Library's
 Study-scope sheet (see §8-scoring below).
+A 2026-07-09 **Reading/Writing split** then added a second top-level mode: the app now
+opens on a mode chooser (`AppMode {READING, WRITING}`, persisted `app_mode`;
+`PracticeUiState.appMode == null` ⇒ the opening screen), from which **Writing** is the
+whole handwriting app described here and **Reading** is a recognition track (flashcards
++ a multiple-choice / type-the-romaji / color-the-answer quiz). It is purely additive —
+the drawing, scoring, and practice-set machinery are unchanged; it adds an opening
+screen + a reading flashcard screen, a `ReadingProgressRepository` (Room **v5**, an
+additive migration), lenient romaji matching (`RomajiMatch`), and per-mode Library
+tinting. Navigation stays a state-driven `when {}` in `PracticeScreen` (still no nav
+library). See §9.
 Section 7 covers the Phase 2 design as
 built and section 8 covers Phase 3; the full contracts are
 [docs/PHASE2-DESIGN.md](PHASE2-DESIGN.md) and [docs/PHASE3-DESIGN.md](PHASE3-DESIGN.md).
@@ -95,7 +105,7 @@ Four packages plus two root files:
 
 | Package | Responsibility | Depends on |
 |---|---|---|
-| `domain` | Models (`HiraganaCharacter`, `Grade`, `PracticeAttempt`, `StrokeDefinition`/`StrokeFrame`, the Phase 3 additions `ReviewCard`, `VocabularyWord`, `StudySession`, `CharacterProgress`, `VocabularyProgress`, and the later `Script`/`KanaKind`/`KanaUnits`/`ScriptScope`/`PracticeLayout`/`KanaChart`/`PracticeSet` types), repository interfaces (incl. `SettingsRepository`, `HandwritingRecognizer`, `PracticeSetRepository`), `domain/learning` (pure SRS scheduler + session generator), and `domain/scoring` — the pure handwriting-quality scorer (`GeometryScorer`, `ScoringMode`, `CharacterScore`, `CharacterScoreSummary`). | **Pure Kotlin + `kotlinx.coroutines`** (`Flow` in `PracticeRepository`). Zero Android imports. `domain/learning` and `domain/scoring` additionally take no clock reads internally — every computation is parameterized (`todayStartMillis: Long`; explicit stroke/cell inputs), which is what makes them unit-testable without instrumentation. |
+| `domain` | Models (`HiraganaCharacter`, `Grade`, `PracticeAttempt`, `StrokeDefinition`/`StrokeFrame`, the Phase 3 additions `ReviewCard`, `VocabularyWord`, `StudySession`, `CharacterProgress`, `VocabularyProgress`, and the later `Script`/`KanaKind`/`KanaUnits`/`ScriptScope`/`PracticeLayout`/`KanaChart`/`PracticeSet` types, plus the 2026-07-09 Reading/Writing-split models `AppMode`, `RomajiMatch`, and `ReadingProgress`), repository interfaces (incl. `SettingsRepository`, `HandwritingRecognizer`, `PracticeSetRepository`, `ReadingProgressRepository`), `domain/learning` (pure SRS scheduler + session generator), and `domain/scoring` — the pure handwriting-quality scorer (`GeometryScorer`, `ScoringMode`, `CharacterScore`, `CharacterScoreSummary`). | **Pure Kotlin + `kotlinx.coroutines`** (`Flow` in `PracticeRepository`). Zero Android imports. `domain/learning` and `domain/scoring` additionally take no clock reads internally — every computation is parameterized (`todayStartMillis: Long`; explicit stroke/cell inputs), which is what makes them unit-testable without instrumentation. |
 | `data` | Implements the domain repository interfaces: asset JSON parsing (`data/assets`), Room persistence (`data/local`), repository adapters (`data/repository`), and the ML Kit handwriting recognizer (`data/recognition`). | `domain`, Android (`AssetManager`, Room, ML Kit `digital-ink-recognition`), `org.json`, coroutines. |
 | `drawing` | Standalone ink + playback subsystem: raw `MotionEvent` capture, stroke models, path smoothing, canvas snapshot-state, grid/ghost draw helpers, and the Phase 2 stroke-order playback engine (`drawing/animation`). | Compose runtime/UI (`Path`, `DrawScope`, snapshot state, `Animatable`) and `android.view.MotionEvent` / `android.graphics.Paint`. Does not depend on `data` or `presentation`; since Phase 2, `drawing/animation` imports `domain.model.StrokeDefinition`/`StrokeFrame` (timed stroke data) — the one `drawing → domain` edge. Phase 3 did not touch this package. |
 | `presentation` | Compose UI: theme, components, the single `PracticeScreen` (plus the `LibraryScreen` overlay it hosts), and `PracticeViewModel` (now a Phase 3 session state machine — see §3/§8). | `domain` + `drawing` + Compose/lifecycle. |
@@ -137,8 +147,9 @@ Manual DI, no Hilt/Koin. The choice is documented in-code as deliberate — the 
 `AppContainer` reads: *"Hand-rolled dependency container — deliberately simple for the
 MVP; swap for Hilt if the object graph grows."* Phase 3 grew the graph from three lazy
 objects to five; the later settings and scoring work took it to seven (adding
-`settingsRepository` and `handwritingRecognizer`), and the practice-sets feature
-to eight (adding `practiceSetRepository`), still all manual.
+`settingsRepository` and `handwritingRecognizer`), the practice-sets feature
+to eight (adding `practiceSetRepository`), and the 2026-07-09 Reading/Writing
+split to nine (adding `readingProgressRepository`), still all manual.
 
 Wiring chain (all in `HiraganaApplication.kt` and `PracticeViewModel.kt`):
 
@@ -146,7 +157,7 @@ Wiring chain (all in `HiraganaApplication.kt` and `PracticeViewModel.kt`):
    `HiraganaApplication` is registered via `android:name=".HiraganaApplication"` in
    `app/src/main/AndroidManifest.xml`.
 2. `AppContainer` (same file as the Application class) holds, all `by lazy`:
-   - `database: HiraganaDatabase` — `HiraganaDatabase.build(appContext)` (Room v4,
+   - `database: HiraganaDatabase` — `HiraganaDatabase.build(appContext)` (Room v5,
      `hiragana-practice.db`, private).
    - `assetDataSource: HiraganaAssetDataSource` — `HiraganaAssetDataSource(appContext.assets)`
      (private; Phase 3 extracted it to its own lazy so both `characterRepository` and
@@ -166,6 +177,9 @@ Wiring chain (all in `HiraganaApplication.kt` and `PracticeViewModel.kt`):
    - `practiceSetRepository: PracticeSetRepository` =
      `RoomPracticeSetRepository(database.practiceSetDao())` (user-curated character/
      word lists — Room v4, see §8-scoring).
+   - `readingProgressRepository: ReadingProgressRepository` (2026-07-09) =
+     `RoomReadingProgressRepository(database.readingProgressDao())` (per-glyph reading
+     accuracy for the Reading mode — Room v5, see §9).
    Nothing is constructed until first use; the Room database is only built when the
    first grade is recorded or the first session is generated (nothing reads it at startup).
 3. `MainActivity.onCreate()` → `setContent { HiraganaTheme { PracticeScreen(viewModel = viewModel(factory = PracticeViewModel.Factory)) } }`.
@@ -183,10 +197,11 @@ Wiring chain (all in `HiraganaApplication.kt` and `PracticeViewModel.kt`):
        settingsRepository = application.container.settingsRepository,
        handwritingRecognizer = application.container.handwritingRecognizer,
        practiceSetRepository = application.container.practiceSetRepository,
+       readingProgressRepository = application.container.readingProgressRepository,
    )
    ```
 
-   The ViewModel itself only sees the seven `domain` repository interfaces (plus, as
+   The ViewModel itself only sees the eight `domain` repository interfaces (plus, as
    defaulted constructor parameters, a `LessonGenerator()` and `Clock.systemDefaultZone()`
    — not part of `AppContainer`, since both are cheap pure-Kotlin objects) — it does not
    know about Room, assets, or the container beyond the factory. `GeometryScorer` /
@@ -228,7 +243,9 @@ removed phases** (the guided fields — `reviewQueue`, `newCharacter`, `vocabula
 | `allCaughtUp`, `newCharacterLearned`, `wordsUnlocked`, `hasLearnedCharacters` | COMPLETE: summary stats. `newCharacterLearned` is null if the final practice rep was graded Again (introduced, not learned); `wordsUnlocked` lists only fresh unlocks; `hasLearnedCharacters` gates whether "Keep practicing" renders at all. |
 | `freeCharacters`, `currentIndex`, `gradedCount`, `freeWord`, `freeSubmitted` | FREE: the old Phase 1/2 deck-walking fields, now driving a **two-step Submit→review flow**. Via "Keep practicing" the deck is scoped to characters with `repetitions >= 1`; via a library pick it can hold the **whole** deck (`practiceCharacter`) or one word's kana in order (`practiceWord`, with `freeWord` non-null so the guide panel shows the word header). `freeSubmitted` is the writing↔reviewing flag: `false` = writing (Clear · Submit/Skip), `true` = reviewing the just-scored attempt (Again · Next). It is reset at every FREE entry point, on `freeRetry()` (rewrite the same char/word), and on `advanceToNextCharacter()` (Next). See §4. |
 | `isLibraryOpen`, `allWords` | LIBRARY: whether the full-screen library overlay is showing (it overlays `FREE` without disturbing it) and every vocabulary word. (The `unlockedWordKana`/`learnedCharacterIds` sets and the "Unlocked/Locked" + "Learned/Not started" row labels they drove were **removed 2026-07-05** — rows now show only the score tint.) |
-| `quiz: QuizState?` | QUIZ (write-from-memory overlay launched from the library; renders above it). `QuizState` holds a `QuizStage` (`SETUP`/`RUNNING`/`SUMMARY`), the requested count, a per-quiz `showGrid`, the chosen `items: List<QuizItem>`, a `selectedSetId: Long?` (null = active-script character scope; else a saved practice set), `index`, `revealed`/`submitted` two-step flags, and `results` (auto quality-score headline by item key). `QuizItem` is a sealed interface (`key`/`prompt`/`answer`/`glyphs`/`subtitle`) with `CharQuizItem(character)` and `WordQuizItem(word, prompt)`, so a quiz can now draw **words** as well as characters. Each submit auto-scores (no self-grade — `quizSubmit(cells)` branches character → `recordAttempt`, word → `recordWordAttempt` per-kana average) and records a `PracticeSource.QUIZ` attempt — **no SRS/unlock side effects**. |
+| `quiz: QuizState?` | QUIZ (write-from-memory overlay launched from the library; renders above it). `QuizState` holds a `QuizStage` (`SETUP`/`RUNNING`/`SUMMARY`), the requested count, a per-quiz `showGrid`, the chosen `items: List<QuizItem>`, a `selectedSetId: Long?` (null = active-script character scope; else a saved practice set), `index`, `revealed`/`submitted` two-step flags, and `results` (auto quality-score headline by item key). `QuizItem` is a sealed interface (`key`/`prompt`/`answer`/`glyphs`/`subtitle`) with `CharQuizItem(character)` and `WordQuizItem(word, prompt)`, so a quiz can now draw **words** as well as characters. **Reading generalization (2026-07-09):** the quiz gained a `QuizKind` (Writing = write-from-memory vs Reading = recognition) and, for Reading, a `ReadingAnswerStyle` (multiple-choice / type-the-romaji / color-the-answer) plus a "test meaning?" flag; `setReadingAnswerStyle(style)` and `setReadingTestMeaning(bool)` configure it and `readingResult` carries the graded reading outcome. A Writing submit auto-scores (no self-grade — `quizSubmit(cells)` branches character → `recordAttempt`, word → `recordWordAttempt` per-kana average) and records a `PracticeSource.QUIZ` attempt; a Reading answer is checked with `RomajiMatch` (see §9) and rolled into `ReadingProgressRepository` — **neither has SRS/unlock side effects**. |
+| `appMode: AppMode?` | Always relevant (2026-07-09). `AppMode {READING, WRITING}`; **`null` ⇒ show the opening screen** (no mode chosen). Seeded from + persisted via `SettingsRepository` (key `app_mode`) and preserved through every `rebuilt()`. `setAppMode(mode)` switches, `goToOpening()` resets to `null`. Drives the `PracticeScreen` `when {}` branch order (see §4/§5/§9). |
+| `readingFlashcard: ReadingFlashcardState?`, `readingStats` | READING. `ReadingFlashcardState` holds a `List<ReadingCard>` + current index + a `revealed` flag for the reading flashcard drill (`openReadingFlashcardsForCharacters()`/`…ForWords()` and set-scoped variants build it; `flashcardReveal`/`flashcardNext`/`closeReadingFlashcards` drive it). `readingStats: Map<String, ReadingProgress>` mirrors the Writing side's `scoreStats` and tints/sorts the Library in Reading mode. |
 | `practiceSets: List<PracticeSet>` | Always relevant. The user's saved practice sets, observed from `PracticeSetRepository.observeSets()` in `init` and carried through the `rebuilt()` helper (durable). Feeds the Study-scope sets manager and the quiz source picker. |
 | `pendingOpenSetsManager: Boolean` | LIBRARY (one-shot). Set true by `closeQuiz()` when the closing quiz's `selectedSetId != null`, so the library reopens the practice-sets manager instead of the browse page — needed because the quiz overlay decomposes `LibraryScreen` and loses its local `showSetsManager` state. Consumed by a `LibraryScreen` `LaunchedEffect` calling `consumeOpenSetsManager()`, which clears it. |
 | `freeWords: List<VocabularyWord>` | FREE (word-set practice). The FREE word-set queue when a `PracticeSetType.WORDS` set is launched via `practiceSet(id)`; `advanceToNextCharacter()` cycles it (modulo wrap), keeping `freeWord` pointed at the current item. Empty for single-character/word FREE. |
@@ -414,10 +431,16 @@ still constructed but no longer injected into the ViewModel.
 
 ## 5. Screen composition tree
 
-Single screen, no navigation library. The top-level content branches on the library
-overlay (`isLibraryOpen`) versus the familiar three-pane FREE-practice layout. (The
-`SessionPhase.COMPLETE` summary-card branch was removed 2026-07-05 with the guided study
-session.)
+Single screen, no navigation library — still a state-driven `when {}` in `PracticeScreen`.
+Since the 2026-07-09 Reading/Writing split the branch order is:
+**loading → error → OpeningScreen (`appMode == null`) → QuizScreen (`quiz != null`) →
+ReadingFlashcardScreen (`readingFlashcard != null`) → LibraryScreen hub
+(`appMode == READING || isLibraryOpen`) → PracticeContent (Writing free practice)**.
+`LibraryScreen` is the shared hub for both modes: in READING it is the home surface
+(browse / quiz / flashcards), in WRITING it is the overlay reached from practice.
+Back-nav chain: a sub-screen (quiz, flashcards) → its hub → the opening screen ("home")
+→ exit the app, wired with per-branch `BackHandler`s. (The `SessionPhase.COMPLETE`
+summary-card branch was removed 2026-07-05 with the guided study session.)
 
 ```
 MainActivity.setContent
@@ -428,7 +451,14 @@ MainActivity.setContent
          ├─ isLoading                  → CenteredBox { CircularProgressIndicator }
          ├─ errorMessage != null       → CenteredBox { error Text + Retry button
          │                               (viewModel.retrySession) }
-         ├─ isLibraryOpen              → LibraryScreen (full-screen overlay:
+         ├─ appMode == null            → OpeningScreen (the READING|WRITING mode chooser;
+         │                               setAppMode enters a mode. 2026-07-09)
+         ├─ quiz != null               → QuizScreen (write-from-memory OR the reading
+         │                               recognition quiz, per QuizKind; overlays the hub)
+         ├─ readingFlashcard != null   → ReadingFlashcardScreen (reading recognition drill;
+         │                               reveal/next/close. 2026-07-09)
+         ├─ appMode == READING ||
+         │  isLibraryOpen              → LibraryScreen (full-screen hub/overlay:
          │                               LazyColumn (or grid chart) of all characters
          │                               + all words, score-tinted (no status labels
          │                               since 2026-07-05), every row tappable →
@@ -592,8 +622,9 @@ walk into a generated session.
   inflate the gate's backlog count, or hold the gate closed forever. The generator reads
   only its parameters and writes nothing — crash-safe resumability comes for free because
   the ViewModel persists each step's outcome as it happens.
-- **Persistence — Room v1 → v2 (and later → v3, → v4)**: `HiraganaDatabase` is now
-  `version = 4`, `exportSchema = true` (schema history committed at `app/schemas/`).
+- **Persistence — Room v1 → v2 (and later → v3, → v4, → v5)**: `HiraganaDatabase` is now
+  `version = 5`, `exportSchema = true` (schema history committed at `app/schemas/`).
+  `MIGRATION_4_5` additively adds the reading-progress table (2026-07-09, §9);
   `MIGRATION_3_4` additively creates the two practice-set tables (§8-scoring). `MIGRATION_1_2` (a real `Migration(1, 2)`, no destructive
   fallback) renames `practice_attempts` → `practice_history`, adds its
   `source TEXT NOT NULL DEFAULT 'FREE'` column, and creates `review_cards` /
@@ -751,7 +782,77 @@ run on a device** (the katakana work was device-verified on the Pixel 7 — see 
 note above); the v2→v3 score migration is likewise additive and low-risk (nullable
 columns only).
 
-## 9. File responsibilities (representative, not exhaustive)
+## 9. Reading & Writing modes (2026-07-09, additive)
+
+The app split into two top-level modes. A cold start opens on a **mode chooser**; from
+there the user enters **Writing** (the handwriting practice described in §1–8 — Writing
+*is* the pre-split app) or **Reading** (recognition drills). This is a purely additive
+layer: the drawing pipeline, scoring, and practice-set machinery are untouched.
+
+- **`AppMode` + the opening screen.** `domain/model/AppMode.kt` defines
+  `enum class AppMode { READING, WRITING }`. It rides `PracticeUiState.appMode: AppMode?`
+  where **`null` means "show the opening screen"** (no mode chosen yet). It is persisted
+  via `SettingsRepository`/`PrefsSettingsRepository` (key `app_mode`) and — like
+  `activeScript`/`brushInkColor` — preserved through every `PracticeViewModel.rebuilt()`
+  reconstruction. `setAppMode(mode)` persists + switches; `goToOpening()` resets it to
+  `null` (back to "home"). New composables: `presentation/screens/OpeningScreen.kt` (the
+  chooser) and `presentation/screens/ReadingFlashcardScreen.kt` (the reading drill).
+
+- **Navigation stays a state-driven `when {}`** in `PracticeScreen` — still **no
+  navigation library**. Branch order (see §5): loading → error → `OpeningScreen`
+  (`appMode == null`) → `QuizScreen` (`quiz != null`) → `ReadingFlashcardScreen`
+  (`readingFlashcard != null`) → `LibraryScreen` hub (`appMode == READING || isLibraryOpen`)
+  → `PracticeContent` (Writing free practice). `LibraryScreen` is the shared hub: the
+  home surface in Reading, the practice overlay in Writing. Back-nav chain: a sub-screen
+  (quiz, flashcards) → its hub → the opening screen ("home") → exit the app, via
+  per-branch `BackHandler`s.
+
+- **Reading flashcards.** `PracticeUiState.readingFlashcard: ReadingFlashcardState?` holds
+  a deck of `ReadingCard`s + the current index + a `revealed` flag.
+  `openReadingFlashcardsForCharacters()` / `openReadingFlashcardsForWords()` (and the
+  set-scoped variants) build the deck from the active scope; `flashcardReveal()` flips the
+  card, `flashcardNext()` advances, `closeReadingFlashcards()` returns to the hub.
+
+- **Reading quiz (generalized quiz).** The existing `QuizState` grew a `QuizKind`
+  (Writing vs Reading) and, for Reading, a `ReadingAnswerStyle` (multiple-choice /
+  type-the-romaji / color-the-answer) + a "test meaning?" flag. `setReadingAnswerStyle`
+  and `setReadingTestMeaning` configure it; `readingResult` carries the graded outcome.
+  Reading answers are checked with `RomajiMatch` (below), never handwriting-scored.
+
+- **Reading progress persistence — Room v5.** `domain/repository/ReadingProgressRepository`
+  (interface) + `data/repository/RoomReadingProgressRepository` (impl) record reading
+  outcomes with an **ensure-then-increment** upsert (insert the row if absent, then bump
+  the per-style counters) and expose an `observe…(): Flow` for the Library tint. Wired as
+  `AppContainer.readingProgressRepository` (§2) and threaded through
+  `PracticeViewModel.Factory`. This pushes `HiraganaDatabase` to **v5** with an additive
+  migration adding a reading-progress table (no existing table touched — see
+  [docs/DATA.md](DATA.md)). `PracticeUiState.readingStats` mirrors the Writing side's
+  `scoreStats`.
+
+- **`ReadingProgress` + `RomajiMatch` models.** `domain/model/ReadingProgress.kt` records
+  per-glyph reading mastery with `mcqPercent` / `typePercent` / `colorPercent` (one
+  accuracy per answer style). `domain/model/RomajiMatch.kt` centralizes **lenient romaji
+  equality** (whitespace- and case-insensitive, common alternate spellings) so a typed
+  answer matches its expected reading the same way everywhere — covered by the new
+  `RomajiMatchTest`.
+
+- **Writing ghost is now always handwritten.** With the split, the old user-facing
+  **Printed / Handwritten** ghost toggle was removed and its Study-scope-sheet slot now
+  holds the **Reading | Writing** mode toggle. Writing forces `CharacterForm.HANDWRITTEN`,
+  so the ghost is always the KanjiVG stroke-derived glyph (not the font-rendered print
+  form) throughout Writing mode.
+
+- **Mode-aware Library.** `LibraryScreen` tints and sorts by the *active mode's* stats —
+  `writingScoreStats` (the old `scoreStats`) in Writing, `readingStats` in Reading.
+  `ItemSort` gained MC / TYPE variants and a `List.sortedByReading` companion so the
+  browse list can order by reading accuracy the way `sortedByScore` orders by handwriting
+  score.
+
+- **Keyboard handling.** Because the type-the-romaji reading style needs text input,
+  `MainActivity` declares `android:windowSoftInputMode="adjustResize"` (manifest) so the
+  soft keyboard **resizes** the window rather than panning it.
+
+## 10. File responsibilities (representative, not exhaustive)
 
 Paths relative to `app/src/main/java/com/hive/hiragana/` unless noted. This table
 covers the Phase 1–3 core in full; the later additive files (the katakana/opt-in seam,
@@ -761,14 +862,18 @@ rather than exhaustively re-inventoried. **Note (2026-07-05):** the rows below f
 `domain/model/StudySession.kt`, `presentation/components/PracticeActionBar.kt`, and the
 `domain/learning` test files describe files that **have since been DELETED**;
 `FreePracticeActionBar` now lives in its own file and `domain/model/DefaultPracticeSets.kt`
-was added. The test suite is now **84 tests** (the `domain/learning` files removed).
+was added. The test suite is now **84 tests** (the `domain/learning` files removed), plus
+the new `RomajiMatchTest` from the Reading/Writing split. The 2026-07-09 Reading/Writing
+files (`AppMode`/`RomajiMatch`/`ReadingProgress`, the two new screens, and the reading
+repository) are listed in the grouped **Later additive files** table at the end rather
+than added to the counted `domain`/`data`/`presentation` core tables below.
 
 ### Root (2)
 
 | File | Responsibility |
 |---|---|
 | `HiraganaApplication.kt` | `Application` subclass exposing `container`; also defines `AppContainer` (lazy Room DB + `HiraganaAssetDataSource` + all repositories, incl. `practiceSetRepository`). |
-| `MainActivity.kt` | Single `ComponentActivity`; `setContent` → `HiraganaTheme` → `PracticeScreen` with `PracticeViewModel.Factory`. |
+| `MainActivity.kt` | Single `ComponentActivity`; `setContent` → `HiraganaTheme` → `PracticeScreen` with `PracticeViewModel.Factory`. Declared `android:windowSoftInputMode="adjustResize"` (manifest) so the soft keyboard for the type-the-romaji reading answer resizes the window instead of panning it. |
 
 ### `domain` (17)
 
@@ -806,7 +911,7 @@ was added. The test suite is now **84 tests** (the `domain/learning` files remov
 | `data/local/ReviewCardEntity.kt` / `ReviewCardDao.kt` | Phase 3: `review_cards` table (PK `characterId`) + `getAll`/`upsert` (REPLACE). |
 | `data/local/CharacterProgressEntity.kt` / `CharacterProgressDao.kt` | Phase 3: `character_progress` table (PK `characterId`) + `getAll`/`insert` (IGNORE)/`incrementTraces`. |
 | `data/local/VocabularyProgressEntity.kt` / `VocabularyProgressDao.kt` | Phase 3: `vocabulary_progress` table (PK `kana`) + `getAll`/`insert` (IGNORE)/`recordPractice`. |
-| `data/local/HiraganaDatabase.kt` | Room DB v4 (v1 → v2 → v3 → v4), `hiragana-practice.db`, `exportSchema = true`; `MIGRATION_1_2` (rename + Phase 3 tables), `MIGRATION_2_3` (nullable score columns), `MIGRATION_3_4` (practice-set tables); `build(context)` factory registering all three. |
+| `data/local/HiraganaDatabase.kt` | Room DB v5 (v1 → v2 → v3 → v4 → v5), `hiragana-practice.db`, `exportSchema = true`; `MIGRATION_1_2` (rename + Phase 3 tables), `MIGRATION_2_3` (nullable score columns), `MIGRATION_3_4` (practice-set tables), `MIGRATION_4_5` (reading-progress table, additive — 2026-07-09); `build(context)` factory registering all four. |
 | `data/local/PracticeSetEntity.kt` | Room `@Entity`s for `practice_sets` (header) + `practice_set_items` (members, `ON DELETE CASCADE`, index on setId) + `PracticeSetWithItems` `@Relation`. |
 | `data/local/PracticeSetDao.kt` | `observeSetsWithItems()` Flow + `@Transaction` `createSet`/`replaceItems` (header + ordered members) + `renameSet`/`deleteSet`. |
 | `data/repository/RoomPracticeSetRepository.kt` | `PracticeSetRepository` impl over `PracticeSetDao`; entity↔`PracticeSet` mapping (`type`/`script` decoded from stored keys). |
@@ -848,7 +953,7 @@ was added. The test suite is now **84 tests** (the `domain/learning` files remov
 | `SrsSchedulerTest.kt` | Every grade transition, ease floor/cap, interval floors, Again-reset, due-date math around start-of-day. |
 | `LessonGeneratorTest.kt` | Mastery gate (both clauses + boundary), review cap + overdue ordering, deck-exhausted, backlog-blocked, orphaned-card exclusion, requeue semantics. |
 | `VocabularyUnlockTest.kt` | `requiredCharacters` derivation, unlock rule, learned-definition boundary (repetitions 0 vs 1), reinforcement pick order. |
-| `domain/model/{ScriptTest, KanaKindTest, KanaUnitsTest, ScriptScopeTest, KanaChartTest}.kt` | The katakana/opt-in seam and Library chart: script classification, base-vs-voiced NFD, base+small unit fusion, four-flag scope filtering, chart section/placement. |
+| `domain/model/{ScriptTest, KanaKindTest, KanaUnitsTest, ScriptScopeTest, KanaChartTest, RomajiMatchTest}.kt` | The katakana/opt-in seam, Library chart, and (2026-07-09) reading romaji matching: script classification, base-vs-voiced NFD, base+small unit fusion, four-flag scope filtering, chart section/placement, and `RomajiMatch` lenient equality. |
 | `domain/scoring/{GeometryScorerTest, CharacterScoreTest, StrokeAttributionTest}.kt` | Geometry FORM/FIT dials + tags, `CharacterScore.combine` mode blending / recognition gate / headline caps, and `StrokeAttribution.groupByCell` nearest-center attribution. |
 
 ### Later additive files (post-Phase-3 — grouped)
@@ -864,3 +969,4 @@ Paths relative to `app/src/main/java/com/hive/hiragana/`.
 | Quiz | `presentation/screens/QuizScreen.kt` (state — incl. the `QuizItem`/`selectedSetId` word generalization — in `PracticeViewModel.kt`) |
 | Ink color | `presentation/components/BrushColorPicker.kt` |
 | Practice sets | `domain/model/PracticeSet.kt`, `domain/repository/PracticeSetRepository.kt`, `data/local/PracticeSetEntity.kt`, `data/local/PracticeSetDao.kt`, `data/repository/RoomPracticeSetRepository.kt` (selection-mode / sets-manager / name-dialog composables live in `LibraryScreen.kt`) |
+| Reading/Writing split (2026-07-09) | `domain/model/AppMode.kt`, `domain/model/RomajiMatch.kt`, `domain/model/ReadingProgress.kt`, `domain/repository/ReadingProgressRepository.kt`, `data/repository/RoomReadingProgressRepository.kt` + its Room entity/DAO (`data/local`, backing the v5 reading-progress table), `presentation/screens/OpeningScreen.kt` (mode chooser), `presentation/screens/ReadingFlashcardScreen.kt` (reading drill). Reading quiz state (`QuizKind`/`ReadingAnswerStyle`/`readingResult`) + `readingFlashcard`/`readingStats`/`appMode` live in `PracticeViewModel.kt`; the Reading|Writing toggle + mode-aware tint/sort live in `LibraryScreen.kt`. Test: `RomajiMatchTest`. |
