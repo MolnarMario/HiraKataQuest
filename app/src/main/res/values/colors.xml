@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFBF8F4</color>
+    <!-- Japan's flag ("Hinomaru") red, #BC002D — fills the whole adaptive-icon
+         background so every device mask (circle, rounded square, squircle…) crops
+         to solid red with no floating shape. -->
+    <color name="ic_launcher_background">#FFBC002D</color>
 </resources>
