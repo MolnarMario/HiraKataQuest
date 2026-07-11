@@ -95,8 +95,26 @@ fun DrawScope.drawGhostCharacter(character: String, cell: Rect, paint: Paint) {
     }
 }
 
-/** Handwritten-ghost stroke width as a fraction of the KanjiVG viewBox. */
-private const val GHOST_STROKE_WIDTH_FRACTION = 0.1f
+/**
+ * Scale of the base kana inside a composite glyph (a yōon/extended kana like
+ * ぎゃ or ファ): the base is packed at 0.62 of the box and the small kana at
+ * 0.40 (YOON_BASE / YOON_SMALL in tools/import_kanjivg.py). Used to keep the
+ * stroke-order preview's line weight uniform across composed and single kana
+ * (a composite's box is 1/this taller, its stroke this thinner — the two
+ * cancel), and to derive the uniform ghost weight below.
+ */
+const val COMPOSITE_BASE_SCALE = 0.62f
+
+/**
+ * Handwritten-ghost stroke width as a fraction of the KanjiVG viewBox. UNIFORM
+ * for single and composite kana — a constant pen — so every ghost on the canvas
+ * carries the same line weight regardless of how many kana share the cell. It
+ * is set to a single kana's full width times [COMPOSITE_BASE_SCALE] so a
+ * composite's base kana (drawn at 0.62 of its cell) and a full-cell single kana
+ * come out the same absolute width; that also keeps it thin enough that the
+ * 0.40-scale small kana in a composite doesn't blob into chubby overlaps.
+ */
+private const val GHOST_STROKE_WIDTH_FRACTION = 0.05f * COMPOSITE_BASE_SCALE
 
 /**
  * Draws the character's KanjiVG strokes as a light-grey round-capped brush,
