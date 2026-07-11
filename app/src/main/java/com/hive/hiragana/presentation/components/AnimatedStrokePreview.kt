@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.model.HiraganaCharacter
+import com.hive.hiragana.drawing.canvas.COMPOSITE_BASE_SCALE
 import com.hive.hiragana.drawing.animation.PlaybackState
 import com.hive.hiragana.drawing.animation.StrokeAnimationEngine
 import com.hive.hiragana.presentation.theme.DiagramStroke
@@ -52,16 +53,24 @@ private val GuideStrokeColor = DiagramStroke.copy(alpha = 0.25f)
 private const val PenDotRadiusFraction = 0.05f
 
 /**
- * Ink width as a fraction of the glyph's size: a bold, round-capped brush
- * rather than the old thin centreline. ~0.08 reads as a written character
- * next to the print-font guideline instead of a wireframe skeleton.
+ * Ink width as a fraction of the glyph's size: a round-capped brush rather
+ * than the old thin centreline, but kept restrained (~0.065) so fine details —
+ * hooks, tapers, tight curves — stay legible instead of blobbing together at
+ * the character's real size.
  *
  * Shared (not private) so the tracing canvas can width the USER's ink to the
  * same fraction of the traced glyph — the pen stroke then reads as the same %
  * of the character as this demo, at every cell size. Here it is applied in
  * viewBox units inside the scaled draw; the canvas applies it to the cell size.
  */
-internal const val BrushWidthFraction = 0.08f
+internal const val BrushWidthFraction = 0.055f
+
+/**
+ * How much taller a composite unit's preview box is than a single kana's, so its
+ * base kana (scaled to [COMPOSITE_BASE_SCALE] of the box) renders at the same
+ * size as a standalone kana beside it. 1 / 0.62 ≈ 1.61.
+ */
+private const val COMPOSITE_BOX_WEIGHT = 1f / COMPOSITE_BASE_SCALE
 
 /**
  * The speed steps the cycle button walks through, in tap order. All values
@@ -180,31 +189,45 @@ fun WordStrokePreview(
                 .fillMaxWidth(),
             contentAlignment = Alignment.Center,
         ) {
-            // Size every kana square to the largest side that fits ALL units
-            // across the available width (never taller than the strip), so a
-            // 3+ kana word shows every demo at once. Sizing off height alone
-            // (fillMaxHeight + aspectRatio) made each square as tall as the
-            // strip, so a long word overflowed and clipped its trailing kana
-            // off the right edge into a non-obvious horizontal scroll.
+            // Size every kana box to the largest that fits ALL units across the
+            // available width (never taller than the strip), so a 3+ kana word
+            // shows every demo at once. Sizing off height alone (fillMaxHeight +
+            // aspectRatio) made each square as tall as the strip, so a long word
+            // overflowed and clipped its trailing kana into a hidden scroll.
+            //
+            // Composite units (yōon/extended like ぎゃ, ファ) pack a base kana
+            // scaled to 0.62 of their box plus a small kana at 0.40 (YOON_BASE /
+            // YOON_SMALL in tools/import_kanjivg.py). Rendered in a box the same
+            // size as a single kana, the base looks ~62% the size of its
+            // neighbours — so ぎゃく's く dwarfs its ぎ. Give composites a taller
+            // box (÷0.62) so their base kana renders at single-kana size; the
+            // small kana then reads correctly small. Words with no composites are
+            // unaffected (every weight is 1).
             val gap = 6.dp
             val n = characters.size
-            val side = minOf(maxHeight, (maxWidth - gap * (n - 1)) / n)
+            val weights = characters.map {
+                if (it.character.length > 1) COMPOSITE_BOX_WEIGHT else 1f
+            }
+            val maxWeight = weights.max()
+            val totalWeight = weights.sum()
+            val unit = minOf(maxHeight / maxWeight, (maxWidth - gap * (n - 1)) / totalWeight)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                characters.forEachIndexed { index, unit ->
+                characters.forEachIndexed { index, character ->
                     val engine = engines[index]
+                    val box = unit * weights[index]
                     if (engine != null) {
                         StrokeCanvas(
                             engine = engine,
-                            character = unit,
-                            modifier = Modifier.size(side),
+                            character = character,
+                            modifier = Modifier.size(box),
                         )
                     } else {
                         StrokeOrderDiagram(
-                            character = unit,
-                            modifier = Modifier.size(side),
+                            character = character,
+                            modifier = Modifier.size(box),
                         )
                     }
                 }
@@ -243,8 +266,13 @@ private fun StrokeCanvas(
         // (width in viewBox units, so it scales with the canvas and is applied
         // inside the scaled transform below) instead of a thin constant-dp
         // centreline — reads as a written character, not a wireframe skeleton.
+        // A composite (2-code-point) glyph packs its base kana at
+        // COMPOSITE_BASE_SCALE of the box, so thin the ribbon to match — else it
+        // reads ~1.6× too thick over the shrunken base, chubby next to its
+        // single-kana neighbours (whose box is already scaled to compensate).
+        val widthScale = if (character.character.length > 1) COMPOSITE_BASE_SCALE else 1f
         val strokeStyle = Stroke(
-            width = character.viewBox * BrushWidthFraction,
+            width = character.viewBox * BrushWidthFraction * widthScale,
             cap = StrokeCap.Round,
             join = StrokeJoin.Round,
         )
