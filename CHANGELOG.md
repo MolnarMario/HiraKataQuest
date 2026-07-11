@@ -12,6 +12,34 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-11 — Responsiveness: large-font & multi-device hardening
+
+#### Fixed
+- **Large system fonts no longer break the UI** (found on a Realme GT 7 Pro; the
+  app was hand-tuned to a Pixel 7 at font scale 1.0):
+  - the **1×1/2×2/3×3 layout picker** labels no longer wrap/clip in the control strip;
+  - the **flashcard reveal** (reading · audio · meaning) no longer renders shredded
+    text next to the speaker, and the big glyph can no longer overflow its card;
+  - the quiz setup's **"Exact number"** label/hint no longer wraps awkwardly
+    ("+" orphaned on its own line);
+  - the practice-set cards' **Quiz · Practice · Edit · Rename · Delete** actions
+    always fit on ONE line (the labels shrink together when space is tight);
+  - the Library's **search field** gets real width while searching (the view
+    toggle, Sort menu, and "Quiz me!" hide until search closes).
+- The opening screen scrolls (still centered) instead of clipping on short
+  screens / huge fonts; its cards' width modifier fixed for very wide screens.
+
+#### Changed
+- **Edge-to-edge**: the app now draws behind the system bars (transparent bars,
+  washi background showing through) with content inset via `safeDrawing` —
+  also future-proofs Android 15's forced edge-to-edge and display cutouts.
+- The practice screen's guide panel and action bar **grow with the system font
+  scale** (the canvas absorbs the difference); same for the writing quiz header.
+- Dense "icon-like" chrome (gojūon chart cells, selection grid cells, corner
+  score badges, the layout-picker labels) is now **font-scale-independent** —
+  sized like icons; the list views remain the fully font-scaling path.
+- Word-grid columns widen with the font scale (fewer, wider columns).
+
 ### 2026-07-09 — In-app updates (no Play Store)
 
 #### Added

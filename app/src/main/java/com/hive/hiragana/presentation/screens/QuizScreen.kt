@@ -48,6 +48,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.PracticeSet
@@ -57,7 +58,9 @@ import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.scoring.WordUnitScore
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.domain.audio.VoiceStatus
+import com.hive.hiragana.presentation.components.AutoShrinkText
 import com.hive.hiragana.presentation.components.PronunciationButton
+import com.hive.hiragana.presentation.components.fontScaleFraction
 import kotlin.random.Random
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
@@ -709,11 +712,12 @@ private fun QuizCountEditor(
     LaunchedEffect(count) {
         if (countText.toIntOrNull() != count) countText = count.toString()
     }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
+    // Label + hint stacked full-width ABOVE the stepper row: with the old
+    // side-by-side split the label column got whatever the stepper left
+    // over, and at large font scales it wrapped word-by-word ("+" alone on
+    // a line). Stacked, both texts always get the full width.
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column {
             Text(
                 text = "Exact number",
                 style = MaterialTheme.typography.titleSmall,
@@ -724,30 +728,36 @@ private fun QuizCountEditor(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        FilledTonalIconButton(
-            onClick = { onSetCount(count - 1) },
-            enabled = count > 1,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(text = "−", style = MaterialTheme.typography.titleMedium)
-        }
-        OutlinedTextField(
-            value = countText,
-            onValueChange = { new ->
-                if (new.length <= 3 && new.all { it.isDigit() }) {
-                    countText = new
-                    new.toIntOrNull()?.let(onSetCount)
-                }
-            },
-            modifier = Modifier.width(72.dp),
-            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-        )
-        FilledTonalIconButton(
-            onClick = { onSetCount(count + 1) },
-            enabled = count < deckSize,
-        ) {
-            Text(text = "+", style = MaterialTheme.typography.titleMedium)
+            FilledTonalIconButton(
+                onClick = { onSetCount(count - 1) },
+                enabled = count > 1,
+            ) {
+                Text(text = "−", style = MaterialTheme.typography.titleMedium)
+            }
+            OutlinedTextField(
+                value = countText,
+                onValueChange = { new ->
+                    if (new.length <= 3 && new.all { it.isDigit() }) {
+                        countText = new
+                        new.toIntOrNull()?.let(onSetCount)
+                    }
+                },
+                // Grows with the font scale so 2-3 digits stay visible.
+                modifier = Modifier.width(72.dp * fontScaleFraction()),
+                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+            )
+            FilledTonalIconButton(
+                onClick = { onSetCount(count + 1) },
+                enabled = count < deckSize,
+            ) {
+                Text(text = "+", style = MaterialTheme.typography.titleMedium)
+            }
         }
     }
 }
@@ -775,11 +785,16 @@ private fun QuizRunning(
     var showExitConfirm by rememberSaveable { mutableStateOf(false) }
     val isWord = current is WordQuizItem
 
+    // The header and action bar hold text that grows with the system font
+    // scale, but their height shares were hand-tuned at scale 1 — grow both
+    // (weights are relative, so the canvas shrinks to absorb it) instead of
+    // letting the stacked header texts clip.
+    val fontGrow = fontScaleFraction(1.4f)
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.22f)
+                .weight(0.22f * fontGrow)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -789,12 +804,14 @@ private fun QuizRunning(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Text(
+                // The prompt is the item under test, so it shrinks (floor
+                // 20sp) rather than ellipsizing — a long word's romaji must
+                // stay fully readable at any font scale.
+                AutoShrinkText(
                     text = current.prompt,
                     style = MaterialTheme.typography.displaySmall,
+                    minFontSize = 20.sp,
                     color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 // Meaning hint for words (helps recall the whole word).
                 current.subtitle?.let { meaning ->
@@ -921,7 +938,7 @@ private fun QuizRunning(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.10f)
+                .weight(0.10f * fontGrow)
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,

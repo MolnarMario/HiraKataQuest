@@ -1,11 +1,15 @@
 package com.hive.hiragana.presentation.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -30,39 +34,49 @@ fun OpeningScreen(
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 28.dp, vertical = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = "HiraKataQuest",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                text = "What would you like to practice?",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp, bottom = 36.dp),
-            )
-
-            ModeCard(
-                title = "Reading",
-                subtitle = "Recognize the printed kana you meet on signs, apps, and online. " +
-                    "See a character or word, recall its reading.",
-                onClick = { onPick(AppMode.READING) },
-            )
-            Column(modifier = Modifier.padding(top = 20.dp)) {
-                ModeCard(
-                    title = "Writing",
-                    subtitle = "Practice handwriting: trace the stroke-order form and get " +
-                        "instant feedback on your shape.",
-                    onClick = { onPick(AppMode.WRITING) },
+        // Scrollable but still centered: the column keeps at least the full
+        // viewport height (so Center works as before when everything fits),
+        // and on short screens / large font scales it scrolls instead of
+        // clipping the cards. Plain Center + verticalScroll would clip the
+        // TOP of overflowing content with no way to reach it.
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val minHeight = maxHeight
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .heightIn(min = minHeight)
+                    .padding(horizontal = 28.dp, vertical = 40.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = "HiraKataQuest",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
                 )
+                Text(
+                    text = "What would you like to practice?",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 36.dp),
+                )
+
+                ModeCard(
+                    title = "Reading",
+                    subtitle = "Recognize the printed kana you meet on signs, apps, and online. " +
+                        "See a character or word, recall its reading.",
+                    onClick = { onPick(AppMode.READING) },
+                )
+                Column(modifier = Modifier.padding(top = 20.dp)) {
+                    ModeCard(
+                        title = "Writing",
+                        subtitle = "Practice handwriting: trace the stroke-order form and get " +
+                            "instant feedback on your shape.",
+                        onClick = { onPick(AppMode.WRITING) },
+                    )
+                }
             }
         }
     }
@@ -76,9 +90,12 @@ private fun ModeCard(
 ) {
     Card(
         onClick = onClick,
+        // Cap-then-fill: full-width on phones, 420dp on very wide screens
+        // (centered by the parent column). Was fillMaxWidth().width(420.dp) —
+        // a contradictory pair where the fixed width silently lost out.
         modifier = Modifier
-            .fillMaxWidth()
-            .width(420.dp),
+            .widthIn(max = 420.dp)
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
