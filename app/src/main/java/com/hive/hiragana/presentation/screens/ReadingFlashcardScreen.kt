@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -41,10 +42,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.presentation.components.PronunciationButton
+import com.hive.hiragana.presentation.components.toNonScalingSp
 import com.hive.hiragana.presentation.viewmodels.ReadingFlashcardState
 
 /**
@@ -147,16 +148,17 @@ fun ReadingFlashcardScreen(
                 val avail = maxHeight
                 // Glyph as large as fits: scaled to the card's width (so longer
                 // words shrink and never overflow), to the available height, and
-                // to a cap — device-responsive. dp values are used as sp (≈ at
-                // the default font scale). The single-line reveal below leaves
-                // more height for the glyph than the old stacked layout.
+                // to a cap — device-responsive. The size is computed in dp space,
+                // so it converts via toNonScalingSp: applying it as a raw .sp
+                // made the glyph fontScale× larger than the width budget assumed
+                // (it overflowed the card on devices with large default fonts).
                 val glyphCount = card.glyph.length.coerceAtLeast(1)
                 val innerWidth = (maxWidth.value - 88f).coerceAtLeast(48f)
                 val glyphSize = minOf(
                     (innerWidth / glyphCount) * 0.92f,
                     avail.value * 0.34f,
                     120f,
-                ).coerceAtLeast(40f).sp
+                ).coerceAtLeast(40f).dp.toNonScalingSp()
                 val vPad = when {
                     avail >= 360.dp -> 32.dp
                     avail >= 240.dp -> 20.dp
@@ -216,20 +218,38 @@ fun ReadingFlashcardScreen(
                                 ),
                                 verticalArrangement = Arrangement.Center,
                             ) {
-                                Text(
-                                    text = card.romaji,
-                                    style = MaterialTheme.typography.headlineSmall,
-                                )
-                                PronunciationButton(
-                                    glyph = card.glyph,
-                                    status = ttsStatus,
-                                    onSpeak = onSpeak,
-                                )
+                                // Romaji + speaker are ONE unbreakable child:
+                                // FlowRow measures each child against the
+                                // REMAINING line width, and a squeezed Text
+                                // wraps internally every couple of characters
+                                // (the mangled reveal seen on device) instead
+                                // of moving to the next line whole.
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        text = card.romaji,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                    )
+                                    PronunciationButton(
+                                        glyph = card.glyph,
+                                        status = ttsStatus,
+                                        onSpeak = onSpeak,
+                                    )
+                                }
                                 card.meaning?.let { meaning ->
                                     Text(
                                         text = "·  $meaning",
                                         style = MaterialTheme.typography.headlineSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        // The min width forces a squeezed meaning
+                                        // onto its own full line instead of
+                                        // wrapping in the leftover sliver.
+                                        modifier = Modifier
+                                            .align(Alignment.CenterVertically)
+                                            .widthIn(min = 120.dp),
                                     )
                                 }
                             }

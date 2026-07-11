@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -119,6 +118,9 @@ import com.hive.hiragana.domain.model.VocabularyWord
 import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.presentation.components.BrushColorPicker
+import com.hive.hiragana.presentation.components.fontScaleFraction
+import com.hive.hiragana.presentation.components.rememberUniformTextScale
+import com.hive.hiragana.presentation.components.toNonScalingSp
 import com.hive.hiragana.presentation.theme.scoreSpectrumColor
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
@@ -749,8 +751,10 @@ private fun LibraryTopBar(
     onSortSelected: (ItemSort) -> Unit,
     sortOptions: List<Pair<ItemSort, String>> = ITEM_SORT_OPTIONS,
 ) {
+    // No windowInsets override: the routing Box in PracticeScreen pads by
+    // safeDrawing and CONSUMES those insets, so the app bar's default insets
+    // already resolve to zero here.
     TopAppBar(
-        windowInsets = WindowInsets(0, 0, 0, 0),
         navigationIcon = {
             // The 48dp IconButton centres its 24dp glyph, so the arrow tip sits
             // ~20dp from the screen edge — further in than the trailing "Quiz
@@ -825,9 +829,14 @@ private fun LibraryTopBar(
         actions = {
             CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
                 // Search FIRST (leftmost action): expanding the field replaces
-                // only the "Library" title text, and its close (✕) sits right
-                // beside the field. Keeping the view toggle to its right means
-                // search no longer swallows the grid/list selector.
+                // the "Library" title text, and its close (✕) sits right
+                // beside the field. While searching, the view toggle, Sort
+                // menu, and "Quiz me!" hide so the narrow title slot gets
+                // real field width — on large-font devices the old always-on
+                // cluster squeezed the field down to ~2 visible characters.
+                // (The view toggle is a no-op during search anyway: a live
+                // query forces list mode.) Only ✕ and the scope filter stay,
+                // since scope changes affect the search results.
                 IconButton(onClick = onToggleSearch, modifier = Modifier.size(40.dp)) {
                     Icon(
                         imageVector = if (searching) Icons.Filled.Close else Icons.Filled.Search,
@@ -835,9 +844,8 @@ private fun LibraryTopBar(
                     )
                 }
                 // List ⇄ chart(grid) view toggle. Shows the icon of the mode
-                // you'd switch TO; stays visible during search (search only
-                // covers the title text, not this selector).
-                if (showViewToggle) {
+                // you'd switch TO.
+                if (showViewToggle && !searching) {
                     IconButton(onClick = onToggleView, modifier = Modifier.size(40.dp)) {
                         if (isGridView) {
                             Icon(
@@ -859,7 +867,7 @@ private fun LibraryTopBar(
                 // has a fixed gojūon order). Takes the slot the brush-colour
                 // swatch used to hold; the brush colour now lives in the scope
                 // sheet as a labeled row.
-                if (showSort) {
+                if (showSort && !searching) {
                     SortMenu(
                         contentDescription = "Sort list",
                         label = null,
@@ -882,22 +890,25 @@ private fun LibraryTopBar(
                     }
                 }
                 // Entry to the write-from-memory quiz — it lives in the library
-                // because that's the ungated browse-anything space.
-                FilledTonalButton(
-                    onClick = onStartQuiz,
-                    // More end than start padding so "Quiz me!" isn't crammed
-                    // against the button's right edge; a tighter icon→text gap
-                    // keeps the label close to the pencil.
-                    contentPadding = PaddingValues(start = 10.dp, end = 16.dp),
-                    modifier = Modifier.padding(start = 4.dp, end = 4.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Create,
-                        contentDescription = null,
-                        modifier = Modifier.size(ButtonDefaults.IconSize),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Quiz me!")
+                // because that's the ungated browse-anything space. Hidden
+                // while searching (see the cluster comment above).
+                if (!searching) {
+                    FilledTonalButton(
+                        onClick = onStartQuiz,
+                        // More end than start padding so "Quiz me!" isn't crammed
+                        // against the button's right edge; a tighter icon→text gap
+                        // keeps the label close to the pencil.
+                        contentPadding = PaddingValues(start = 10.dp, end = 16.dp),
+                        modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Create,
+                            contentDescription = null,
+                            modifier = Modifier.size(ButtonDefaults.IconSize),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("Quiz me!")
+                    }
                 }
             }
         },
@@ -1312,7 +1323,12 @@ private fun ChartColumnLabels(labels: List<String>, cellSize: Dp) {
         labels.forEach { label ->
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
+                // Chrome text (non-scaling), matching the chart cells the
+                // labels align with.
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.dp.toNonScalingSp(),
+                    lineHeight = 16.dp.toNonScalingSp(),
+                ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.width(cellSize),
@@ -1335,7 +1351,11 @@ private fun ChartTableRow(
     ) {
         Text(
             text = row.rowLabel,
-            style = MaterialTheme.typography.labelSmall,
+            // Chrome text (non-scaling), matching the chart cells.
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.dp.toNonScalingSp(),
+                lineHeight = 16.dp.toNonScalingSp(),
+            ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.width(ChartRowLabelWidth),
@@ -1447,15 +1467,21 @@ private fun ChartCell(
         ) {
             Text(
                 // 2-codepoint kana (きゃ, ファ) get a smaller size so they fit the
-                // fixed cell without clipping.
+                // fixed cell without clipping. Chrome text (non-scaling sp):
+                // the dense chart cell is dp-sized, so its text behaves like
+                // an icon — the list view is the fully font-scaling path.
                 text = character.character,
-                fontSize = if (character.character.length > 1) 16.sp else 22.sp,
+                fontSize = if (character.character.length > 1) {
+                    16.dp.toNonScalingSp()
+                } else {
+                    22.dp.toNonScalingSp()
+                },
                 maxLines = 1,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = character.romaji,
-                fontSize = 11.sp,
+                fontSize = 11.dp.toNonScalingSp(),
                 maxLines = 1,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1463,7 +1489,7 @@ private fun ChartCell(
         if (score != null) {
             Text(
                 text = "$score",
-                fontSize = 9.sp,
+                fontSize = 9.dp.toNonScalingSp(),
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
                 style = ScoreTextStyle,
@@ -1505,9 +1531,11 @@ private fun WordGrid(
         words.associate { it.kana to pronunciation(it) }
     }
     // Adaptive columns reproduce the old FlowRow wrapping; 84.dp ≈ the cards'
-    // 76.dp min width plus breathing room.
+    // 76.dp min width plus breathing room. The min grows with the font scale
+    // (capped) so large-font settings get fewer, wider columns instead of
+    // scaled-up text jamming into scale-1 column widths.
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 84.dp),
+        columns = GridCells.Adaptive(minSize = 84.dp * fontScaleFraction(1.6f)),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1592,7 +1620,8 @@ private fun WordCard(
         if (score != null) {
             Text(
                 text = "$score",
-                fontSize = 10.sp,
+                // Chrome text (non-scaling): a corner badge, like an icon.
+                fontSize = 10.dp.toNonScalingSp(),
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
                 style = ScoreTextStyle,
@@ -2321,13 +2350,19 @@ private fun SelectableGridCell(
         ) {
             Text(
                 text = glyph,
-                fontSize = if (glyph.length > 1) 18.sp else 24.sp,
+                // Chrome text (non-scaling): the aspect-locked cell can't
+                // grow with font scale; the selection LIST is the scaling path.
+                fontSize = if (glyph.length > 1) {
+                    18.dp.toNonScalingSp()
+                } else {
+                    24.dp.toNonScalingSp()
+                },
                 maxLines = 1,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = label,
-                fontSize = 10.sp,
+                fontSize = 10.dp.toNonScalingSp(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2658,18 +2693,62 @@ private fun SetManagerRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = onQuiz) { Text("Quiz") }
-                    TextButton(onClick = onPractice) { Text("Practice") }
-                    TextButton(onClick = onEdit) { Text("Edit") }
-                    TextButton(onClick = { showRename = true }) { Text("Rename") }
-                    TextButton(onClick = { showDeleteConfirm = true }) { Text("Delete") }
+                // All five actions on ONE line at any font scale: the labels
+                // share a single shrink factor (uniform, so no label looks out
+                // of place) instead of the old FlowRow wrap, which dropped
+                // Delete onto a lonely second line on large-font devices.
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val actions = listOf(
+                        "Quiz" to onQuiz,
+                        "Practice" to onPractice,
+                        "Edit" to onEdit,
+                        "Rename" to { showRename = true },
+                        "Delete" to { showDeleteConfirm = true },
+                    )
+                    val actionStyle = MaterialTheme.typography.labelLarge
+                    val scale = rememberUniformTextScale(
+                        labels = actions.map { it.first },
+                        style = actionStyle,
+                        availableWidth = maxWidth,
+                        // 12dp content padding + the row's 4dp spacing share.
+                        reservedPerItem = 15.dp,
+                    )
+                    val shrunkStyle = actionStyle.copy(
+                        fontSize = actionStyle.fontSize * scale,
+                        lineHeight = if (actionStyle.lineHeight.isSp) {
+                            actionStyle.lineHeight * scale
+                        } else {
+                            actionStyle.lineHeight
+                        },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        actions.forEach { (label, action) ->
+                            TextButton(
+                                onClick = action,
+                                // TextButton's default 58dp min width defeats
+                                // the shrink; 40dp height keeps touch targets.
+                                modifier = Modifier.defaultMinSize(
+                                    minWidth = 1.dp,
+                                    minHeight = 40.dp,
+                                ),
+                                contentPadding = PaddingValues(horizontal = 6.dp),
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = shrunkStyle,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                            }
+                        }
+                    }
                 }
             }
             if (score != null) {
                 Text(
                     text = "$score",
-                    fontSize = 13.sp,
+                    // Chrome text (non-scaling): a corner badge, like an icon.
+                    fontSize = 13.dp.toNonScalingSp(),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     style = ScoreTextStyle,

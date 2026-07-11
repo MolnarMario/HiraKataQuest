@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.ButtonDefaults
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeLayout
@@ -278,7 +280,14 @@ private fun PanelControlsRow(
                     modifier = Modifier.size(ButtonDefaults.IconSize),
                 )
                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                Text("Library")
+                // Shrinks at large font scales so the button can't eat the
+                // width the layout picker needs (see ResponsiveText policy).
+                AutoShrinkText(
+                    text = "Library",
+                    modifier = Modifier.widthIn(max = 96.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    minFontSize = 11.sp,
+                )
             }
         }
         if (onSelectLayout != null) {
@@ -301,7 +310,16 @@ private fun PanelControlsRow(
                         label = {
                             Text(
                                 text = "${option.span}×${option.span}",
-                                style = MaterialTheme.typography.labelMedium,
+                                // Chrome text: sized in dp so the label fits
+                                // the fixed 40dp strip at ANY system font
+                                // scale (it wrapped/clipped on OEM devices
+                                // with large default fonts).
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 12.dp.toNonScalingSp(),
+                                    lineHeight = 16.dp.toNonScalingSp(),
+                                ),
+                                maxLines = 1,
+                                softWrap = false,
                             )
                         },
                     )
@@ -347,7 +365,12 @@ private fun PanelControlsRow(
             ) {
                 Text(
                     text = "あ",
-                    style = MaterialTheme.typography.titleSmall,
+                    // Chrome text: the kana IS the icon, so it sizes in dp
+                    // like one — the 44×40 pill can't grow with font scale.
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 14.dp.toNonScalingSp(),
+                        lineHeight = 20.dp.toNonScalingSp(),
+                    ),
                     modifier = Modifier.clearAndSetSemantics {
                         contentDescription = if (isGhostEnabled) {
                             "Hide character guide"

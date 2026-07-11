@@ -5,9 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import com.hive.hiragana.presentation.components.fontScaleFraction
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
@@ -75,7 +79,16 @@ fun PracticeScreen(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        // The Surface paints the washi background edge-to-edge (behind the
+        // system bars — see enableEdgeToEdge in MainActivity); the routing Box
+        // insets ALL content by safeDrawing (status/nav bars + display cutout
+        // + keyboard), so every when{} branch below is covered by this one
+        // modifier and nothing renders under bars or cutouts.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing),
+        ) {
         when {
             uiState.isLoading -> CenteredBox { CircularProgressIndicator() }
 
@@ -277,6 +290,11 @@ private fun PracticeContent(
     val character = uiState.currentCharacter
     val activeWord = uiState.freeWord
 
+    // The guide panel and action bar hold text that grows with the system
+    // font scale, but their 25%/10% height shares were hand-tuned at scale 1
+    // — grow both with the font (weights are relative, so the canvas simply
+    // absorbs the difference) instead of letting the panel texts clip.
+    val fontGrow = fontScaleFraction(1.4f)
     Column(modifier = Modifier.fillMaxSize()) {
         CharacterGuidePanel(
             character = character,
@@ -295,7 +313,7 @@ private fun PracticeContent(
             ttsStatus = uiState.ttsStatus,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.25f),
+                .weight(0.25f * fontGrow),
         )
 
         Box(
@@ -389,7 +407,7 @@ private fun PracticeContent(
             onNext = viewModel::advanceToNextCharacter,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.10f),
+                .weight(0.10f * fontGrow),
         )
     }
 }
