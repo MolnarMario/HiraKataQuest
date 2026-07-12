@@ -8,13 +8,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -189,8 +192,8 @@ fun QuizScreen(
 
 /** Reading-quiz answer styles shown on the setup card. */
 private val READING_ANSWER_CHOICES = listOf(
-    ReadingAnswerStyle.CHOICE to "Choose",
-    ReadingAnswerStyle.TYPE to "Type",
+    ReadingAnswerStyle.CHOICE to "Multiple choice",
+    ReadingAnswerStyle.TYPE to "Type it",
 )
 
 /** Scoring-mode chips shown on the quiz setup card. */
@@ -315,9 +318,12 @@ private fun QuizSetup(
                     )
                     if (reading) {
                         Text(
-                            text = "How do you want to answer?",
+                            text = "How would you like to answer?",
                             style = MaterialTheme.typography.titleSmall,
                         )
+                        // Two clearly-labelled, icon-tagged modes so it reads as a
+                        // pick-one toggle, not a static label. A caption under it
+                        // spells out the selected mode (and, by contrast, the other).
                         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                             READING_ANSWER_CHOICES.forEachIndexed { index, (style, label) ->
                                 SegmentedButton(
@@ -327,11 +333,34 @@ private fun QuizSetup(
                                         index = index,
                                         count = READING_ANSWER_CHOICES.size,
                                     ),
-                                    icon = {},
-                                    label = { Text(label) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = when (style) {
+                                                ReadingAnswerStyle.CHOICE ->
+                                                    Icons.AutoMirrored.Filled.List
+                                                ReadingAnswerStyle.TYPE ->
+                                                    Icons.Filled.Create
+                                            },
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    },
+                                    label = { Text(label, maxLines = 1) },
                                 )
                             }
                         }
+                        Text(
+                            text = when (quiz.readingAnswerStyle) {
+                                ReadingAnswerStyle.CHOICE ->
+                                    "Pick the correct reading from a few options. " +
+                                        "Tap “Type it” to enter the romaji yourself instead."
+                                ReadingAnswerStyle.TYPE ->
+                                    "Type the romaji reading yourself. " +
+                                        "Tap “Multiple choice” to pick from options instead."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         if (isWordSource) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
