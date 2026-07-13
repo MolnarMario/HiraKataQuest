@@ -969,8 +969,16 @@ private fun ScopeSheetContent(
                         index = index,
                         count = Script.entries.size,
                     ),
-                    icon = {},
-                    label = { Text(script.displayLabel) },
+                    label = {
+                        Text(
+                            text = script.displayLabel,
+                            fontWeight = if (script == activeScript) {
+                                FontWeight.Bold
+                            } else {
+                                FontWeight.Normal
+                            },
+                        )
+                    },
                 )
             }
         }
@@ -1018,8 +1026,16 @@ private fun ScopeSheetContent(
                         index = index,
                         count = AppMode.entries.size,
                     ),
-                    icon = {},
-                    label = { Text(mode.displayLabel) },
+                    label = {
+                        Text(
+                            text = mode.displayLabel,
+                            fontWeight = if (mode == appMode) {
+                                FontWeight.Bold
+                            } else {
+                                FontWeight.Normal
+                            },
+                        )
+                    },
                 )
             }
         }
@@ -1051,8 +1067,16 @@ private fun ScopeSheetContent(
                             index = index,
                             count = SCORING_CHOICES.size,
                         ),
-                        icon = {},
-                        label = { Text(label) },
+                        label = {
+                            Text(
+                                text = label,
+                                fontWeight = if (scoreMode == scoringMode) {
+                                    FontWeight.Bold
+                                } else {
+                                    FontWeight.Normal
+                                },
+                            )
+                        },
                     )
                 }
             }

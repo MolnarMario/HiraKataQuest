@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -304,9 +305,15 @@ private fun QuizSetup(
                                     index = index,
                                     count = options.size,
                                 ),
-                                icon = {},
                                 label = {
-                                    Text(if (option == deckSize) "All" else "$option")
+                                    Text(
+                                        text = if (option == deckSize) "All" else "$option",
+                                        fontWeight = if (option == quiz.requestedCount) {
+                                            FontWeight.Bold
+                                        } else {
+                                            FontWeight.Normal
+                                        },
+                                    )
                                 },
                             )
                         }
@@ -334,18 +341,35 @@ private fun QuizSetup(
                                         count = READING_ANSWER_CHOICES.size,
                                     ),
                                     icon = {
-                                        Icon(
-                                            imageVector = when (style) {
-                                                ReadingAnswerStyle.CHOICE ->
-                                                    Icons.AutoMirrored.Filled.List
-                                                ReadingAnswerStyle.TYPE ->
-                                                    Icons.Filled.Create
+                                        // Checkmark when selected (the clear "active"
+                                        // cue); the mode's own icon when not.
+                                        SegmentedButtonDefaults.Icon(
+                                            active = style == quiz.readingAnswerStyle,
+                                            inactiveContent = {
+                                                Icon(
+                                                    imageVector = when (style) {
+                                                        ReadingAnswerStyle.CHOICE ->
+                                                            Icons.AutoMirrored.Filled.List
+                                                        ReadingAnswerStyle.TYPE ->
+                                                            Icons.Filled.Create
+                                                    },
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
+                                                )
                                             },
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
                                         )
                                     },
-                                    label = { Text(label, maxLines = 1) },
+                                    label = {
+                                        Text(
+                                            text = label,
+                                            fontWeight = if (style == quiz.readingAnswerStyle) {
+                                                FontWeight.Bold
+                                            } else {
+                                                FontWeight.Normal
+                                            },
+                                            maxLines = 1,
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -417,8 +441,16 @@ private fun QuizSetup(
                                         index = index,
                                         count = SCORING_CHOICES.size,
                                     ),
-                                    icon = {},
-                                    label = { Text(label) },
+                                    label = {
+                                        Text(
+                                            text = label,
+                                            fontWeight = if (mode == scoringMode) {
+                                                FontWeight.Bold
+                                            } else {
+                                                FontWeight.Normal
+                                            },
+                                        )
+                                    },
                                 )
                             }
                         }
