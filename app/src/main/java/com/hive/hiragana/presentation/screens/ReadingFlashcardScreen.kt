@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -147,26 +148,50 @@ fun ReadingFlashcardScreen(
                     onClick = { typingMode = true },
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                     icon = {
-                        Icon(
-                            imageVector = Icons.Filled.Create,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
+                        // Checkmark when active (clear "selected" cue); the mode's
+                        // own icon when not.
+                        SegmentedButtonDefaults.Icon(
+                            active = typingMode,
+                            inactiveContent = {
+                                Icon(
+                                    imageVector = Icons.Filled.Create,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
+                                )
+                            },
                         )
                     },
-                    label = { Text("Typing", maxLines = 1) },
+                    label = {
+                        Text(
+                            "Typing",
+                            fontWeight = if (typingMode) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                        )
+                    },
                 )
                 SegmentedButton(
                     selected = !typingMode,
                     onClick = { typingMode = false },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                     icon = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.List,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
+                        SegmentedButtonDefaults.Icon(
+                            active = !typingMode,
+                            inactiveContent = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.List,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
+                                )
+                            },
                         )
                     },
-                    label = { Text("Multiple choice", maxLines = 1) },
+                    label = {
+                        Text(
+                            "Multiple choice",
+                            fontWeight = if (!typingMode) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                        )
+                    },
                 )
             }
 
