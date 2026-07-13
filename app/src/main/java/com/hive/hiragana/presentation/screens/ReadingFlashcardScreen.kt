@@ -1,6 +1,5 @@
 package com.hive.hiragana.presentation.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -10,12 +9,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -25,7 +27,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -131,41 +134,39 @@ fun ReadingFlashcardScreen(
                 )
             }
 
-            // Mode toggle — centered "Typing ⇄ Multiple choice", the active side
-            // bold. Tap either label or flip the switch; flippable any time.
-            Row(
+            // Two EQUAL study methods, so a segmented control — not an on/off
+            // switch, which would frame one as the default and the other as an
+            // "enabled" extra. The selected half is filled; neither is subordinate.
+            SingleChoiceSegmentedButtonRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Typing",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (typingMode) FontWeight.Bold else FontWeight.Normal,
-                    color = if (typingMode) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                SegmentedButton(
+                    selected = typingMode,
+                    onClick = { typingMode = true },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Filled.Create,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
                     },
-                    modifier = Modifier.clickable { typingMode = true },
+                    label = { Text("Typing", maxLines = 1) },
                 )
-                Switch(
-                    checked = !typingMode,
-                    onCheckedChange = { typingMode = !it },
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                )
-                Text(
-                    text = "Multiple choice",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (!typingMode) FontWeight.Bold else FontWeight.Normal,
-                    color = if (!typingMode) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                SegmentedButton(
+                    selected = !typingMode,
+                    onClick = { typingMode = false },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    icon = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.List,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
                     },
-                    modifier = Modifier.clickable { typingMode = false },
+                    label = { Text("Multiple choice", maxLines = 1) },
                 )
             }
 
