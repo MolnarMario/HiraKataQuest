@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,7 @@ import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.toNonScalingSp
 import com.hive.hiragana.presentation.viewmodels.ReadingFlashcardState
+import kotlin.random.Random
 
 /**
  * Reading-track flashcard study: flip through the scoped deck/words. The front
@@ -81,6 +83,15 @@ fun ReadingFlashcardScreen(
     var typingMode by rememberSaveable { mutableStateOf(false) }
     var typed by remember(state.index) { mutableStateOf("") }
     var typedCorrect by remember(state.index) { mutableStateOf<Boolean?>(null) }
+    // Multiple-choice mode: whether the tapped reading was right, plus this card's
+    // options (correct + up to 3 deck distractors, fixed per card).
+    var choiceResult by remember(state.index) { mutableStateOf<Boolean?>(null) }
+    val choiceOptions = remember(state.index, state.cards) {
+        readingChoiceOptions(card.romaji, state.cards.map { it.romaji }, state.index)
+    }
+    // Whether the current card was answered correctly, in whichever mode is active
+    // (drives the shared Correct!/Not quite reveal line).
+    val answeredCorrect = if (typingMode) typedCorrect else choiceResult
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
@@ -120,19 +131,42 @@ fun ReadingFlashcardScreen(
                 )
             }
 
-            // Top toggle — turn the romaji field on/off at any time.
+            // Mode toggle — centered "Typing ⇄ Multiple choice", the active side
+            // bold. Tap either label or flip the switch; flippable any time.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Type the reading",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f),
+                    text = "Typing",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (typingMode) FontWeight.Bold else FontWeight.Normal,
+                    color = if (typingMode) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.clickable { typingMode = true },
                 )
-                Switch(checked = typingMode, onCheckedChange = { typingMode = it })
+                Switch(
+                    checked = !typingMode,
+                    onCheckedChange = { typingMode = !it },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                Text(
+                    text = "Multiple choice",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (!typingMode) FontWeight.Bold else FontWeight.Normal,
+                    color = if (!typingMode) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.clickable { typingMode = false },
+                )
             }
 
             // Card area — sizes itself to the available height so the WHOLE card
@@ -173,13 +207,7 @@ fun ReadingFlashcardScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            // Tapping the card reveals too — but only in reveal mode
-                            // (typing mode reveals via Check / the keyboard's Done).
-                            .clickable(enabled = !state.revealed && !typingMode, onClick = onReveal),
-                    ) {
+                    Card(modifier = Modifier.fillMaxWidth()) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -197,11 +225,11 @@ fun ReadingFlashcardScreen(
                                 textAlign = TextAlign.Center,
                             )
                             if (state.revealed) {
-                            if (typingMode && typedCorrect != null) {
+                            if (answeredCorrect != null) {
                                 Text(
-                                    text = if (typedCorrect == true) "Correct!" else "Not quite",
+                                    text = if (answeredCorrect == true) "Correct!" else "Not quite",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = if (typedCorrect == true) {
+                                    color = if (answeredCorrect == true) {
                                         MaterialTheme.colorScheme.primary
                                     } else {
                                         MaterialTheme.colorScheme.error
@@ -302,22 +330,38 @@ fun ReadingFlashcardScreen(
                         ),
                     )
                 } else {
+                    // Multiple choice: tap a reading → it reveals the answer and
+                    // whether you were right, then Next advances.
                     if (state.revealed) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(onClick = onNext, modifier = Modifier.weight(1f)) {
-                                Text("Missed")
-                            }
-                            Button(onClick = onNext, modifier = Modifier.weight(1f)) {
-                                Text("Got it")
-                            }
+                        Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
+                            Text("Next")
                         }
                     } else {
-                        Button(onClick = onReveal, modifier = Modifier.fillMaxWidth()) {
-                            Text("Show answer")
+                        choiceOptions.forEach { option ->
+                            OutlinedButton(
+                                onClick = {
+                                    choiceResult = option == card.romaji
+                                    onReveal()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(option)
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * Multiple-choice options for a flashcard reading: the correct reading plus up to
+ * three distinct distractors drawn from the deck, in a fixed (seeded) order per
+ * card so the layout doesn't reshuffle on recomposition. Mirrors the reading
+ * quiz's option builder.
+ */
+private fun readingChoiceOptions(correct: String, pool: List<String>, seed: Int): List<String> {
+    val distractors = pool.filter { it != correct }.distinct().shuffled(Random(seed.toLong())).take(3)
+    return (distractors + correct).shuffled(Random(seed.toLong() + 1))
 }
