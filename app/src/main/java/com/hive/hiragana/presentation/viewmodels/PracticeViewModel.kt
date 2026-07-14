@@ -393,7 +393,15 @@ data class PracticeUiState(
      * their single composite character with its composed strokes.
      */
     fun wordUnitCharacters(word: VocabularyWord): List<HiraganaCharacter> =
-        KanaUnits.split(word.kana).mapNotNull { unit ->
+        unitCharacters(word.kana)
+
+    /**
+     * The deck [HiraganaCharacter] for each reading unit of [kana], in order
+     * (units with no deck entry are dropped). Also feeds the "print differs"
+     * badge, which needs each unit's strokes to render the handwritten form.
+     */
+    fun unitCharacters(kana: String): List<HiraganaCharacter> =
+        KanaUnits.split(kana).mapNotNull { unit ->
             characterByGlyph[unit]
         }
 

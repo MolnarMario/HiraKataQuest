@@ -48,7 +48,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.audio.VoiceStatus
+import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.RomajiMatch
+import com.hive.hiragana.presentation.components.PrintDivergenceBadge
+import com.hive.hiragana.presentation.components.PrintFontFamily
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.toNonScalingSp
 import com.hive.hiragana.presentation.viewmodels.ReadingFlashcardState
@@ -81,6 +84,10 @@ fun ReadingFlashcardScreen(
     onClose: () -> Unit,
     onSpeak: (String) -> Unit,
     ttsStatus: VoiceStatus,
+    // Deck characters for a kana string's reading units — feeds the
+    // "print differs" badge on the reveal (it needs strokes to render the
+    // handwritten form next to the printed front).
+    unitCharactersFor: (String) -> List<HiraganaCharacter> = { emptyList() },
     modifier: Modifier = Modifier,
 ) {
     val card = state.current ?: return
@@ -243,7 +250,11 @@ fun ReadingFlashcardScreen(
                         ) {
                             Text(
                                 text = card.glyph,
+                                // PrintFontFamily swaps さ/き/り (only) to their
+                                // connected printed forms; everything else falls
+                                // back to the system font. See PrintDivergence.
                                 style = MaterialTheme.typography.displayLarge.copy(
+                                    fontFamily = PrintFontFamily,
                                     fontSize = glyphSize,
                                     lineHeight = glyphSize,
                                 ),
@@ -307,6 +318,12 @@ fun ReadingFlashcardScreen(
                                     )
                                 }
                             }
+                            // Reading track shows the printed form, so warn when
+                            // the handwritten one looks different (renders
+                            // nothing for unaffected kana).
+                            PrintDivergenceBadge(
+                                unitCharacters = unitCharactersFor(card.glyph),
+                            )
                         }
                     }
                 }

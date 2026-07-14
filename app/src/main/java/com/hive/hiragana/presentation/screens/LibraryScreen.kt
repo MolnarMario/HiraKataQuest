@@ -111,6 +111,7 @@ import com.hive.hiragana.domain.scoring.CharacterScoreSummary
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.ScriptScope
+import com.hive.hiragana.presentation.components.PrintFontFamily
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.domain.model.TableRow
 import com.hive.hiragana.domain.model.TableSection
@@ -1495,6 +1496,7 @@ private fun ChartCell(
                 // the dense chart cell is dp-sized, so its text behaves like
                 // an icon — the list view is the fully font-scaling path.
                 text = character.character,
+                fontFamily = PrintFontFamily,
                 fontSize = if (character.character.length > 1) {
                     16.dp.toNonScalingSp()
                 } else {
@@ -1617,6 +1619,7 @@ private fun WordCard(
             Text(
                 text = kana,
                 style = MaterialTheme.typography.titleMedium,
+                fontFamily = PrintFontFamily,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -1766,6 +1769,7 @@ private fun LibraryRow(
             Text(
                 text = glyph,
                 style = MaterialTheme.typography.headlineMedium,
+                fontFamily = PrintFontFamily,
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Column(modifier = Modifier.weight(1f)) {
@@ -2374,6 +2378,7 @@ private fun SelectableGridCell(
         ) {
             Text(
                 text = glyph,
+                fontFamily = PrintFontFamily,
                 // Chrome text (non-scaling): the aspect-locked cell can't
                 // grow with font scale; the selection LIST is the scaling path.
                 fontSize = if (glyph.length > 1) {
@@ -2446,6 +2451,7 @@ private fun SelectableRow(
             Text(
                 text = glyph,
                 style = MaterialTheme.typography.headlineSmall,
+                fontFamily = PrintFontFamily,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Column(modifier = Modifier.weight(1f)) {

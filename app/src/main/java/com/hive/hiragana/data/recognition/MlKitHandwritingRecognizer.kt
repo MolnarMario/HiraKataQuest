@@ -12,6 +12,7 @@ import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizerOption
 import com.google.mlkit.vision.digitalink.recognition.Ink
 import com.hive.hiragana.domain.repository.HandwritingRecognizer
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
+import com.hive.hiragana.domain.scoring.KanaLookalikes
 import com.hive.hiragana.domain.scoring.RecognitionResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -62,7 +63,14 @@ class MlKitHandwritingRecognizer : HandwritingRecognizer {
         return runCatching {
             val result = recognizer.recognize(ink).await()
             val candidates = result.candidates.map { it.text }
-            val rank = candidates.indexOfFirst { it == target }.takeIf { it >= 0 }
+            // Shape-twin tolerant match: a lone small kana (ぁ, っ …) is
+            // pixel-identical to its regular twin, so ML Kit inevitably
+            // top-ranks the regular form — that must still count as
+            // recognized or the legibility cap fires on every small-kana
+            // attempt (see KanaLookalikes).
+            val rank = candidates
+                .indexOfFirst { KanaLookalikes.matches(it, target) }
+                .takeIf { it >= 0 }
             RecognitionResult(
                 recognized = rank == 0,
                 rank = rank,

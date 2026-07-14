@@ -152,6 +152,7 @@ fun PracticeScreen(
                     onReadingResult = viewModel::readingResult,
                     onSetAnswerStyle = viewModel::setReadingAnswerStyle,
                     onSetTestMeaning = viewModel::setReadingTestMeaning,
+                    unitCharactersFor = uiState::unitCharacters,
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
                 )
@@ -166,6 +167,7 @@ fun PracticeScreen(
                     onClose = viewModel::closeReadingFlashcards,
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
+                    unitCharactersFor = uiState::unitCharacters,
                 )
             }
 
@@ -365,9 +367,12 @@ private fun PracticeContent(
                     ScoreFeedbackCard(
                         score = score,
                         glyph = uiState.lastScoredCharacter,
+                        // Same safe inset as the word chips: clear the paper
+                        // card's 14dp edge + 20dp corner so the card always
+                        // stays inside the canvas; long tags wrap within it.
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .padding(top = 6.dp),
+                            .padding(top = 6.dp, start = 22.dp, end = 22.dp),
                     )
                 }
             }
