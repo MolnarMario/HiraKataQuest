@@ -152,6 +152,7 @@ fun PracticeScreen(
                     onReadingResult = viewModel::readingResult,
                     onSetAnswerStyle = viewModel::setReadingAnswerStyle,
                     onSetTestMeaning = viewModel::setReadingTestMeaning,
+                    unitCharactersFor = uiState::unitCharacters,
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
                 )
@@ -166,6 +167,7 @@ fun PracticeScreen(
                     onClose = viewModel::closeReadingFlashcards,
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
+                    unitCharactersFor = uiState::unitCharacters,
                 )
             }
 

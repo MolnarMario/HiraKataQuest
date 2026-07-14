@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hive.hiragana.domain.model.CharacterForm
+import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
@@ -65,6 +66,8 @@ import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.presentation.components.AutoShrinkText
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.fontScaleFraction
+import com.hive.hiragana.presentation.components.PrintDivergenceBadge
+import com.hive.hiragana.presentation.components.PrintFontFamily
 import kotlin.random.Random
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
@@ -126,6 +129,9 @@ fun QuizScreen(
     onReadingResult: (Boolean) -> Unit = {},
     onSetAnswerStyle: (ReadingAnswerStyle) -> Unit = {},
     onSetTestMeaning: (Boolean) -> Unit = {},
+    // Deck characters for a kana string's reading units — the reading quiz's
+    // reveal card uses it for the "print differs" badge (handwritten strokes).
+    unitCharactersFor: (String) -> List<HiraganaCharacter> = { emptyList() },
     // Pronunciation (device TTS).
     onSpeak: (String) -> Unit = {},
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
@@ -159,6 +165,7 @@ fun QuizScreen(
                     onClose = onClose,
                     onSpeak = onSpeak,
                     ttsStatus = ttsStatus,
+                    unitCharactersFor = unitCharactersFor,
                 )
             } else {
                 QuizRunning(
@@ -484,6 +491,7 @@ private fun ReadingQuizRunning(
     onClose: () -> Unit,
     onSpeak: (String) -> Unit,
     ttsStatus: VoiceStatus,
+    unitCharactersFor: (String) -> List<HiraganaCharacter>,
 ) {
     val current = quiz.current ?: return
     var showExitConfirm by rememberSaveable { mutableStateOf(false) }
@@ -531,9 +539,13 @@ private fun ReadingQuizRunning(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // The printed prompt — the real-world (gothic) form to recognize.
+            // PrintFontFamily swaps さ/き/り (only) to their connected printed
+            // forms; everything else falls back to the system font.
             Text(
                 text = current.answer,
-                style = MaterialTheme.typography.displayMedium,
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontFamily = PrintFontFamily,
+                ),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 20.dp),
             )
@@ -545,6 +557,7 @@ private fun ReadingQuizRunning(
                     meaningOk = if (needMeaning) meaningOk == true else null,
                     onSpeak = onSpeak,
                     ttsStatus = ttsStatus,
+                    unitCharacters = unitCharactersFor(current.answer),
                 )
             } else if (romajiOk == null) {
                 Text("What's the reading?", style = MaterialTheme.typography.titleSmall)
@@ -676,6 +689,7 @@ private fun ReadingRevealCard(
     meaningOk: Boolean?,
     onSpeak: (String) -> Unit,
     ttsStatus: VoiceStatus,
+    unitCharacters: List<HiraganaCharacter> = emptyList(),
 ) {
     val allOk = romajiOk && (meaningOk != false)
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -704,6 +718,9 @@ private fun ReadingRevealCard(
             item.subtitle?.let { meaning ->
                 Text(text = meaning, style = MaterialTheme.typography.bodyLarge)
             }
+            // The quiz prompt was the printed form — flag kana whose
+            // handwritten form looks different (renders nothing otherwise).
+            PrintDivergenceBadge(unitCharacters = unitCharacters)
         }
     }
 }

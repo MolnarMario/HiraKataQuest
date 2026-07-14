@@ -116,7 +116,9 @@ fun CharacterGuidePanel(
                         // previews on the right while still reading large.
                         Text(
                             text = word.kana,
-                            style = MaterialTheme.typography.displaySmall,
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontFamily = PrintFontFamily,
+                            ),
                             color = MaterialTheme.colorScheme.onBackground,
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -144,13 +146,25 @@ fun CharacterGuidePanel(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        // Kana whose printed form differs from the handwritten
+                        // one being traced get a tappable heads-up (renders
+                        // nothing for unaffected words).
+                        PrintDivergenceBadge(
+                            unitCharacters = wordCharacters,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
                     } else if (character != null) {
                         Text(
                             text = character.character,
                             // displayMedium (not displayLarge) so the reading
                             // row + the position line below both fit the 25%
-                            // guide panel without clipping.
-                            style = MaterialTheme.typography.displayMedium,
+                            // guide panel without clipping. PrintFontFamily
+                            // keeps さ/き/り consistent with the Library and
+                            // Reading track — the printed reference form,
+                            // while the ghost below teaches the handwritten one.
+                            style = MaterialTheme.typography.displayMedium.copy(
+                                fontFamily = PrintFontFamily,
+                            ),
                             color = MaterialTheme.colorScheme.onBackground,
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -174,6 +188,11 @@ fun CharacterGuidePanel(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        // Same heads-up as word mode, for the single character.
+                        PrintDivergenceBadge(
+                            unitCharacters = listOf(character),
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
                     }
                 }
 
