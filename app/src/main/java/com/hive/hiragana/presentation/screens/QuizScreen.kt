@@ -1000,9 +1000,11 @@ private fun QuizRunning(
                         ScoreFeedbackCard(
                             score = score,
                             glyph = lastScoredCharacter,
+                            // Same safe inset as the word chips so the card
+                            // always stays inside the canvas; long tags wrap.
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .padding(top = 6.dp),
+                                .padding(top = 6.dp, start = 22.dp, end = 22.dp),
                         )
                     }
                 }

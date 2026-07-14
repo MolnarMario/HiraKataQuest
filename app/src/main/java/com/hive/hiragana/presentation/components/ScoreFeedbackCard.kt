@@ -4,11 +4,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +37,14 @@ import com.hive.hiragana.domain.scoring.ScoringMode
  * takes a computed [CharacterScore] and renders it; all scoring lives in
  * the domain layer.
  *
+ * Sizing: the card wraps its content but never exceeds the width its caller
+ * allows — callers give it the canvas width minus a safe inset, and long
+ * coaching tags WRAP inside that (the tag column is the row's one flexible
+ * element) instead of stretching the card past the canvas edge.
+ *
+ * A small ⓘ opens the "How your writing is scored" explainer
+ * ([ScoringInfoDialog]), so the numbers are never a mystery.
+ *
  * Advisory by design (the plan's decision): this never changes the
  * self-grade or the review schedule, it just tells the learner how the
  * shape came out.
@@ -34,6 +55,7 @@ fun ScoreFeedbackCard(
     modifier: Modifier = Modifier,
     glyph: String? = null,
 ) {
+    var showInfo by rememberSaveable { mutableStateOf(false) }
     val band = qualityBand(score.headline)
     Surface(
         modifier = modifier,
@@ -41,7 +63,7 @@ fun ScoreFeedbackCard(
         color = band.container,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -60,7 +82,10 @@ fun ScoreFeedbackCard(
                 fontWeight = FontWeight.Bold,
                 color = band.content,
             )
-            Column {
+            // The one flexible element: takes what's left and wraps long
+            // coaching tags inside it, so the card can't outgrow the width
+            // the caller allows (fill = false keeps a short card compact).
+            Column(modifier = Modifier.weight(1f, fill = false)) {
                 Text(
                     text = band.label + dialSuffix(score.mode),
                     style = MaterialTheme.typography.labelMedium,
@@ -74,7 +99,87 @@ fun ScoreFeedbackCard(
                     )
                 }
             }
+            IconButton(
+                onClick = { showInfo = true },
+                modifier = Modifier.size(28.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = "How your writing is scored",
+                    tint = band.content,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
+    }
+    if (showInfo) {
+        ScoringInfoDialog(onDismiss = { showInfo = false })
+    }
+}
+
+/** Plain-language explainer for the handwriting score, opened from the card's ⓘ. */
+@Composable
+fun ScoringInfoDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("How your writing is scored") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                InfoSection(
+                    title = "Form",
+                    body = "How close your shape is to the reference character. " +
+                        "Writing bigger, smaller, or off-centre is NOT penalized — " +
+                        "only the shape counts, the way Japanese handwriting is " +
+                        "actually graded.",
+                )
+                InfoSection(
+                    title = "Technique",
+                    body = "The coaching line under the score: using the right " +
+                        "number of strokes, in the right order, drawn in the right " +
+                        "direction. Extra or missing strokes lower the score and " +
+                        "get called out.",
+                )
+                InfoSection(
+                    title = "Fit",
+                    body = "How well you fill and centre the guide cell. Scored " +
+                        "only when “Score my writing” is set to Fit or Both.",
+                )
+                InfoSection(
+                    title = "Readability",
+                    body = "Your ink is also shown to the device's handwriting " +
+                        "recognizer. If it honestly reads as a different character, " +
+                        "the score is capped and you'll see “Looks more like …” — " +
+                        "a tidy shape still has to be legible as the right kana.",
+                )
+                Text(
+                    text = "Scores are advice only: they never lock characters, " +
+                        "change your progress, or gate anything.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Got it") }
+        },
+    )
+}
+
+@Composable
+private fun InfoSection(title: String, body: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 
