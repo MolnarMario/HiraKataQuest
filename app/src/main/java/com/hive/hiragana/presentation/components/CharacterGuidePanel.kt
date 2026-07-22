@@ -3,6 +3,7 @@ package com.hive.hiragana.presentation.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.HiraganaCharacter
@@ -107,21 +109,33 @@ fun CharacterGuidePanel(
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // The left column's stack must NEVER exceed the panel height —
+                // it used to clip on compact screens (a 360dp-wide device
+                // gives the 25% panel ~110dp: the position line and the
+                // divergence ⓘ vanished under the controls row). Structure
+                // guarantees it now: the FIXED rows (reading/meaning line,
+                // position line) measure first, and the glyph sits in a
+                // weight(1f) box that receives exactly the leftover height,
+                // deriving its font size from that box — so no device metric
+                // can push the rows out. The ⓘ divergence badge lives ON the
+                // reading row (a second line for it was the first casualty).
                 Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
                 ) {
-                    if (word != null) {
-                        // displaySmall leaves room for the per-kana stroke-order
-                        // previews on the right while still reading large.
-                        Text(
-                            text = word.kana,
-                            style = MaterialTheme.typography.displaySmall.copy(
-                                fontFamily = PrintFontFamily,
-                            ),
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    GlyphLeftoverBox(
+                        text = if (word != null) word.kana else character?.character.orEmpty(),
+                        // displaySmall(36) for words, displayMedium(45) for
+                        // single characters — the caps reproduce the old look
+                        // on tall screens.
+                        maxFontSize = if (word != null) 36f else 45f,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (word != null) {
                             Text(
                                 text = meaningLine(
                                     word = word,
@@ -129,71 +143,40 @@ fun CharacterGuidePanel(
                                 ),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false),
                             )
-                            if (onSpeak != null) {
-                                PronunciationButton(
-                                    glyph = word.kana,
-                                    status = ttsStatus,
-                                    onSpeak = onSpeak,
-                                )
-                            }
-                        }
-                        if (positionLabel != null) {
+                        } else {
                             Text(
-                                text = positionLabel,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        // Kana whose printed form differs from the handwritten
-                        // one being traced get a tappable heads-up (renders
-                        // nothing for unaffected words).
-                        PrintDivergenceBadge(
-                            unitCharacters = wordCharacters,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    } else if (character != null) {
-                        Text(
-                            text = character.character,
-                            // displayMedium (not displayLarge) so the reading
-                            // row + the position line below both fit the 25%
-                            // guide panel without clipping. PrintFontFamily
-                            // keeps さ/き/り consistent with the Library and
-                            // Reading track — the printed reference form,
-                            // while the ghost below teaches the handwritten one.
-                            style = MaterialTheme.typography.displayMedium.copy(
-                                fontFamily = PrintFontFamily,
-                            ),
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = character.romaji,
+                                text = character?.romaji.orEmpty(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            if (onSpeak != null) {
-                                PronunciationButton(
-                                    glyph = character.character,
-                                    status = ttsStatus,
-                                    onSpeak = onSpeak,
-                                )
-                            }
                         }
-                        if (positionLabel != null) {
-                            Text(
-                                text = positionLabel,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        val speakGlyph = word?.kana ?: character?.character
+                        if (onSpeak != null && speakGlyph != null) {
+                            PronunciationButton(
+                                glyph = speakGlyph,
+                                status = ttsStatus,
+                                onSpeak = onSpeak,
                             )
                         }
-                        // Same heads-up as word mode, for the single character.
-                        PrintDivergenceBadge(
-                            unitCharacters = listOf(character),
-                            modifier = Modifier.padding(top = 4.dp),
+                    }
+                    if (positionLabel != null) {
+                        Text(
+                            text = positionLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    // NOTE: the "Looks different in print" chip deliberately
+                    // does NOT live in this panel — no row fits on compact
+                    // screens without costing the glyph or the position line.
+                    // In free practice it floats over the paper card's bottom
+                    // margin instead (PracticeScreen), which is free space on
+                    // every device because the writing grid is a width-bound
+                    // square.
                 }
 
                 if (character != null && word == null) {
@@ -248,6 +231,38 @@ fun CharacterGuidePanel(
     }
 }
 
+/**
+ * The guide panel's headline glyph, sized to the height this box actually
+ * receives (the caller gives it the leftover after the fixed rows measure,
+ * via weight) and shrunk to the width for long words. A CJK line renders
+ * ~1.35× its font size, so the size derives from height / 1.35, capped at
+ * [maxFontSize] so tall screens keep the old display-type look.
+ * PrintFontFamily keeps さ/き/り consistent with the Library and Reading
+ * track — the printed reference form, while the traced ghost teaches the
+ * handwritten one.
+ */
+@Composable
+private fun GlyphLeftoverBox(
+    text: String,
+    maxFontSize: Float,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier) {
+        val fontSize = (maxHeight.value / 1.35f).coerceIn(18f, maxFontSize)
+        AutoShrinkText(
+            text = text,
+            style = MaterialTheme.typography.displayMedium.copy(
+                fontFamily = PrintFontFamily,
+                fontSize = fontSize.dp.toNonScalingSp(),
+                lineHeight = (fontSize * 1.35f).dp.toNonScalingSp(),
+            ),
+            color = MaterialTheme.colorScheme.onBackground,
+            minFontSize = 14.sp,
+            modifier = Modifier.align(Alignment.CenterStart),
+        )
+    }
+}
+
 /** Shared height of every control in [PanelControlsRow]. */
 private val ControlHeight = 40.dp
 
@@ -279,11 +294,18 @@ private fun PanelControlsRow(
     onToggleGrid: (() -> Unit)?,
     isGhostEnabled: Boolean,
     onToggleGhost: (() -> Unit)?,
+) = BoxWithConstraints(
+    modifier = Modifier
+        .fillMaxWidth()
+        .padding(top = 8.dp),
 ) {
+    // On compact widths (a 360dp device leaves this strip ~320dp) the
+    // labelled Library button starved the layout picker until its segments
+    // clipped to "1x 2x 3x" — below the threshold it collapses to icon-only,
+    // which more than pays for the picker's full labels.
+    val compact = maxWidth < 350.dp
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ControlGap),
     ) {
@@ -295,18 +317,20 @@ private fun PanelControlsRow(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.List,
-                    contentDescription = null,
+                    contentDescription = if (compact) "Library" else null,
                     modifier = Modifier.size(ButtonDefaults.IconSize),
                 )
-                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                // Shrinks at large font scales so the button can't eat the
-                // width the layout picker needs (see ResponsiveText policy).
-                AutoShrinkText(
-                    text = "Library",
-                    modifier = Modifier.widthIn(max = 96.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    minFontSize = 11.sp,
-                )
+                if (!compact) {
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    // Shrinks at large font scales so the button can't eat the
+                    // width the layout picker needs (see ResponsiveText policy).
+                    AutoShrinkText(
+                        text = "Library",
+                        modifier = Modifier.widthIn(max = 96.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        minFontSize = 11.sp,
+                    )
+                }
             }
         }
         if (onSelectLayout != null) {
@@ -327,14 +351,19 @@ private fun PanelControlsRow(
                         // and the icon would widen the selected segment.
                         icon = {},
                         label = {
+                            // Chrome text: dp-sized so the label fits the fixed
+                            // 40dp strip at any font scale, a notch smaller on
+                            // compact widths so "1×1" never clips to "1x".
+                            // NOTE: must stay a plain Text — SegmentedButtonRow
+                            // measures labels with INTRINSICS, and anything
+                            // BoxWithConstraints-based (AutoShrinkText) crashes
+                            // with "Asking for intrinsic measurements of
+                            // SubcomposeLayout" (crashed on device).
                             Text(
                                 text = "${option.span}×${option.span}",
-                                // Chrome text: sized in dp so the label fits
-                                // the fixed 40dp strip at ANY system font
-                                // scale (it wrapped/clipped on OEM devices
-                                // with large default fonts).
                                 style = MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = 12.dp.toNonScalingSp(),
+                                    fontSize = (if (compact) 10.dp else 12.dp)
+                                        .toNonScalingSp(),
                                     lineHeight = 16.dp.toNonScalingSp(),
                                 ),
                                 maxLines = 1,

@@ -111,6 +111,7 @@ import com.hive.hiragana.domain.scoring.CharacterScoreSummary
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.ScriptScope
+import com.hive.hiragana.presentation.components.AutoShrinkText
 import com.hive.hiragana.presentation.components.PrintFontFamily
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.domain.model.TableRow
@@ -811,12 +812,13 @@ private fun LibraryTopBar(
             } else {
                 // Shifted left by the same nudge as the back arrow so the gap
                 // between the arrow and "Library" is as tight as before the
-                // arrow moved. One line, never wrapped (ellipsizes on a very
-                // narrow device rather than stealing a second row).
-                Text(
-                    "Library",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                // arrow moved. One line, never wrapped — shrinks to fit the
+                // slot left by the action cluster ("Libra…" on a 360dp-wide
+                // device otherwise), ellipsizing only below the shrink floor.
+                AutoShrinkText(
+                    text = "Library",
+                    style = LocalTextStyle.current,
+                    minFontSize = 15.sp,
                     modifier = Modifier.offset(x = TitleNudge),
                 )
             }

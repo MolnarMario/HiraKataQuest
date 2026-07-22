@@ -1,12 +1,20 @@
 package com.hive.hiragana.presentation.components
 
 import android.graphics.Paint
+import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -16,8 +24,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
@@ -81,6 +92,19 @@ fun TracingCanvas(
     // Per-cell KanjiVG stroke paths (viewBox space), aligned with [characters];
     // only consulted in HANDWRITTEN mode. Empty (the default) keeps the font ghost.
     glyphStrokes: List<List<String>> = emptyList(),
+    // Reserved feedback strip INSIDE the paper card, above the writing area
+    // (the score/chips land here on Submit). Its height is CONSTANT for the
+    // sheet whether or not [header] draws anything: ink is stored in canvas
+    // pixels, so a strip that only appeared on Submit would move the grid
+    // out from under the already-drawn strokes.
+    headerHeight: Dp = 0.dp,
+    header: (@Composable BoxScope.() -> Unit)? = null,
+    // Reserved strip BELOW the writing area (the "Looks different in print"
+    // chip / the word-average pill). Same constant-height rule as [header]:
+    // the writing square sizes itself around both strips, so footer content
+    // can never overlap the square's border.
+    footerHeight: Dp = 0.dp,
+    footer: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     val strokeCapture = remember(canvasState) { StrokeCapture(canvasState) }
     val ghostPaint = remember {
@@ -107,11 +131,49 @@ fun TracingCanvas(
         color = PaperWhite,
         shadowElevation = 2.dp,
     ) {
+        // The writing cells in canvas px, refreshed each draw pass — the
+        // pointer filter rejects strokes that don't START inside one, and
+        // the ink render clips to them, so nothing can be drawn outside the
+        // bordered writing area (margins, the score strip, between slots).
+        val inkBounds = remember(canvasState) { mutableListOf<Rect>() }
+        val rejectStroke = remember(canvasState) { booleanArrayOf(false) }
+        val touchSlopPx = with(LocalDensity.current) { 6.dp.toPx() }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+        if (headerHeight > 0.dp) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(headerHeight)
+                    .padding(horizontal = 12.dp),
+                // Centered with NO fixed vertical padding: the strip's slack
+                // splits evenly above and below the score card, and the
+                // writing square starts at the strip's bottom edge — so the
+                // card sits at the SAME distance from the paper's top as
+                // from the square's border (user requirement).
+                contentAlignment = Alignment.Center,
+            ) {
+                header?.invoke(this)
+            }
+        }
         Canvas(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .clipToBounds()
-                .pointerInteropFilter { event -> strokeCapture.onMotionEvent(event) },
+                .pointerInteropFilter { event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            val start = Offset(event.x, event.y)
+                            val inside = inkBounds.isEmpty() ||
+                                inkBounds.any { it.inflate(touchSlopPx).contains(start) }
+                            rejectStroke[0] = !inside
+                            if (inside) strokeCapture.onMotionEvent(event) else true
+                        }
+                        else ->
+                            if (rejectStroke[0]) true else strokeCapture.onMotionEvent(event)
+                    }
+                },
         ) {
             val repetitions = layout.span * layout.span
             val cellCount = characters.size.coerceAtLeast(1)
@@ -148,13 +210,20 @@ fun TracingCanvas(
             val gridWidth = slotContentWidth * cols + slotGap * (cols - 1)
             val gridHeight = side * rows + slotGap * (rows - 1)
             val left = (size.width - gridWidth) / 2f
-            val top = (size.height - gridHeight) / 2f
+            // With a score strip above, the grid anchors right below it (the
+            // strip's centering provides the symmetric gap) and ALL leftover
+            // height becomes bottom margin — which is also what gives the
+            // "Looks different in print" chip its guaranteed room. Without a
+            // strip, the grid centres as before.
+            val top = if (headerHeight > 0.dp) 0f else (size.height - gridHeight) / 2f
 
             // 1 + 2. one practice grid + ghost glyph per cell, repeated per
             // slot; when the copies don't divide evenly the last row stays
             // left-aligned, worksheet-style. The grid and ghost toggles each
             // skip their own drawing only — cell layout is unchanged either
             // way, so ink and glyph positions stay identical.
+            inkBounds.clear()
+            val inkClip = Path()
             for (copy in 0 until repetitions) {
                 val slotLeft = left + (copy % cols) * (slotContentWidth + slotGap)
                 val slotTop = top + (copy / cols) * (side + slotGap)
@@ -163,6 +232,8 @@ fun TracingCanvas(
                         Offset(slotLeft + index * (side + cellGap), slotTop),
                         Size(side, side),
                     )
+                    inkBounds.add(cell)
+                    inkClip.addRect(cell)
                     if (showGrid) {
                         drawPracticeGrid(cell, borderColor = GridBorder, guideColor = GridGuide)
                     }
@@ -226,15 +297,29 @@ fun TracingCanvas(
                 .minOfOrNull { ghostFitScale(ghostPaint, it, side) } ?: 1f
             canvasState.brushBaseWidthPx = (side * glyphFit * BrushWidthFraction).coerceAtLeast(1f)
 
-            // 3. completed strokes — filled brush ribbons, width baked in
-            canvasState.completedPaths.forEach { path ->
-                drawPath(path = path, color = inkColor)
+            // 3 + 4. completed strokes, then the active one — filled brush
+            // ribbons, width baked in. Clipped to the writing cells so ink
+            // can never appear outside the bordered writing area.
+            clipPath(inkClip) {
+                canvasState.completedPaths.forEach { path ->
+                    drawPath(path = path, color = inkColor)
+                }
+                canvasState.activePath?.let { path ->
+                    drawPath(path = path, color = inkColor)
+                }
             }
-
-            // 4. active stroke
-            canvasState.activePath?.let { path ->
-                drawPath(path = path, color = inkColor)
+        }
+        if (footerHeight > 0.dp) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(footerHeight)
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                footer?.invoke(this)
             }
+        }
         }
     }
 }

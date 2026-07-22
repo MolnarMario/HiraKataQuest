@@ -323,6 +323,7 @@ fun ReadingFlashcardScreen(
                             // nothing for unaffected kana).
                             PrintDivergenceBadge(
                                 unitCharacters = unitCharactersFor(card.glyph),
+                                label = "Looks different in handwriting",
                             )
                         }
                     }

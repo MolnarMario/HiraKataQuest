@@ -122,41 +122,40 @@ fun ScoreFeedbackCard(
 fun ScoringInfoDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("How your writing is scored") },
+        // Copy is deliberately tight so the whole dialog fits WITHOUT
+        // scrolling on a 360×700dp phone (it needed a scroll before, which
+        // read as broken for this little text); the scroll stays only as a
+        // safety net for huge font scales.
+        title = { Text("How scoring works") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 InfoSection(
                     title = "Form",
                     body = "How close your shape is to the reference character. " +
-                        "Writing bigger, smaller, or off-centre is NOT penalized — " +
-                        "only the shape counts, the way Japanese handwriting is " +
-                        "actually graded.",
+                        "Size and position don't matter: only the shape counts, " +
+                        "the way Japanese handwriting is actually graded.",
                 )
                 InfoSection(
                     title = "Technique",
-                    body = "The coaching line under the score: using the right " +
-                        "number of strokes, in the right order, drawn in the right " +
-                        "direction. Extra or missing strokes lower the score and " +
-                        "get called out.",
+                    body = "The coaching line under the score: the right number " +
+                        "of strokes, in the right order and direction.",
                 )
                 InfoSection(
                     title = "Fit",
                     body = "How well you fill and centre the guide cell. Scored " +
-                        "only when “Score my writing” is set to Fit or Both.",
+                        "only in Fit or Both mode.",
                 )
                 InfoSection(
                     title = "Readability",
-                    body = "Your ink is also shown to the device's handwriting " +
-                        "recognizer. If it honestly reads as a different character, " +
-                        "the score is capped and you'll see “Looks more like …” — " +
-                        "a tidy shape still has to be legible as the right kana.",
+                    body = "Your ink is also checked by the device's handwriting " +
+                        "recognizer: a shape that reads as a different character " +
+                        "caps the score with “Looks more like …”.",
                 )
                 Text(
-                    text = "Scores are advice only: they never lock characters, " +
-                        "change your progress, or gate anything.",
+                    text = "Scores are advice only. They never lock or gate anything.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

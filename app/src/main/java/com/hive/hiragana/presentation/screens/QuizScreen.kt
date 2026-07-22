@@ -720,7 +720,10 @@ private fun ReadingRevealCard(
             }
             // The quiz prompt was the printed form — flag kana whose
             // handwritten form looks different (renders nothing otherwise).
-            PrintDivergenceBadge(unitCharacters = unitCharacters)
+            PrintDivergenceBadge(
+                unitCharacters = unitCharacters,
+                label = "Looks different in handwriting",
+            )
         }
     }
 }
@@ -969,46 +972,40 @@ private fun QuizRunning(
                 } else {
                     emptyList()
                 },
+                // Feedback fills the reserved strip inside the paper (above
+                // the writing square) after Submit — same slot as free
+                // practice; a word's average gets the reserved footer strip
+                // below the square.
+                headerHeight = if (isWord) 108.dp else 84.dp,
+                header = {
+                    if (quiz.submitted) {
+                        if (isWord && lastWordScores != null) {
+                            WordScoreChips(
+                                scores = lastWordScores,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            lastScore?.let { score ->
+                                ScoreFeedbackCard(
+                                    score = score,
+                                    glyph = lastScoredCharacter,
+                                )
+                            }
+                        }
+                    }
+                },
+                footerHeight = if (isWord) 44.dp else 0.dp,
+                footer = {
+                    if (quiz.submitted) {
+                        lastWordAverage?.let { avg ->
+                            WordAverageCard(average = avg)
+                        }
+                    }
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 14.dp),
             )
-            // Feedback shows only in the review sub-state (after Submit); it is
-            // cleared on advance so it doesn't distract on the next item. A word
-            // shows per-kana chips + an average; a character shows one card.
-            if (quiz.submitted) {
-                if (isWord && lastWordScores != null) {
-                    WordScoreChips(
-                        // Same inset as free practice: clear the paper card's
-                        // 14dp edge + 20dp rounded corner so all chips stay
-                        // fully inside the white canvas.
-                        scores = lastWordScores,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 12.dp, start = 22.dp, end = 22.dp),
-                    )
-                    lastWordAverage?.let { avg ->
-                        WordAverageCard(
-                            average = avg,
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 6.dp),
-                        )
-                    }
-                } else {
-                    lastScore?.let { score ->
-                        ScoreFeedbackCard(
-                            score = score,
-                            glyph = lastScoredCharacter,
-                            // Same safe inset as the word chips so the card
-                            // always stays inside the canvas; long tags wrap.
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(top = 6.dp, start = 22.dp, end = 22.dp),
-                        )
-                    }
-                }
-            }
         }
 
         // No self-grade — handwriting is auto-scored. Submit scores + reveals the
