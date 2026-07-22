@@ -67,6 +67,14 @@ import com.hive.hiragana.domain.model.PrintDivergence
 fun PrintDivergenceBadge(
     unitCharacters: List<HiraganaCharacter>,
     modifier: Modifier = Modifier,
+    // The chip names the form the learner is NOT currently looking at: the
+    // Writing track (tracing the handwritten ghost) warns about print; the
+    // Reading track (showing the printed glyph) warns about handwriting.
+    label: String = "Looks different in print",
+    // Icon-only rendering for tight chrome: the full-text chip wrapped to a
+    // second line gets DROPPED by height-constrained parents on compact
+    // screens (FlowRow overflow-clips children that exceed constraints).
+    iconOnly: Boolean = false,
 ) {
     val entries = remember(unitCharacters) {
         unitCharacters
@@ -88,21 +96,34 @@ fun PrintDivergenceBadge(
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         modifier = modifier,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Info,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-            )
-            Text(
-                text = "Looks different in print",
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-            )
+        if (iconOnly) {
+            Box(
+                modifier = Modifier.size(26.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = label,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
+            }
         }
     }
 

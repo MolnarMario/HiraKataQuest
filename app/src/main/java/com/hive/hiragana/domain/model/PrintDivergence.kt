@@ -39,10 +39,10 @@ object PrintDivergence {
      */
     private val NOTES: Map<Char, String> = mapOf(
         'き' to "In books and many print fonts the bottom curve joins the " +
-            "stroke above. Handwritten き has 4 strokes — the bottom hook " +
+            "stroke above. Handwritten き has 4 strokes: the bottom hook " +
             "is written separately.",
         'さ' to "In books and many print fonts the bottom curve joins the " +
-            "stroke above. Handwritten さ has 3 strokes — the bottom is " +
+            "stroke above. Handwritten さ has 3 strokes: the bottom is " +
             "written separately.",
         'り' to "In print (as shown here) the two strokes of り flow into one. " +
             "The school handwriting form traces them as two separate strokes.",

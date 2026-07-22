@@ -3,6 +3,7 @@ package com.hive.hiragana.presentation.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -35,11 +36,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
+import com.hive.hiragana.domain.model.PrintDivergence
 import com.hive.hiragana.presentation.viewmodels.QuizKind
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.presentation.components.CharacterGuidePanel
 import com.hive.hiragana.presentation.components.FreePracticeActionBar
+import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
 import com.hive.hiragana.presentation.components.WordAverageCard
@@ -297,6 +300,13 @@ private fun PracticeContent(
     // — grow both with the font (weights are relative, so the canvas simply
     // absorbs the difference) instead of letting the panel texts clip.
     val fontGrow = fontScaleFraction(1.4f)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Short screens (a 360dp-wide compact phone gives ~700dp of content
+        // height vs ~890 on the tuning device) starve the 25% guide panel
+        // until its headline glyph shrinks to a sliver. Give the panel a
+        // bigger share there — the canvas is width-bound (square cells), so
+        // on those same screens its 65% slot has spare white space to give.
+        val panelBoost = if (maxHeight < 760.dp) 1.25f else 1f
     Column(modifier = Modifier.fillMaxSize()) {
         CharacterGuidePanel(
             character = character,
@@ -315,7 +325,7 @@ private fun PracticeContent(
             ttsStatus = uiState.ttsStatus,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.25f * fontGrow),
+                .weight(0.25f * fontGrow * panelBoost),
         )
 
         Box(
@@ -323,6 +333,25 @@ private fun PracticeContent(
                 .fillMaxWidth()
                 .weight(0.65f),
         ) {
+            // Advisory quality readout lives in a RESERVED strip inside the
+            // paper card, above the writing square — empty until Submit
+            // (fixed height, so the grid never moves under already-drawn
+            // ink). A scored WHOLE WORD fills it with the per-kana chips
+            // (its average keeps the paper's bottom margin); a single
+            // character shows the one feedback card. Scoring OFF ⇒ nothing
+            // ever fills the strip, so it isn't reserved at all.
+            val wordScores = uiState.lastWordScores
+            val isWordSheet = uiState.canvasGlyphs.size > 1
+            // The "Looks different in print" units for this sheet — the
+            // footer strip below the writing square is only reserved when
+            // there is something to say there (or a word average to show).
+            val divergenceUnits = activeWord?.let(uiState::wordUnitCharacters)
+                ?: listOfNotNull(character)
+            val hasDivergence = divergenceUnits.any {
+                PrintDivergence.noteFor(it.character) != null
+            }
+            val scoredSheet = uiState.scoringMode != ScoringMode.OFF &&
+                uiState.practiceLayout == PracticeLayout.SINGLE
             TracingCanvas(
                 canvasState = canvasState,
                 characters = uiState.canvasGlyphs,
@@ -334,48 +363,44 @@ private fun PracticeContent(
                 // form you actually write, coherent with the demo and scorer.
                 characterForm = CharacterForm.HANDWRITTEN,
                 glyphStrokes = uiState.canvasGhostStrokes,
+                headerHeight = when {
+                    !scoredSheet -> 0.dp
+                    isWordSheet -> 108.dp
+                    else -> 84.dp
+                },
+                header = {
+                    if (wordScores != null) {
+                        WordScoreChips(
+                            scores = wordScores,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        uiState.lastScore?.let { score ->
+                            ScoreFeedbackCard(
+                                score = score,
+                                glyph = uiState.lastScoredCharacter,
+                            )
+                        }
+                    }
+                },
+                // Reserved strip BELOW the square: the divergence chip (and,
+                // after a word submit, the word average — they share it, the
+                // average taking precedence). Reserved structurally so the
+                // chip can never overlap the square's border (it did when it
+                // floated on whatever margin was left).
+                footerHeight = if (hasDivergence || (isWordSheet && scoredSheet)) 44.dp else 0.dp,
+                footer = {
+                    val avg = uiState.lastWordAverage
+                    if (wordScores != null && avg != null) {
+                        WordAverageCard(average = avg)
+                    } else {
+                        PrintDivergenceBadge(unitCharacters = divergenceUnits)
+                    }
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 14.dp),
             )
-            // Advisory quality readout floats over the sheet where the writing
-            // area (centred) won't be covered. A scored WHOLE WORD shows a
-            // per-kana chip row above and its average below; a single character
-            // shows the one feedback card.
-            val wordScores = uiState.lastWordScores
-            if (wordScores != null) {
-                WordScoreChips(
-                    // Inset past the paper card's 14dp edge + its 20dp rounded
-                    // corner (and drop below the corner curve) so every chip —
-                    // leftmost and rightmost included — sits fully inside the
-                    // white canvas on any screen width.
-                    scores = wordScores,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 12.dp, start = 22.dp, end = 22.dp),
-                )
-                uiState.lastWordAverage?.let { avg ->
-                    WordAverageCard(
-                        average = avg,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 6.dp),
-                    )
-                }
-            } else {
-                uiState.lastScore?.let { score ->
-                    ScoreFeedbackCard(
-                        score = score,
-                        glyph = uiState.lastScoredCharacter,
-                        // Same safe inset as the word chips: clear the paper
-                        // card's 14dp edge + 20dp corner so the card always
-                        // stays inside the canvas; long tags wrap within it.
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 6.dp, start = 22.dp, end = 22.dp),
-                    )
-                }
-            }
         }
 
         // Free practice: two-step Submit→Next (mirrors the quiz). "Again"
@@ -414,6 +439,7 @@ private fun PracticeContent(
                 .fillMaxWidth()
                 .weight(0.10f * fontGrow),
         )
+    }
     }
 }
 
