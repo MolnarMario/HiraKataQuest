@@ -33,11 +33,28 @@ import androidx.compose.ui.unit.dp
 data class ConceptInfo(val title: String, val body: String)
 
 /**
- * The five concepts the app never explained in-app. Beginners can open these
- * from the ⓘ next to the matching control. [overview] is the full set for a
- * first-run summary (opening screen). No em-dashes in copy (user style rule).
+ * The kana concepts the app never explained in-app. Beginners can open the
+ * per-topic ones ([voiced] / [combined] / [extended]) from the ⓘ next to the
+ * matching control in the Study-scope sheet. [overview] is the first-run
+ * summary shown from the opening screen's "New to kana?" button; it is curated
+ * (intro + hiragana + katakana + kanji + a pointer to the per-topic ⓘ) rather
+ * than every entry. No em-dashes in copy (user style rule).
  */
 object KanaConcepts {
+    val intro = ConceptInfo(
+        title = "What are kana?",
+        body = "Kana are the two phonetic alphabets of Japanese, hiragana and " +
+            "katakana. Each symbol stands for a whole syllable (a sound like ka " +
+            "or mi) rather than a single letter, and between them they can spell " +
+            "every Japanese sound. Writing each kana with the correct stroke " +
+            "order and direction matters more than it first looks: it is how the " +
+            "shapes are taught and recognized, it keeps your writing legible and " +
+            "well proportioned, and it builds the muscle memory that lets you " +
+            "write smoothly and read other people's handwriting later. That is " +
+            "why this app has you trace each character in order instead of just " +
+            "copying its outline.",
+    )
+
     val hiragana = ConceptInfo(
         title = "Hiragana",
         body = "Hiragana is one of Japan's two phonetic alphabets. Its 46 base " +
@@ -80,8 +97,33 @@ object KanaConcepts {
             "these in loanwords and precise spellings.",
     )
 
-    /** All five, for the opening screen's first-run overview. */
-    val overview = listOf(hiragana, katakana, voiced, combined, extended)
+    val kanji = ConceptInfo(
+        title = "What about kanji?",
+        body = "Kanji are the third piece of written Japanese: characters " +
+            "borrowed from Chinese that carry meaning, not just sound. There are " +
+            "thousands of them, each with several readings and many strokes. They " +
+            "matter enormously for real reading, but they are a far larger and " +
+            "longer study, so this app leaves them out on purpose and focuses on " +
+            "giving you a solid foundation in the two kana alphabets first. Once " +
+            "your kana are fluent you will be well prepared to take on kanji " +
+            "elsewhere.",
+    )
+
+    val more = ConceptInfo(
+        title = "Voiced, combined and extended kana",
+        body = "Beyond the basic sounds there are voiced, combined, and extended " +
+            "kana for extra and foreign sounds. You can switch these on in the " +
+            "Study scope menu whenever you are ready, and each one has its own ⓘ " +
+            "there that explains what it is.",
+    )
+
+    /**
+     * The curated first-run overview (opening screen): intro, the two kana, a
+     * note on kanji, and a pointer to the per-topic ⓘ for the advanced groups
+     * (voiced / combined / extended are NOT expanded here — they live behind
+     * their own ⓘ in the Study-scope sheet).
+     */
+    val overview = listOf(intro, hiragana, katakana, kanji, more)
 }
 
 /**
