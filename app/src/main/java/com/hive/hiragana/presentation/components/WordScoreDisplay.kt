@@ -94,7 +94,10 @@ fun WordAverageCard(
         color = scoreSpectrumColor(average),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            // Vertical padding kept slim so the pill sits shorter than the
+            // reserved footer strip — the strip centres it, leaving a clear
+            // margin between the pill and the paper card's bottom edge.
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

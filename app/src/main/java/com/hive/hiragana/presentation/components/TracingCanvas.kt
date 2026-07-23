@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
@@ -69,8 +70,10 @@ private val SlotGap = 18.dp
  *   3. the user's completed strokes
  *   4. the stroke currently being drawn
  *
- * Ink is one shared sheet: strokes may land anywhere, including across
- * cell boundaries — the cells are guides, not input regions.
+ * Each stroke is confined to the guide cell it starts in: a stroke that
+ * begins outside every cell is rejected, and one that begins inside a cell
+ * is clipped to that cell's edges, so ink can never cross into a neighbouring
+ * character's box or into the paper margins.
  *
  * Input arrives as raw [android.view.MotionEvent]s via pointerInteropFilter
  * so stylus pressure and batched historical samples are captured.
@@ -307,16 +310,39 @@ fun TracingCanvas(
             canvasState.brushEffect = brushEffect
 
             // 3 + 4. completed strokes, then the active one — filled brush
-            // ribbons, width baked in. Clipped to the writing cells so ink
-            // can never appear outside the bordered writing area. The effect's
-            // fill alpha (e.g. a translucent marker) is applied at draw time.
+            // ribbons, width baked in. Each stroke is clipped to the SINGLE
+            // cell it started in (not the union of all cells), so a line drawn
+            // inside one box stays within that box's edges and can never spill
+            // into a neighbouring character's cell. The effect's fill alpha
+            // (e.g. a translucent marker) is applied at draw time.
             val inkAlpha = brushEffect.spec.alpha
-            clipPath(inkClip) {
-                canvasState.completedPaths.forEach { path ->
-                    drawPath(path = path, color = inkColor, alpha = inkAlpha)
+            // The cell a stroke starting at (x, y) belongs to — the one whose
+            // slop-inflated bounds contains the start (same predicate as the
+            // ACTION_DOWN acceptance test, so every accepted stroke matches one).
+            fun startCell(x: Float, y: Float): Rect? {
+                val p = Offset(x, y)
+                return inkBounds.firstOrNull { it.inflate(touchSlopPx).contains(p) }
+            }
+            canvasState.completedPaths.forEachIndexed { i, path ->
+                val start = canvasState.currentSession.strokes.getOrNull(i)?.points?.firstOrNull()
+                val cell = start?.let { startCell(it.x, it.y) }
+                if (cell != null) {
+                    clipRect(cell.left, cell.top, cell.right, cell.bottom) {
+                        drawPath(path = path, color = inkColor, alpha = inkAlpha)
+                    }
+                } else {
+                    clipPath(inkClip) { drawPath(path = path, color = inkColor, alpha = inkAlpha) }
                 }
-                canvasState.activePath?.let { path ->
-                    drawPath(path = path, color = inkColor, alpha = inkAlpha)
+            }
+            canvasState.activePath?.let { path ->
+                val start = canvasState.activeStrokeStart
+                val cell = start?.let { startCell(it.x, it.y) }
+                if (cell != null) {
+                    clipRect(cell.left, cell.top, cell.right, cell.bottom) {
+                        drawPath(path = path, color = inkColor, alpha = inkAlpha)
+                    }
+                } else {
+                    clipPath(inkClip) { drawPath(path = path, color = inkColor, alpha = inkAlpha) }
                 }
             }
         }

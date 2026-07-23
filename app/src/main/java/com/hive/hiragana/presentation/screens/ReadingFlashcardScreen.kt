@@ -2,6 +2,8 @@ package com.hive.hiragana.presentation.screens
 
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -12,9 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -33,6 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +44,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -54,12 +56,14 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.res.ResourcesCompat
 import com.hive.hiragana.R
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.HiraganaCharacter
+import com.hive.hiragana.domain.model.MeaningMatch
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.PronunciationButton
@@ -74,19 +78,29 @@ import kotlin.random.Random
  * two equal study styles, flippable at any time:
  * - **Multiple choice** — tap the reading among deck distractors; the card
  *   reveals Correct!/Not quite + the answer, then Next advances.
- * - **Typing** — productive recall: a romaji field; type + Check (or the
- *   keyboard's Done) reveals the same, compared with the lenient [RomajiMatch].
+ * - **Typing** — productive recall: a romaji field with an inline Check/Next
+ *   button (~2/3 field, 1/3 button); type + Check (or the keyboard's Done)
+ *   reveals the answer via the lenient [RomajiMatch]. Once revealed the field
+ *   stops accepting input (the answer is locked) but keeps focus so the
+ *   keyboard stays open, and its bottom-right key becomes Next — the whole run
+ *   can be driven from the keyboard without it ever closing.
+ *
+ * An optional **"Also test meaning"** toggle (words only — characters have no
+ * meaning) adds a second step: after the reading, the learner answers what the
+ * word means, in the SAME style (type it in Typing, tap it in Multiple choice).
+ * The card reveals both results together. Shown only for word decks.
  *
  * Pure study — answers are deliberately NOT recorded into the reading-quiz
  * percentages; only the reading quiz writes `reading_progress`.
  *
- * Layout: the card fits its height budget BY CONSTRUCTION — the reveal rows
- * measure first and the glyph takes the actual leftover (see the card-area
- * comment and [FlashcardGlyph]) — so nothing clips when the keyboard shrinks
- * the window (adjustResize; on API 30+ the IME arrives via PracticeScreen's
- * safeDrawing inset host instead). The field keeps focus across card flips,
- * so the keyboard stays open for a smooth run; it only closes when switching
- * to Multiple choice.
+ * Layout: the glyph and the result/meaning region get FIXED shares of the card
+ * height, so the word stays the same size before and after the result shows
+ * (the result region is reserved even while blank, and scrolls if it can't fit
+ * rather than shrinking the glyph). Nothing clips when the keyboard shrinks the
+ * window (adjustResize; on API 30+ the IME arrives via PracticeScreen's
+ * safeDrawing inset host instead). The field keeps focus across card flips, so
+ * the keyboard stays open for a smooth run; it only closes when switching to
+ * Multiple choice.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -101,21 +115,40 @@ fun ReadingFlashcardScreen(
     // "print differs" badge on the reveal (it needs strokes to render the
     // handwritten form next to the printed front).
     unitCharactersFor: (String) -> List<HiraganaCharacter> = { emptyList() },
+    // Whether to also test the word's meaning after the reading (words only).
+    testMeaning: Boolean = false,
+    onSetTestMeaning: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val card = state.current ?: return
     var typingMode by rememberSaveable { mutableStateOf(false) }
+    // Reading answer + result (shared by both answer styles).
     var typed by remember(state.index) { mutableStateOf("") }
-    var typedCorrect by remember(state.index) { mutableStateOf<Boolean?>(null) }
-    // Multiple-choice mode: whether the tapped reading was right, plus this card's
-    // options (correct + up to 3 deck distractors, fixed per card).
-    var choiceResult by remember(state.index) { mutableStateOf<Boolean?>(null) }
-    val choiceOptions = remember(state.index, state.cards) {
+    var readingOk by remember(state.index) { mutableStateOf<Boolean?>(null) }
+    // Meaning answer + result — used only when meaning practice is on and the
+    // card is a word (characters have no meaning).
+    var meaningTyped by remember(state.index) { mutableStateOf("") }
+    var meaningOk by remember(state.index) { mutableStateOf<Boolean?>(null) }
+
+    // Meaning practice is words-only; the toggle is hidden for a character deck.
+    val isWordDeck = state.cards.any { it.meaning != null }
+    val needMeaning = testMeaning && card.meaning != null
+
+    // Option sets (correct + up to 3 deck distractors, fixed per card): reading
+    // draws from the readings, meaning from the other meanings (distinct seed).
+    val readingOptions = remember(state.index, state.cards) {
         readingChoiceOptions(card.romaji, state.cards.map { it.romaji }, state.index)
     }
-    // Whether the current card was answered correctly, in whichever mode is active
-    // (drives the shared Correct!/Not quite reveal line).
-    val answeredCorrect = if (typingMode) typedCorrect else choiceResult
+    val meaningOptions = remember(state.index, state.cards) {
+        readingChoiceOptions(card.meaning.orEmpty(), state.cards.mapNotNull { it.meaning }, state.index + 7)
+    }
+
+    // Reading answered but the meaning still owed — the intermediate step
+    // before the card reveals.
+    val inMeaningPhase = readingOk != null && needMeaning && meaningOk == null && !state.revealed
+    // Combined pass: reading right AND (if tested) meaning right.
+    val allOk = readingOk == true && (meaningOk != false)
+
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
@@ -130,10 +163,16 @@ fun ReadingFlashcardScreen(
         }
     }
 
-    fun check() {
-        typedCorrect = RomajiMatch.matches(typed, card.romaji)
-        onReveal()
+    // Reveal once the reading is answered and no meaning is owed — covers both
+    // the meaning-off path and turning the toggle off mid-card.
+    LaunchedEffect(readingOk, needMeaning, state.revealed) {
+        if (readingOk != null && !needMeaning && !state.revealed) onReveal()
     }
+
+    // Answer the reading step; the effect above reveals when no meaning is owed.
+    fun answerReading(correct: Boolean) { readingOk = correct }
+    // Answer the meaning step and reveal the card.
+    fun answerMeaning(correct: Boolean) { meaningOk = correct; onReveal() }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         // The activity is windowSoftInputMode=adjustResize, so the window shrinks
@@ -143,16 +182,40 @@ fun ReadingFlashcardScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(start = 8.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose) {
                     Icon(imageVector = Icons.Default.Close, contentDescription = "Close flashcards")
                 }
                 Text(
+                    // Slightly smaller than the title scale so the meaning toggle
+                    // fits beside it; takes the leftover width and truncates first.
                     text = "Card ${state.index + 1} of ${state.cards.size}",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
+                // Words can also be quizzed on their MEANING (characters have
+                // none, so this is hidden for a character deck). It sits in the
+                // top-right corner to save a full row; flippable mid-run. The
+                // meaning is asked in the SAME style as the reading, after it.
+                if (isWordDeck) {
+                    Text(
+                        text = "Test meaning",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    // The Material switch is oversized next to a label-scale
+                    // caption, so scale it down to read as proportional to it.
+                    Switch(
+                        checked = testMeaning,
+                        onCheckedChange = onSetTestMeaning,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .scale(0.7f),
+                    )
+                }
             }
 
             // Two EQUAL study methods, so a segmented control — not an on/off
@@ -215,12 +278,12 @@ fun ReadingFlashcardScreen(
                 )
             }
 
-            // Card area — the WHOLE card (glyph + the revealed reading, audio,
-            // and meaning) must fit the available height, keyboard up or not.
-            // The reveal rows below the glyph measure FIRST (they are the
-            // fixed-height content) and the glyph derives its font size from
-            // the height actually left over — the same leftover-box approach
-            // as the guide panel, so neither end can clip by construction.
+            // Card area. The glyph and the result/meaning region get FIXED
+            // shares of the card height, so the word stays exactly the same
+            // size before and after the result shows — the result region is
+            // reserved even while blank, rather than stealing height from the
+            // glyph on reveal. The result region scrolls if a long meaning +
+            // badge can't fit its share (never clips).
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
@@ -240,30 +303,27 @@ fun ReadingFlashcardScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 24.dp),
+                        .padding(horizontal = 24.dp, vertical = vPad),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
                 ) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = avail),
+                            .weight(1f),
                     ) {
                         Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = vPad, horizontal = 20.dp),
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(gap),
                         ) {
-                            // weight(1f) measures LAST, so this box receives
-                            // exactly the height the reveal rows leave over;
-                            // fill = false lets the card stay wrap-height when
-                            // the glyph caps out below the leftover.
+                            // The glyph gets a FIXED share of the card height, so
+                            // it stays the same size whether or not the result is
+                            // showing (it no longer shrinks on reveal).
                             BoxWithConstraints(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(1f, fill = false),
+                                    .weight(0.6f),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 FlashcardGlyph(
@@ -272,20 +332,32 @@ fun ReadingFlashcardScreen(
                                     boxHeight = this.maxHeight,
                                 )
                             }
-                            if (state.revealed) {
-                                if (answeredCorrect != null) {
-                                    Text(
-                                        text = if (answeredCorrect == true) "Correct!" else "Not quite",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = if (answeredCorrect == true) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.error
-                                        },
-                                    )
-                                }
+                            // Reserved result/meaning region — the other fixed
+                            // share, blank until answered. Centered content;
+                            // scrolls if a long meaning + badge exceeds its share
+                            // so it can never clip.
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(0.4f)
+                                    .verticalScroll(rememberScrollState()),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(gap, Alignment.CenterVertically),
+                            ) {
+                                if (state.revealed) {
+                                Text(
+                                    text = if (allOk) "Correct!" else "Not quite",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (allOk) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.error
+                                    },
+                                )
                                 // Reading · audio · meaning on ONE line; wraps only if
                                 // it truly can't fit (responsive on narrow screens).
+                                // When meaning was tested, each part carries a ✓/✗ so
+                                // the learner sees which step they missed.
                                 FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(
@@ -304,6 +376,7 @@ fun ReadingFlashcardScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     ) {
+                                        if (needMeaning) ResultMark(readingOk == true)
                                         Text(
                                             text = card.romaji,
                                             style = MaterialTheme.typography.headlineSmall,
@@ -315,18 +388,27 @@ fun ReadingFlashcardScreen(
                                         )
                                     }
                                     card.meaning?.let { meaning ->
-                                        Text(
-                                            text = "·  $meaning",
-                                            style = MaterialTheme.typography.headlineSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            textAlign = TextAlign.Center,
-                                            // The min width forces a squeezed meaning
-                                            // onto its own full line instead of
-                                            // wrapping in the leftover sliver.
-                                            modifier = Modifier
-                                                .align(Alignment.CenterVertically)
-                                                .widthIn(min = 120.dp),
-                                        )
+                                        // One unbreakable child so FlowRow moves
+                                        // the whole meaning to the next line if it
+                                        // doesn't fit (rather than wrapping it
+                                        // mid-word); content centered so it sits
+                                        // under the middle of the card, not
+                                        // left-shifted by any reserved width.
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(
+                                                4.dp,
+                                                Alignment.CenterHorizontally,
+                                            ),
+                                        ) {
+                                            if (needMeaning) ResultMark(meaningOk == true)
+                                            Text(
+                                                text = if (needMeaning) meaning else "·  $meaning",
+                                                style = MaterialTheme.typography.headlineSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                textAlign = TextAlign.Center,
+                                            )
+                                        }
                                     }
                                 }
                                 // Reading track shows the printed form, so warn when
@@ -336,13 +418,32 @@ fun ReadingFlashcardScreen(
                                     unitCharacters = unitCharactersFor(card.glyph),
                                     label = "Looks different in handwriting",
                                 )
+                            } else if (inMeaningPhase) {
+                                // Reading answered — confirm it, then ask the meaning.
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    ResultMark(readingOk == true)
+                                    Text(
+                                        text = "Reading: ${card.romaji}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Text(
+                                    text = "What does it mean?",
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                            }
                             }
                         }
                     }
                 }
             }
 
-            // Bottom section: field (typing mode) + the primary action.
+            // Bottom section: the answer input for the current step (reading,
+            // then meaning if enabled).
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -350,59 +451,99 @@ fun ReadingFlashcardScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (typingMode) {
-                    // Button ABOVE the field: when the keyboard pans the focused
-                    // field to just above the keys, the button stays visible too.
-                    if (state.revealed) {
-                        Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
-                            Text("Next")
-                        }
-                    } else {
-                        Button(
-                            onClick = { check() },
-                            enabled = typed.isNotBlank(),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text("Check")
+                    // Field + action share ONE row (~2/3 field, 1/3 button) — a
+                    // guess is short, so the field needn't span the row. The
+                    // keyboard stays open the WHOLE run: the field is never
+                    // read-only (which dismisses the IME and caused the
+                    // open/close churn), so after each Check it just stops
+                    // accepting input while the bottom-right key advances the
+                    // step (Check reading → Check meaning → Next).
+                    val fieldValue = if (inMeaningPhase) meaningTyped else typed
+                    fun submitTyped() {
+                        when {
+                            state.revealed -> onNext()
+                            inMeaningPhase ->
+                                if (meaningTyped.isNotBlank()) {
+                                    answerMeaning(MeaningMatch.matches(meaningTyped, card.meaning.orEmpty()))
+                                }
+                            readingOk == null ->
+                                if (typed.isNotBlank()) answerReading(RomajiMatch.matches(typed, card.romaji))
                         }
                     }
-                    OutlinedTextField(
-                        value = typed,
-                        onValueChange = { typed = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focusRequester),
-                        label = { Text("Type the romaji") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                if (state.revealed) {
-                                    onNext()
-                                } else if (typed.isNotBlank()) {
-                                    check()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = fieldValue,
+                            // Locked after reveal: keystrokes are ignored so the
+                            // answer can't change, but the field keeps focus so
+                            // the keyboard stays up (no read-only dismissal).
+                            onValueChange = {
+                                if (!state.revealed) {
+                                    if (inMeaningPhase) meaningTyped = it else typed = it
                                 }
                             },
-                        ),
-                    )
-                } else {
-                    // Multiple choice: tap a reading → it reveals the answer and
-                    // whether you were right, then Next advances.
-                    if (state.revealed) {
-                        Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
-                            Text("Next")
+                            modifier = Modifier
+                                .weight(2f)
+                                .focusRequester(focusRequester),
+                            label = { Text(if (inMeaningPhase) "Type the meaning" else "Type the romaji") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { submitTyped() }),
+                        )
+                        Button(
+                            onClick = { submitTyped() },
+                            enabled = state.revealed || fieldValue.isNotBlank(),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp),
+                        ) {
+                            Text(if (state.revealed) "Next" else "Check", maxLines = 1)
                         }
-                    } else {
-                        choiceOptions.forEach { option ->
-                            OutlinedButton(
-                                onClick = {
-                                    choiceResult = option == card.romaji
-                                    onReveal()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(option)
+                    }
+                } else {
+                    // Multiple choice: tap the reading, then (if testing meaning)
+                    // tap the meaning, then Next advances.
+                    when {
+                        state.revealed -> {
+                            // Keep the SAME number of button rows as the answering
+                            // state so the card above doesn't grow/shrink between
+                            // the question and the result: Next on top, then the
+                            // spent option slots as empty greyed (disabled) pills —
+                            // no leftover text to distract, just placeholders that
+                            // hold the height.
+                            val shown = if (needMeaning) meaningOptions else readingOptions
+                            Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
+                                Text("Next")
+                            }
+                            repeat((shown.size - 1).coerceAtLeast(0)) {
+                                OutlinedButton(
+                                    onClick = {},
+                                    enabled = false,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {}
                             }
                         }
+                        inMeaningPhase ->
+                            meaningOptions.forEach { option ->
+                                OutlinedButton(
+                                    onClick = { answerMeaning(option == card.meaning) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(option)
+                                }
+                            }
+                        else ->
+                            readingOptions.forEach { option ->
+                                OutlinedButton(
+                                    onClick = { answerReading(option == card.romaji) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(option)
+                                }
+                            }
                     }
                 }
             }
@@ -476,6 +617,16 @@ private fun FlashcardGlyph(
             )
         }
     }
+}
+
+/** A small ✓/✗ marking one answered step right or wrong on the reveal. */
+@Composable
+private fun ResultMark(ok: Boolean) {
+    Text(
+        text = if (ok) "✓" else "✗",
+        style = MaterialTheme.typography.titleMedium,
+        color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+    )
 }
 
 /**

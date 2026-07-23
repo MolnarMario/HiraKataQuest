@@ -319,6 +319,9 @@ fun LibraryScreen(
     // Auto-narration: speak each newly shown character/word aloud (Writing only).
     autoNarrateEnabled: Boolean = false,
     onSetAutoNarrate: (Boolean) -> Unit = {},
+    // Reading answer read-aloud: speak the answer once revealed (Reading only).
+    readingAutoSpeakEnabled: Boolean = true,
+    onSetReadingAutoSpeak: (Boolean) -> Unit = {},
     practiceSets: List<PracticeSet> = emptyList(),
     onSaveSet: (String, PracticeSetType, Script, List<String>) -> Unit = { _, _, _, _ -> },
     onUpdateSetMembers: (Long, List<String>) -> Unit = { _, _ -> },
@@ -705,6 +708,8 @@ fun LibraryScreen(
                     onSetScoringMode = onSetScoringMode,
                     autoNarrateEnabled = autoNarrateEnabled,
                     onSetAutoNarrate = onSetAutoNarrate,
+                    readingAutoSpeakEnabled = readingAutoSpeakEnabled,
+                    onSetReadingAutoSpeak = onSetReadingAutoSpeak,
                     brushInkColor = brushInkColor,
                     onSelectBrushColor = onSelectBrushColor,
                     brushEffect = brushEffect,
@@ -959,6 +964,8 @@ private fun ScopeSheetContent(
     onSetScoringMode: (ScoringMode) -> Unit,
     autoNarrateEnabled: Boolean,
     onSetAutoNarrate: (Boolean) -> Unit,
+    readingAutoSpeakEnabled: Boolean,
+    onSetReadingAutoSpeak: (Boolean) -> Unit,
     brushInkColor: Int,
     onSelectBrushColor: (Int) -> Unit,
     brushEffect: BrushEffect,
@@ -1154,6 +1161,39 @@ private fun ScopeSheetContent(
                 Switch(
                     checked = autoNarrateEnabled,
                     onCheckedChange = onSetAutoNarrate,
+                )
+            }
+        }
+
+        // The Reading twin of the narration toggle above: Reading must not
+        // speak a glyph when it appears (it would give the answer away), so
+        // it speaks AFTER the answer instead — on the flashcard reveal and
+        // the reading-quiz reveal. Same label, mode-appropriate behavior.
+        if (appMode == AppMode.READING) {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSetReadingAutoSpeak(!readingAutoSpeakEnabled) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Read aloud automatically",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        text = "Speak the character or word after you answer, " +
+                            "so you hear the reading you just recalled.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Switch(
+                    checked = readingAutoSpeakEnabled,
+                    onCheckedChange = onSetReadingAutoSpeak,
                 )
             }
         }

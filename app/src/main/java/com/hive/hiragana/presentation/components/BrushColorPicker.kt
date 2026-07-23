@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,16 +39,22 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.hive.hiragana.presentation.theme.GradeAgainContent
-import com.hive.hiragana.presentation.theme.GradeEasyContent
-import com.hive.hiragana.presentation.theme.GradeHardContent
-import com.hive.hiragana.presentation.theme.IndigoSecondary
 import com.hive.hiragana.presentation.theme.InkBlack
-import com.hive.hiragana.presentation.theme.Vermilion
 
-/** One-tap shortcut swatches, drawn from the app's existing theme palette. */
+/**
+ * One-tap preset swatches: black (the default ink) first, then one of each main
+ * rainbow colour. Rendered as equal-width circles that always fill the row, so
+ * the whole set fits perfectly regardless of how many there are.
+ */
 private val PRESET_SWATCHES = listOf(
-    InkBlack, IndigoSecondary, GradeEasyContent, Vermilion, GradeHardContent, GradeAgainContent,
+    InkBlack,          // default ink
+    Color(0xFFE53935), // red
+    Color(0xFFFB8C00), // orange
+    Color(0xFFFBC02D), // yellow
+    Color(0xFF43A047), // green
+    Color(0xFF1E88E5), // blue
+    Color(0xFF3949AB), // indigo
+    Color(0xFF8E24AA), // violet
 )
 
 /**
@@ -107,25 +112,19 @@ fun BrushColorPicker(
                         .clip(CircleShape),
                 )
 
-                // Live preview (ink on white paper) + preset shortcuts.
+                // Preset shortcuts: black (default) + one of each main rainbow
+                // colour. Each takes an equal share of the row width (weight),
+                // so the whole set always fits and every swatch is the same size.
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                            .border(1.dp, outline, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(Modifier.size(26.dp).clip(CircleShape).background(current))
-                    }
                     PRESET_SWATCHES.forEach { swatch ->
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .weight(1f)
+                                .aspectRatio(1f)
                                 .clip(CircleShape)
                                 .background(swatch)
                                 .border(1.dp, outline, CircleShape)

@@ -106,6 +106,29 @@ fun PracticeScreen(
         }
     }
 
+    // Reading answer read-aloud (opt-out, Reading only): the mirror of the
+    // narration above — Reading must NOT speak a glyph when it appears (that
+    // would give the recognition answer away), so it speaks once the answer is
+    // REVEALED instead: after a flashcard Check/choice tap and after a
+    // reading-quiz answer, covering both surfaces with one rule. No dedup
+    // guard needed: the key drops to null between items (revealed resets on
+    // advance), so each reveal is its own transition — and unlike narration
+    // there is no overlay that can re-show an already-revealed item.
+    val answerGlyph: String? = when {
+        !uiState.readingAutoSpeakEnabled -> null
+        uiState.ttsStatus != VoiceStatus.READY -> null
+        uiState.readingFlashcard?.revealed == true ->
+            uiState.readingFlashcard?.current?.glyph
+        uiState.quiz?.kind == QuizKind.READING &&
+            uiState.quiz?.stage == QuizStage.RUNNING &&
+            uiState.quiz?.revealed == true ->
+            uiState.quiz?.current?.answer
+        else -> null
+    }
+    LaunchedEffect(answerGlyph) {
+        if (answerGlyph != null) viewModel.speakTts(answerGlyph)
+    }
+
     // Start from a blank sheet on every advance — each review, each
     // practice rep, each word, and every phase change bump this
     // monotonic counter (see PracticeUiState.canvasClearKey).
@@ -211,6 +234,8 @@ fun PracticeScreen(
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
                     unitCharactersFor = uiState::unitCharacters,
+                    testMeaning = uiState.readingMeaningPractice,
+                    onSetTestMeaning = viewModel::setReadingMeaningPractice,
                 )
             }
 
@@ -283,6 +308,8 @@ fun PracticeScreen(
                     onSetScoringMode = viewModel::setScoringMode,
                     autoNarrateEnabled = uiState.autoNarrateEnabled,
                     onSetAutoNarrate = viewModel::setAutoNarrate,
+                    readingAutoSpeakEnabled = uiState.readingAutoSpeakEnabled,
+                    onSetReadingAutoSpeak = viewModel::setReadingAutoSpeak,
                     practiceSets = uiState.practiceSets,
                     onSaveSet = viewModel::savePracticeSet,
                     onUpdateSetMembers = viewModel::updatePracticeSetMembers,
@@ -450,13 +477,13 @@ private fun PracticeContent(
         }
 
         // Free practice: two-step Submit→Next (mirrors the quiz). "Again"
-        // rewrites the same character; Next advances the character deck.
-        // A lone word (library word tap) is a single repeating sheet — no Next.
+        // rewrites the same character/word; Next advances to the next.
         FreePracticeActionBar(
             hasInk = canvasState.hasInk,
             submitted = uiState.freeSubmitted,
-            // Next cycles the deck: a character deck, or a word-SET queue
-            // (>1 word). A lone word (library word tap) has nothing to
+            // Next cycles the deck: a character deck, or a word queue (>1
+            // word — library word taps now load the whole word list). A lone
+            // word (a word out of scope, or a 1-word set) has nothing to
             // advance to, so it stays a single repeating sheet.
             canAdvance = if (uiState.freeWord != null) {
                 uiState.freeWords.size > 1

@@ -247,6 +247,33 @@ class PracticeViewModelTest {
         assertEquals(true, vm.uiState.value.autoNarrateEnabled)
     }
 
+    /** The reading answer read-aloud toggle defaults ON, persists, and publishes into UI state. */
+    @Test
+    fun `setReadingAutoSpeak persists and updates state`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        assertEquals(true, vm.uiState.value.readingAutoSpeakEnabled)
+        vm.setReadingAutoSpeak(false)
+
+        assertEquals(false, vm.uiState.value.readingAutoSpeakEnabled)
+        assertEquals(false, settings.isReadingAutoSpeakEnabled())
+    }
+
+    /** The persisted reading read-aloud preference must survive a scope-setter rebuild. */
+    @Test
+    fun `readingAutoSpeak survives a scope-setter rebuild`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.setReadingAutoSpeak(false)
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+
+        assertEquals(false, vm.uiState.value.readingAutoSpeakEnabled)
+    }
+
     /** Beginner mode defaults off, persists, and survives a scope-setter rebuild. */
     @Test
     fun `setBeginnerMode persists and survives a rebuild`() = runTest(dispatcher) {
@@ -564,6 +591,27 @@ class PracticeViewModelTest {
     }
 
     /**
+     * A library word tap loads the whole active-script word list (positioned at
+     * the tapped word) so **Next** cycles the words, mirroring [practiceCharacter]
+     * on the character deck. [advanceToNextCharacter] then steps to the next word.
+     */
+    @Test
+    fun `practiceWord loads the word list so Next cycles words`() = runTest(dispatcher) {
+        val second = VocabularyWord.fromKana(kana = "うえ", meaning = "up")
+        val vm = buildViewModel(words = listOf(aiWord(), second))
+        advanceUntilIdle()
+
+        vm.practiceWord(aiWord())
+        advanceUntilIdle()
+        assertEquals("あい", vm.uiState.value.freeWord?.kana)
+        assertEquals(2, vm.uiState.value.freeWords.size)
+
+        vm.advanceToNextCharacter()
+        advanceUntilIdle()
+        assertEquals("うえ", vm.uiState.value.freeWord?.kana)
+    }
+
+    /**
      * Changing the scoring mode must clear the per-kana word chips too — the
      * "reset wherever lastScore is" invariant. Regression for a round-2 review
      * finding where [setScoringMode] cleared only [lastScore], leaving stale
@@ -729,6 +777,8 @@ class PracticeViewModelTest {
         private var brushInkColor = 0xFF20222E.toInt()
         private var brushEffect = BrushEffect.BRUSH
         private var autoNarrate = false
+        private var readingAutoSpeak = true
+        private var readingMeaningPractice = false
         private var characterForm = CharacterForm.PRINTED
 
         override fun isBeginnerMode(): Boolean = beginner
@@ -761,6 +811,10 @@ class PracticeViewModelTest {
         override fun setBrushEffect(effect: BrushEffect) { brushEffect = effect }
         override fun isAutoNarrateEnabled(): Boolean = autoNarrate
         override fun setAutoNarrateEnabled(enabled: Boolean) { autoNarrate = enabled }
+        override fun isReadingAutoSpeakEnabled(): Boolean = readingAutoSpeak
+        override fun setReadingAutoSpeakEnabled(enabled: Boolean) { readingAutoSpeak = enabled }
+        override fun isReadingMeaningPractice(): Boolean = readingMeaningPractice
+        override fun setReadingMeaningPractice(enabled: Boolean) { readingMeaningPractice = enabled }
         override fun getCharacterForm(): CharacterForm = characterForm
         override fun setCharacterForm(form: CharacterForm) { characterForm = form }
         private var appModeValue: AppMode? = null

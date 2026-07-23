@@ -129,11 +129,33 @@ interface SettingsRepository {
      * device TTS the moment it appears — in Writing free practice and the
      * writing quiz. Default false: the learner otherwise taps the speaker to
      * hear the reading. Never applies in the Reading track (hearing the answer
-     * would defeat the recognition practice).
+     * would defeat the recognition practice) — Reading has its own
+     * after-the-answer setting, [isReadingAutoSpeakEnabled].
      */
     fun isAutoNarrateEnabled(): Boolean
 
     fun setAutoNarrateEnabled(enabled: Boolean)
+
+    /**
+     * Whether the Reading track speaks the answer aloud once it is revealed —
+     * after a flashcard Check / choice tap, and after a reading-quiz answer.
+     * The Reading counterpart of [isAutoNarrateEnabled]: there the glyph is
+     * spoken the moment it APPEARS; here only AFTER the learner has answered,
+     * so the audio never gives the recognition answer away. Default true.
+     */
+    fun isReadingAutoSpeakEnabled(): Boolean
+
+    fun setReadingAutoSpeakEnabled(enabled: Boolean)
+
+    /**
+     * Whether the Reading flashcards also test the word's meaning after the
+     * reading — Typing → type the meaning, Multiple choice → tap it. Words only
+     * (characters have no meaning). Default false. Independent of the reading
+     * quiz's own meaning toggle.
+     */
+    fun isReadingMeaningPractice(): Boolean
+
+    fun setReadingMeaningPractice(enabled: Boolean)
 
     /**
      * Which character form the traced ghost shows: [CharacterForm.PRINTED]
