@@ -564,6 +564,27 @@ class PracticeViewModelTest {
     }
 
     /**
+     * A library word tap loads the whole active-script word list (positioned at
+     * the tapped word) so **Next** cycles the words, mirroring [practiceCharacter]
+     * on the character deck. [advanceToNextCharacter] then steps to the next word.
+     */
+    @Test
+    fun `practiceWord loads the word list so Next cycles words`() = runTest(dispatcher) {
+        val second = VocabularyWord.fromKana(kana = "うえ", meaning = "up")
+        val vm = buildViewModel(words = listOf(aiWord(), second))
+        advanceUntilIdle()
+
+        vm.practiceWord(aiWord())
+        advanceUntilIdle()
+        assertEquals("あい", vm.uiState.value.freeWord?.kana)
+        assertEquals(2, vm.uiState.value.freeWords.size)
+
+        vm.advanceToNextCharacter()
+        advanceUntilIdle()
+        assertEquals("うえ", vm.uiState.value.freeWord?.kana)
+    }
+
+    /**
      * Changing the scoring mode must clear the per-kana word chips too — the
      * "reset wherever lastScore is" invariant. Regression for a round-2 review
      * finding where [setScoringMode] cleared only [lastScore], leaving stale

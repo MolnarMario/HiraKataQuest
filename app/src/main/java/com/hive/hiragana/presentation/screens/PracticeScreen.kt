@@ -450,13 +450,13 @@ private fun PracticeContent(
         }
 
         // Free practice: two-step Submit→Next (mirrors the quiz). "Again"
-        // rewrites the same character; Next advances the character deck.
-        // A lone word (library word tap) is a single repeating sheet — no Next.
+        // rewrites the same character/word; Next advances to the next.
         FreePracticeActionBar(
             hasInk = canvasState.hasInk,
             submitted = uiState.freeSubmitted,
-            // Next cycles the deck: a character deck, or a word-SET queue
-            // (>1 word). A lone word (library word tap) has nothing to
+            // Next cycles the deck: a character deck, or a word queue (>1
+            // word — library word taps now load the whole word list). A lone
+            // word (a word out of scope, or a 1-word set) has nothing to
             // advance to, so it stays a single repeating sheet.
             canAdvance = if (uiState.freeWord != null) {
                 uiState.freeWords.size > 1

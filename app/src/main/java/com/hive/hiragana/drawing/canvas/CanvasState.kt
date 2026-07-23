@@ -76,6 +76,14 @@ class CanvasState {
 
     private var activeStroke: UserStroke? = null
 
+    /**
+     * First sampled point of the in-progress stroke, or null when none is
+     * active. Read at draw time (whenever [activePath] is non-null) so the
+     * canvas can clamp the live stroke's ink to the guide cell it started in.
+     */
+    val activeStrokeStart: StrokePoint?
+        get() = activeStroke?.points?.firstOrNull()
+
     /** True when there is anything on the canvas (used to enable buttons). */
     val hasInk: Boolean
         get() = completedPaths.isNotEmpty() || activePath != null

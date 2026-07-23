@@ -1230,21 +1230,27 @@ class PracticeViewModel(
 
     /**
      * Library pick: free practice of [word] traced whole — one sheet with
-     * a cell per kana, graded once per attempt, repeating until the user
-     * leaves. Same FREE semantics as [practiceCharacter]: attempts are
-     * recorded with [PracticeSource.FREE], no unlock or scheduling side
-     * effects.
+     * a cell per kana, graded once per attempt. Mirrors [practiceCharacter]:
+     * the whole active-script word list becomes the free queue (positioned at
+     * the tapped word), so **Next** cycles through the words just as it cycles
+     * the character deck. Same FREE semantics — attempts are recorded with
+     * [PracticeSource.FREE], no unlock or scheduling side effects. Falls back
+     * to a lone repeating sheet if the word isn't in the active scope.
      */
     fun practiceWord(word: VocabularyWord) {
         _uiState.update { state ->
+            val words = state.activeScriptWords
+            val start = words.indexOfFirst { it.kana == word.kana }
             state.copy(
                 isLibraryOpen = false,
                 phase = SessionPhase.FREE,
                 freeCharacters = emptyList(),
-                freeWords = emptyList(),
-                currentIndex = 0,
+                // In scope → the whole word list (Next cycles it); otherwise a
+                // lone word that just repeats.
+                freeWords = if (start >= 0) words else emptyList(),
+                currentIndex = if (start >= 0) start else 0,
                 gradedCount = 0,
-                freeWord = word,
+                freeWord = if (start >= 0) words[start] else word,
                 freeSubmitted = false,
                 lastScore = null,
                 lastScoredCharacter = null,
