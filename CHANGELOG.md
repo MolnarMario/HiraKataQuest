@@ -12,6 +12,22 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-23 — 0.1.8: Opening-screen and "About kana" polish
+
+#### Changed
+- **Beginner mode** now sits in a small, horizontally-centered footer at the
+  bottom of the start screen (previously a full-width row above the mode cards).
+  Its label is smaller and the switch scales down with the system font size.
+- **"About kana"** (opened from "New to kana?") was rewritten: it now opens with
+  what kana are and why the correct stroke order and direction matter, keeps
+  hiragana and katakana, adds a short note on why kanji are left out of this app,
+  and points you to the ⓘ next to the voiced, combined, and extended kana in the
+  Study-scope menu instead of listing them here.
+
+#### Fixed
+- Turning Beginner mode on no longer nudges the start-screen cards upward: the
+  "New to kana?" link now appears in place without shifting anything above it.
+
 ### 2026-07-23 — 0.1.7: Brush effects, Beginner mode, and read-aloud
 
 #### Added
