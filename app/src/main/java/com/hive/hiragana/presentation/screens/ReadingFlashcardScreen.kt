@@ -74,8 +74,12 @@ import kotlin.random.Random
  * two equal study styles, flippable at any time:
  * - **Multiple choice** — tap the reading among deck distractors; the card
  *   reveals Correct!/Not quite + the answer, then Next advances.
- * - **Typing** — productive recall: a romaji field; type + Check (or the
- *   keyboard's Done) reveals the same, compared with the lenient [RomajiMatch].
+ * - **Typing** — productive recall: a romaji field with an inline Check/Next
+ *   button (~2/3 field, 1/3 button); type + Check (or the keyboard's Done)
+ *   reveals the answer via the lenient [RomajiMatch]. Once revealed the field
+ *   stops accepting input (the answer is locked) but keeps focus so the
+ *   keyboard stays open, and its bottom-right key becomes Next — the whole run
+ *   can be driven from the keyboard without it ever closing.
  *
  * Pure study — answers are deliberately NOT recorded into the reading-quiz
  * percentages; only the reading quiz writes `reading_progress`.
@@ -350,40 +354,49 @@ fun ReadingFlashcardScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (typingMode) {
-                    // Button ABOVE the field: when the keyboard pans the focused
-                    // field to just above the keys, the button stays visible too.
-                    if (state.revealed) {
-                        Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
-                            Text("Next")
-                        }
-                    } else {
+                    // Field + action share ONE row (~2/3 field, 1/3 button) — a
+                    // reading guess is short, so the field needn't span the row.
+                    // The keyboard stays open the WHOLE run: the field is never
+                    // read-only (which dismisses the IME and caused the
+                    // open/close churn), so after Check it just stops accepting
+                    // input while the keyboard's bottom-right key becomes Next.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = typed,
+                            // Locked after reveal: keystrokes are ignored so the
+                            // answer can't change, but the field keeps focus so
+                            // the keyboard stays up (no read-only dismissal).
+                            onValueChange = { if (!state.revealed) typed = it },
+                            modifier = Modifier
+                                .weight(2f)
+                                .focusRequester(focusRequester),
+                            label = { Text("Type the romaji") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                // Bottom-right key: Check while writing, Next once
+                                // revealed — so the whole run can be driven from
+                                // the keyboard without it ever closing.
+                                onDone = {
+                                    if (state.revealed) onNext()
+                                    else if (typed.isNotBlank()) check()
+                                },
+                            ),
+                        )
                         Button(
-                            onClick = { check() },
-                            enabled = typed.isNotBlank(),
-                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { if (state.revealed) onNext() else check() },
+                            enabled = state.revealed || typed.isNotBlank(),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp),
                         ) {
-                            Text("Check")
+                            Text(if (state.revealed) "Next" else "Check", maxLines = 1)
                         }
                     }
-                    OutlinedTextField(
-                        value = typed,
-                        onValueChange = { typed = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focusRequester),
-                        label = { Text("Type the romaji") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                if (state.revealed) {
-                                    onNext()
-                                } else if (typed.isNotBlank()) {
-                                    check()
-                                }
-                            },
-                        ),
-                    )
                 } else {
                     // Multiple choice: tap a reading → it reveals the answer and
                     // whether you were right, then Next advances.
