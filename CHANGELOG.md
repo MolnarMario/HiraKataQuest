@@ -12,6 +12,29 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-23 — 0.1.7: Brush effects, Beginner mode, and read-aloud
+
+#### Added
+- **Brush effects** — pick the style your strokes are drawn with, next to the
+  ink color in the Options sheet: **Brush** (the original), **Calligraphy 筆**
+  (the line swells on slow, heavy strokes and thins on fast flicks, with pointed
+  ends), **Fountain pen** (thin and crisp), and **Marker** (bold and translucent,
+  so overlaps darken). Purely visual: it never affects your handwriting score.
+- **Beginner mode** — a toggle on the opening screen (off by default). When on,
+  it reveals plain-language ⓘ help for hiragana, katakana, and the voiced,
+  combined, and extended kana groups, plus a "New to kana?" overview. Its own ⓘ
+  explains what the mode is and who it helps. Leave it off for a cleaner screen.
+- **Kana concept explainers** — the ⓘ help above, written for first-time
+  learners (shown only in Beginner mode).
+- **Read aloud automatically** — an optional Study-scope setting (Writing only):
+  each new character or word is spoken by the device voice the moment it appears,
+  so you hear the reading without tapping the speaker.
+
+#### Fixed
+- **Reading flashcards** — the typed-romaji answer and reading no longer slip
+  behind the keyboard on smaller screens, and the printed glyph now sits
+  centered on the card instead of low.
+
 ### 2026-07-11 — Responsiveness: large-font & multi-device hardening
 
 #### Fixed
