@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
@@ -105,10 +106,16 @@ fun OpeningScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 // The "New to kana?" overview is itself a beginner tooltip, so it
-                // only appears when Beginner mode is on.
-                if (beginnerMode) {
-                    KanaOverviewButton(modifier = Modifier.padding(bottom = 2.dp))
-                }
+                // only shows when Beginner mode is on — but its space is ALWAYS
+                // reserved (rendered at alpha 0, non-interactive when off), so
+                // toggling reveals it in place without growing the footer and
+                // shifting the cards above.
+                KanaOverviewButton(
+                    enabled = beginnerMode,
+                    modifier = Modifier
+                        .alpha(if (beginnerMode) 1f else 0f)
+                        .padding(bottom = 2.dp),
+                )
                 BeginnerModeRow(
                     beginnerMode = beginnerMode,
                     onSetBeginnerMode = onSetBeginnerMode,

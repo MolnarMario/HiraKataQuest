@@ -189,13 +189,17 @@ fun ConceptInfoIcon(
  * where nothing else explains what kana are.
  */
 @Composable
-fun KanaOverviewButton(modifier: Modifier = Modifier) {
+fun KanaOverviewButton(
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
     var showDialog by rememberSaveable { mutableStateOf(false) }
 
     // Neutral grey content (not the primary vermilion) so it reads as a calm
     // helper link rather than a warning.
     TextButton(
         onClick = { showDialog = true },
+        enabled = enabled,
         modifier = modifier,
         colors = ButtonDefaults.textButtonColors(
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
