@@ -116,6 +116,17 @@ interface SettingsRepository {
     fun setBrushEffect(effect: BrushEffect)
 
     /**
+     * Whether a newly shown character/word is spoken aloud automatically by the
+     * device TTS the moment it appears — in Writing free practice and the
+     * writing quiz. Default false: the learner otherwise taps the speaker to
+     * hear the reading. Never applies in the Reading track (hearing the answer
+     * would defeat the recognition practice).
+     */
+    fun isAutoNarrateEnabled(): Boolean
+
+    fun setAutoNarrateEnabled(enabled: Boolean)
+
+    /**
      * Which character form the traced ghost shows: [CharacterForm.PRINTED]
      * (typographic — the form learners read in the wild, the default) or
      * [CharacterForm.HANDWRITTEN] (the kaisho stroke shape). A rendering choice

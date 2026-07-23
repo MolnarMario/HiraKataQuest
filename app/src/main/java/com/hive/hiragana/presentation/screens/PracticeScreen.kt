@@ -25,7 +25,9 @@ import com.hive.hiragana.domain.update.UpdateState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,7 +39,10 @@ import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.PrintDivergence
+import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.presentation.viewmodels.QuizKind
+import com.hive.hiragana.presentation.viewmodels.QuizStage
+import com.hive.hiragana.presentation.viewmodels.SessionPhase
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.presentation.components.CharacterGuidePanel
@@ -69,6 +74,36 @@ fun PracticeScreen(
     // flips the button from "download" to "play" without a restart.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshTtsAvailability()
+    }
+
+    // Auto-narration (opt-in, Writing only): speak each newly shown
+    // character/word aloud the instant it appears — in free practice AND the
+    // writing quiz. Driven off UI state here (not the ViewModel) so it covers
+    // every transition into a new glyph — Next, a Library pick, a scope change,
+    // each quiz item — with one rule. Reading never narrates (hearing the answer
+    // defeats recognition). The status gate matters: play() no-ops until the
+    // voice is READY, so we key on it too and remember the last glyph we spoke
+    // so returning from an overlay (Library) to the same glyph doesn't repeat.
+    val narrateGlyph: String? = when {
+        !uiState.autoNarrateEnabled -> null
+        uiState.ttsStatus != VoiceStatus.READY -> null
+        uiState.quiz != null -> uiState.quiz
+            ?.takeIf { it.kind == QuizKind.WRITING && it.stage == QuizStage.RUNNING }
+            ?.current?.answer
+        uiState.appMode == AppMode.WRITING &&
+            !uiState.isLibraryOpen &&
+            uiState.readingFlashcard == null &&
+            uiState.phase == SessionPhase.FREE ->
+            uiState.freeWord?.kana ?: uiState.currentCharacter?.character
+        else -> null
+    }
+    var lastNarrated by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(narrateGlyph) {
+        val glyph = narrateGlyph ?: return@LaunchedEffect
+        if (glyph != lastNarrated) {
+            viewModel.speakTts(glyph)
+            lastNarrated = glyph
+        }
     }
 
     // Start from a blank sheet on every advance — each review, each
@@ -241,6 +276,8 @@ fun PracticeScreen(
                     onSelectBrushEffect = viewModel::setBrushEffect,
                     scoringMode = uiState.scoringMode,
                     onSetScoringMode = viewModel::setScoringMode,
+                    autoNarrateEnabled = uiState.autoNarrateEnabled,
+                    onSetAutoNarrate = viewModel::setAutoNarrate,
                     practiceSets = uiState.practiceSets,
                     onSaveSet = viewModel::savePracticeSet,
                     onUpdateSetMembers = viewModel::updatePracticeSetMembers,

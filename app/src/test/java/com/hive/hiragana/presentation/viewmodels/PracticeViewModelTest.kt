@@ -220,6 +220,33 @@ class PracticeViewModelTest {
         assertEquals(BrushEffect.MARKER, vm.uiState.value.brushEffect)
     }
 
+    /** The auto-narrate toggle persists and publishes into UI state. */
+    @Test
+    fun `setAutoNarrate persists and updates state`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        assertEquals(false, vm.uiState.value.autoNarrateEnabled)
+        vm.setAutoNarrate(true)
+
+        assertEquals(true, vm.uiState.value.autoNarrateEnabled)
+        assertEquals(true, settings.isAutoNarrateEnabled())
+    }
+
+    /** The persisted auto-narrate preference must survive a scope-setter rebuild. */
+    @Test
+    fun `autoNarrate survives a scope-setter rebuild`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.setAutoNarrate(true)
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+
+        assertEquals(true, vm.uiState.value.autoNarrateEnabled)
+    }
+
     /**
      * A stale recognition result for a previous glyph must not clobber the
      * current glyph's score. Two FREE submits (A then B) each launch a
@@ -683,6 +710,7 @@ class PracticeViewModelTest {
         var seededDefaults = true
         private var brushInkColor = 0xFF20222E.toInt()
         private var brushEffect = BrushEffect.BRUSH
+        private var autoNarrate = false
         private var characterForm = CharacterForm.PRINTED
 
         override fun isGridEnabled(): Boolean = grid
@@ -711,6 +739,8 @@ class PracticeViewModelTest {
         override fun setBrushInkColor(color: Int) { brushInkColor = color }
         override fun getBrushEffect(): BrushEffect = brushEffect
         override fun setBrushEffect(effect: BrushEffect) { brushEffect = effect }
+        override fun isAutoNarrateEnabled(): Boolean = autoNarrate
+        override fun setAutoNarrateEnabled(enabled: Boolean) { autoNarrate = enabled }
         override fun getCharacterForm(): CharacterForm = characterForm
         override fun setCharacterForm(form: CharacterForm) { characterForm = form }
         private var appModeValue: AppMode? = null
