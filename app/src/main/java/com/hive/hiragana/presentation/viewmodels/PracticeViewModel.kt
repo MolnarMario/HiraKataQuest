@@ -307,6 +307,15 @@ data class PracticeUiState(
     // ONLY — never in Reading (that would give the answer away). The actual
     // speaking is driven by PracticeScreen off this flag + the shown glyph.
     val autoNarrateEnabled: Boolean = false,
+    // Whether the Reading track speaks the answer aloud once it is revealed —
+    // after a flashcard Check/choice tap or a reading-quiz answer (persisted;
+    // default true). The Reading counterpart of autoNarrateEnabled: speaking
+    // only AFTER the answer keeps recognition honest. Driven by PracticeScreen
+    // off this flag + the revealed glyph, like auto-narration.
+    val readingAutoSpeakEnabled: Boolean = true,
+    // Whether the Reading flashcards also test the word's MEANING after the
+    // reading (words only — characters have none). Persisted; default false.
+    val readingMeaningPractice: Boolean = false,
 ) {
     /**
      * The scoped study deck: the active script, minus voiced kana / yōon /
@@ -475,6 +484,8 @@ class PracticeViewModel(
             brushEffect = settingsRepository.getBrushEffect(),
             characterForm = settingsRepository.getCharacterForm(),
             autoNarrateEnabled = settingsRepository.isAutoNarrateEnabled(),
+            readingAutoSpeakEnabled = settingsRepository.isReadingAutoSpeakEnabled(),
+            readingMeaningPractice = settingsRepository.isReadingMeaningPractice(),
         ),
     )
     val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
@@ -920,6 +931,8 @@ class PracticeViewModel(
         characterForm = characterForm,
         appMode = appMode,
         autoNarrateEnabled = autoNarrateEnabled,
+        readingAutoSpeakEnabled = readingAutoSpeakEnabled,
+        readingMeaningPractice = readingMeaningPractice,
         canvasClearKey = canvasClearKey + 1,
     )
 
@@ -1148,6 +1161,33 @@ class PracticeViewModel(
         if (enabled == _uiState.value.autoNarrateEnabled) return
         settingsRepository.setAutoNarrateEnabled(enabled)
         _uiState.update { it.copy(autoNarrateEnabled = enabled) }
+    }
+
+    /**
+     * Reading answer read-aloud toggle (Study-scope sheet, Reading only). When
+     * on (the default), the device TTS speaks the character/word once its
+     * answer is revealed — after a flashcard Check or choice tap, and after a
+     * reading-quiz answer — so the learner hears the reading they just
+     * recalled. The Reading counterpart of [setAutoNarrate]: speaking only
+     * AFTER the answer keeps recognition honest. Persisted. The speaking
+     * itself is driven by PracticeScreen off this flag and the revealed glyph.
+     */
+    fun setReadingAutoSpeak(enabled: Boolean) {
+        if (enabled == _uiState.value.readingAutoSpeakEnabled) return
+        settingsRepository.setReadingAutoSpeakEnabled(enabled)
+        _uiState.update { it.copy(readingAutoSpeakEnabled = enabled) }
+    }
+
+    /**
+     * Reading-flashcard "Also test meaning" toggle (words only). When on, a word
+     * flashcard asks the reading first, then the meaning — in the SAME answer
+     * style (Typing → type it, Multiple choice → tap it). Persisted. Independent
+     * of the reading quiz's own session-scoped meaning toggle.
+     */
+    fun setReadingMeaningPractice(enabled: Boolean) {
+        if (enabled == _uiState.value.readingMeaningPractice) return
+        settingsRepository.setReadingMeaningPractice(enabled)
+        _uiState.update { it.copy(readingMeaningPractice = enabled) }
     }
 
     /**

@@ -120,6 +120,20 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putBoolean(KEY_AUTO_NARRATE, enabled).apply()
     }
 
+    override fun isReadingAutoSpeakEnabled(): Boolean =
+        prefs.getBoolean(KEY_READING_AUTO_SPEAK, true)
+
+    override fun setReadingAutoSpeakEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_READING_AUTO_SPEAK, enabled).apply()
+    }
+
+    override fun isReadingMeaningPractice(): Boolean =
+        prefs.getBoolean(KEY_READING_MEANING_PRACTICE, false)
+
+    override fun setReadingMeaningPractice(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_READING_MEANING_PRACTICE, enabled).apply()
+    }
+
     override fun getCharacterForm(): CharacterForm =
         CharacterForm.fromPrefValue(prefs.getString(KEY_CHARACTER_FORM, null))
 
@@ -158,6 +172,8 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_BRUSH_INK_COLOR = "brush_ink_color"
         const val KEY_BRUSH_EFFECT = "brush_effect"
         const val KEY_AUTO_NARRATE = "auto_narrate_enabled"
+        const val KEY_READING_AUTO_SPEAK = "reading_auto_speak_enabled"
+        const val KEY_READING_MEANING_PRACTICE = "reading_meaning_practice"
         const val KEY_CHARACTER_FORM = "character_form"
         const val KEY_APP_MODE = "app_mode"
         const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"

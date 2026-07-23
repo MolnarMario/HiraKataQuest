@@ -106,6 +106,29 @@ fun PracticeScreen(
         }
     }
 
+    // Reading answer read-aloud (opt-out, Reading only): the mirror of the
+    // narration above — Reading must NOT speak a glyph when it appears (that
+    // would give the recognition answer away), so it speaks once the answer is
+    // REVEALED instead: after a flashcard Check/choice tap and after a
+    // reading-quiz answer, covering both surfaces with one rule. No dedup
+    // guard needed: the key drops to null between items (revealed resets on
+    // advance), so each reveal is its own transition — and unlike narration
+    // there is no overlay that can re-show an already-revealed item.
+    val answerGlyph: String? = when {
+        !uiState.readingAutoSpeakEnabled -> null
+        uiState.ttsStatus != VoiceStatus.READY -> null
+        uiState.readingFlashcard?.revealed == true ->
+            uiState.readingFlashcard?.current?.glyph
+        uiState.quiz?.kind == QuizKind.READING &&
+            uiState.quiz?.stage == QuizStage.RUNNING &&
+            uiState.quiz?.revealed == true ->
+            uiState.quiz?.current?.answer
+        else -> null
+    }
+    LaunchedEffect(answerGlyph) {
+        if (answerGlyph != null) viewModel.speakTts(answerGlyph)
+    }
+
     // Start from a blank sheet on every advance — each review, each
     // practice rep, each word, and every phase change bump this
     // monotonic counter (see PracticeUiState.canvasClearKey).
@@ -211,6 +234,8 @@ fun PracticeScreen(
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
                     unitCharactersFor = uiState::unitCharacters,
+                    testMeaning = uiState.readingMeaningPractice,
+                    onSetTestMeaning = viewModel::setReadingMeaningPractice,
                 )
             }
 
@@ -283,6 +308,8 @@ fun PracticeScreen(
                     onSetScoringMode = viewModel::setScoringMode,
                     autoNarrateEnabled = uiState.autoNarrateEnabled,
                     onSetAutoNarrate = viewModel::setAutoNarrate,
+                    readingAutoSpeakEnabled = uiState.readingAutoSpeakEnabled,
+                    onSetReadingAutoSpeak = viewModel::setReadingAutoSpeak,
                     practiceSets = uiState.practiceSets,
                     onSaveSet = viewModel::savePracticeSet,
                     onUpdateSetMembers = viewModel::updatePracticeSetMembers,
