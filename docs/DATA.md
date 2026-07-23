@@ -555,8 +555,8 @@ CREATE TABLE IF NOT EXISTS `reading_progress` (
 
 The Reading quiz records its tallies **here, not in `practice_history`** (that table
 stays exclusively the handwriting-attempt log). The Reading **flashcard** study mode
-is self-graded and records **nothing**. The table starts empty on any v4 database —
-nothing to backfill.
+checks answers on the card but records **nothing**. The table starts empty on any v4
+database — nothing to backfill.
 
 ### Table: `practice_history` (`PracticeAttemptEntity`) — renamed from `practice_attempts`
 
@@ -745,8 +745,8 @@ single figure that tints a Library cell.
 (`observe(): Flow<List<ReadingProgress>>` mapping rows to domain, and
 `record(itemKey, typed, correct)`, which runs the ensure-then-increment pair — `typed`
 routes the count into the mcq vs typed tally). `domain/repository/ReadingProgressRepository.kt`
-is the interface. The **Reading flashcard** study mode is self-graded and writes nothing
-here.
+is the interface. The **Reading flashcard** study mode checks answers on the card but
+writes nothing here.
 
 Which track the learner is in is **not** Room state — it persists as a new
 SharedPreferences key `app_mode` (`SettingsRepository.getAppMode()`/`setAppMode()`,

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.scoring.CellRect
+import com.hive.hiragana.drawing.canvas.BrushEffect
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.drawing.canvas.drawGhostCharacter
 import com.hive.hiragana.drawing.canvas.drawGhostStrokes
@@ -84,6 +85,11 @@ fun TracingCanvas(
     showGhost: Boolean = true,
     layout: PracticeLayout = PracticeLayout.SINGLE,
     inkColor: Color = InkBlack,
+    // The artistic brush effect the user's ink is rendered with (uniform brush,
+    // calligraphy, fountain pen, marker). Purely visual — baked into new strokes
+    // at input time and applied as the fill alpha at draw time; never touches the
+    // raw points the scorer reads.
+    brushEffect: BrushEffect = BrushEffect.BRUSH,
     // Which form the traced ghost shows. PRINTED (default) draws the system-font
     // glyph; HANDWRITTEN draws [glyphStrokes] as a grey brush (the same strokes
     // the demo and scorer use). Falls back to the font ghost for any cell whose
@@ -296,16 +302,21 @@ fun TracingCanvas(
             val glyphFit = characters.filter { it.isNotEmpty() }
                 .minOfOrNull { ghostFitScale(ghostPaint, it, side) } ?: 1f
             canvasState.brushBaseWidthPx = (side * glyphFit * BrushWidthFraction).coerceAtLeast(1f)
+            // Publish the current brush effect the same way, before the next
+            // stroke starts, so its geometry is baked at the chosen effect.
+            canvasState.brushEffect = brushEffect
 
             // 3 + 4. completed strokes, then the active one — filled brush
             // ribbons, width baked in. Clipped to the writing cells so ink
-            // can never appear outside the bordered writing area.
+            // can never appear outside the bordered writing area. The effect's
+            // fill alpha (e.g. a translucent marker) is applied at draw time.
+            val inkAlpha = brushEffect.spec.alpha
             clipPath(inkClip) {
                 canvasState.completedPaths.forEach { path ->
-                    drawPath(path = path, color = inkColor)
+                    drawPath(path = path, color = inkColor, alpha = inkAlpha)
                 }
                 canvasState.activePath?.let { path ->
-                    drawPath(path = path, color = inkColor)
+                    drawPath(path = path, color = inkColor, alpha = inkAlpha)
                 }
             }
         }

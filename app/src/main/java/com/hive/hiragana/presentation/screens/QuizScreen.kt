@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,6 +62,7 @@ import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.domain.scoring.CharacterScore
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.scoring.WordUnitScore
+import com.hive.hiragana.drawing.canvas.BrushEffect
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.presentation.components.AutoShrinkText
@@ -121,6 +123,7 @@ fun QuizScreen(
     lastWordScores: List<WordUnitScore>?,
     lastWordAverage: Int?,
     inkColor: Color = InkBlack,
+    brushEffect: BrushEffect = BrushEffect.BRUSH,
     // Traced-ghost form + a per-glyph stroke lookup for the HANDWRITTEN ghost
     // (the quiz reveals the ghost only after Submit); PRINTED keeps the font.
     characterForm: CharacterForm = CharacterForm.PRINTED,
@@ -181,6 +184,7 @@ fun QuizScreen(
                     lastWordScores = lastWordScores,
                     lastWordAverage = lastWordAverage,
                     inkColor = inkColor,
+                    brushEffect = brushEffect,
                     characterForm = characterForm,
                     glyphStrokesFor = glyphStrokesFor,
                     onSpeak = onSpeak,
@@ -513,6 +517,20 @@ private fun ReadingQuizRunning(
         onReadingResult(romajiOk == true && (!needMeaning || meaningOk == true))
     }
 
+    // The prompt column scrolls when it outgrows the height (small screens, or
+    // the keyboard up in typed mode). On reveal, bring the answer card into
+    // view — otherwise it can sit below the fold and the result looks missing
+    // (no-op when everything fits: maxValue is 0).
+    val promptScroll = rememberScrollState()
+    LaunchedEffect(quiz.index) { promptScroll.scrollTo(0) }
+    LaunchedEffect(quiz.revealed, quiz.index) {
+        if (quiz.revealed) {
+            // One frame so the reveal card is measured before reading maxValue.
+            withFrameNanos { }
+            promptScroll.animateScrollTo(promptScroll.maxValue)
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -534,7 +552,7 @@ private fun ReadingQuizRunning(
                 .weight(1f)
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(promptScroll),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -857,6 +875,7 @@ private fun QuizRunning(
     lastWordScores: List<WordUnitScore>?,
     lastWordAverage: Int?,
     inkColor: Color,
+    brushEffect: BrushEffect = BrushEffect.BRUSH,
     characterForm: CharacterForm = CharacterForm.PRINTED,
     glyphStrokesFor: (List<String>) -> List<List<String>> = { emptyList() },
     onSpeak: (String) -> Unit = {},
@@ -966,6 +985,7 @@ private fun QuizRunning(
                 showGhost = quiz.revealed,
                 layout = PracticeLayout.SINGLE,
                 inkColor = inkColor,
+                brushEffect = brushEffect,
                 characterForm = characterForm,
                 glyphStrokes = if (characterForm == CharacterForm.HANDWRITTEN) {
                     glyphStrokesFor(current.glyphs)

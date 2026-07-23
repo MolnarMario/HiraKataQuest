@@ -150,6 +150,7 @@ fun PracticeScreen(
                     lastWordScores = uiState.lastWordScores,
                     lastWordAverage = uiState.lastWordAverage,
                     inkColor = Color(uiState.brushInkColor),
+                    brushEffect = uiState.brushEffect,
                     characterForm = CharacterForm.HANDWRITTEN,
                     glyphStrokesFor = uiState::ghostStrokesFor,
                     onReadingResult = viewModel::readingResult,
@@ -236,6 +237,8 @@ fun PracticeScreen(
                     pronunciation = uiState::pronunciationOf,
                     brushInkColor = uiState.brushInkColor,
                     onSelectBrushColor = viewModel::setBrushInkColor,
+                    brushEffect = uiState.brushEffect,
+                    onSelectBrushEffect = viewModel::setBrushEffect,
                     scoringMode = uiState.scoringMode,
                     onSetScoringMode = viewModel::setScoringMode,
                     practiceSets = uiState.practiceSets,
@@ -359,6 +362,7 @@ private fun PracticeContent(
                 showGhost = uiState.isGhostEnabled,
                 layout = uiState.practiceLayout,
                 inkColor = Color(uiState.brushInkColor),
+                brushEffect = uiState.brushEffect,
                 // Writing always traces the handwritten (KanjiVG) ghost — the
                 // form you actually write, coherent with the demo and scorer.
                 characterForm = CharacterForm.HANDWRITTEN,

@@ -1,5 +1,7 @@
 package com.hive.hiragana.presentation.screens
 
+import android.graphics.Paint
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -9,12 +11,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Create
@@ -23,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -42,18 +45,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.content.res.ResourcesCompat
+import com.hive.hiragana.R
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
-import com.hive.hiragana.presentation.components.PrintFontFamily
 import com.hive.hiragana.presentation.components.PronunciationButton
-import com.hive.hiragana.presentation.components.toNonScalingSp
 import com.hive.hiragana.presentation.viewmodels.ReadingFlashcardState
 import kotlin.random.Random
 
@@ -61,19 +70,23 @@ import kotlin.random.Random
  * Reading-track flashcard study: flip through the scoped deck/words. The front
  * shows the printed (gothic) glyph/word.
  *
- * A **"Type the reading" toggle at the top** switches between two study styles,
- * flippable at any time:
- * - **off** — reveal-and-self-grade: "Show answer" (or tapping the card) reveals
- *   the reading + meaning + audio, then Got it / Missed advance.
- * - **on** — productive recall: a romaji field; type + Check (or the keyboard's
- *   Done) reveals whether you were right plus the answer, then Next advances.
+ * A **Typing | Multiple choice segmented control at the top** switches between
+ * two equal study styles, flippable at any time:
+ * - **Multiple choice** — tap the reading among deck distractors; the card
+ *   reveals Correct!/Not quite + the answer, then Next advances.
+ * - **Typing** — productive recall: a romaji field; type + Check (or the
+ *   keyboard's Done) reveals the same, compared with the lenient [RomajiMatch].
  *
- * Self-graded study — it deliberately does NOT feed the reading-quiz percentages.
+ * Pure study — answers are deliberately NOT recorded into the reading-quiz
+ * percentages; only the reading quiz writes `reading_progress`.
  *
- * Keyboard flow: the field lives in the bottom section under [imePadding], so
- * opening the keyboard lifts it (and the glyph above it) clear of the keys — no
- * overlap. The field keeps focus across card flips, so the keyboard stays open
- * for a smooth run; it only closes when the toggle is turned off.
+ * Layout: the card fits its height budget BY CONSTRUCTION — the reveal rows
+ * measure first and the glyph takes the actual leftover (see the card-area
+ * comment and [FlashcardGlyph]) — so nothing clips when the keyboard shrinks
+ * the window (adjustResize; on API 30+ the IME arrives via PracticeScreen's
+ * safeDrawing inset host instead). The field keeps focus across card flips,
+ * so the keyboard stays open for a smooth run; it only closes when switching
+ * to Multiple choice.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -202,45 +215,40 @@ fun ReadingFlashcardScreen(
                 )
             }
 
-            // Card area — sizes itself to the available height so the WHOLE card
-            // (glyph + the revealed reading, audio, and meaning) stays within
-            // view. When the keyboard shrinks the space the glyph scales down
-            // (display → medium → small) and paddings tighten, instead of the
-            // reveal overflowing; a scroll is kept as a last-resort safety net.
+            // Card area — the WHOLE card (glyph + the revealed reading, audio,
+            // and meaning) must fit the available height, keyboard up or not.
+            // The reveal rows below the glyph measure FIRST (they are the
+            // fixed-height content) and the glyph derives its font size from
+            // the height actually left over — the same leftover-box approach
+            // as the guide panel, so neither end can clip by construction.
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
                 val avail = maxHeight
-                // Glyph as large as fits: scaled to the card's width (so longer
-                // words shrink and never overflow), to the available height, and
-                // to a cap — device-responsive. The size is computed in dp space,
-                // so it converts via toNonScalingSp: applying it as a raw .sp
-                // made the glyph fontScale× larger than the width budget assumed
-                // (it overflowed the card on devices with large default fonts).
-                val glyphCount = card.glyph.length.coerceAtLeast(1)
-                val innerWidth = (maxWidth.value - 88f).coerceAtLeast(48f)
-                val glyphSize = minOf(
-                    (innerWidth / glyphCount) * 0.92f,
-                    avail.value * 0.34f,
-                    120f,
-                ).coerceAtLeast(40f).dp.toNonScalingSp()
                 val vPad = when {
                     avail >= 360.dp -> 32.dp
                     avail >= 240.dp -> 20.dp
-                    else -> 14.dp
+                    else -> 10.dp
                 }
-                val gap = if (avail >= 320.dp) 16.dp else 10.dp
+                val gap = when {
+                    avail >= 320.dp -> 16.dp
+                    avail >= 240.dp -> 10.dp
+                    else -> 8.dp
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
                         .padding(horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = avail),
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -248,87 +256,90 @@ fun ReadingFlashcardScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(gap),
                         ) {
-                            Text(
-                                text = card.glyph,
-                                // PrintFontFamily swaps さ/き/り (only) to their
-                                // connected printed forms; everything else falls
-                                // back to the system font. See PrintDivergence.
-                                style = MaterialTheme.typography.displayLarge.copy(
-                                    fontFamily = PrintFontFamily,
-                                    fontSize = glyphSize,
-                                    lineHeight = glyphSize,
-                                ),
-                                maxLines = 1,
-                                textAlign = TextAlign.Center,
-                            )
-                            if (state.revealed) {
-                            if (answeredCorrect != null) {
-                                Text(
-                                    text = if (answeredCorrect == true) "Correct!" else "Not quite",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = if (answeredCorrect == true) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.error
-                                    },
+                            // weight(1f) measures LAST, so this box receives
+                            // exactly the height the reveal rows leave over;
+                            // fill = false lets the card stay wrap-height when
+                            // the glyph caps out below the leftover.
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                FlashcardGlyph(
+                                    glyph = card.glyph,
+                                    boxWidth = this.maxWidth,
+                                    boxHeight = this.maxHeight,
                                 )
                             }
-                            // Reading · audio · meaning on ONE line; wraps only if
-                            // it truly can't fit (responsive on narrow screens).
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(
-                                    8.dp,
-                                    Alignment.CenterHorizontally,
-                                ),
-                                verticalArrangement = Arrangement.Center,
-                            ) {
-                                // Romaji + speaker are ONE unbreakable child:
-                                // FlowRow measures each child against the
-                                // REMAINING line width, and a squeezed Text
-                                // wraps internally every couple of characters
-                                // (the mangled reveal seen on device) instead
-                                // of moving to the next line whole.
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            if (state.revealed) {
+                                if (answeredCorrect != null) {
+                                    Text(
+                                        text = if (answeredCorrect == true) "Correct!" else "Not quite",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = if (answeredCorrect == true) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.error
+                                        },
+                                    )
+                                }
+                                // Reading · audio · meaning on ONE line; wraps only if
+                                // it truly can't fit (responsive on narrow screens).
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(
+                                        8.dp,
+                                        Alignment.CenterHorizontally,
+                                    ),
+                                    verticalArrangement = Arrangement.Center,
                                 ) {
-                                    Text(
-                                        text = card.romaji,
-                                        style = MaterialTheme.typography.headlineSmall,
-                                    )
-                                    PronunciationButton(
-                                        glyph = card.glyph,
-                                        status = ttsStatus,
-                                        onSpeak = onSpeak,
-                                    )
+                                    // Romaji + speaker are ONE unbreakable child:
+                                    // FlowRow measures each child against the
+                                    // REMAINING line width, and a squeezed Text
+                                    // wraps internally every couple of characters
+                                    // (the mangled reveal seen on device) instead
+                                    // of moving to the next line whole.
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Text(
+                                            text = card.romaji,
+                                            style = MaterialTheme.typography.headlineSmall,
+                                        )
+                                        PronunciationButton(
+                                            glyph = card.glyph,
+                                            status = ttsStatus,
+                                            onSpeak = onSpeak,
+                                        )
+                                    }
+                                    card.meaning?.let { meaning ->
+                                        Text(
+                                            text = "·  $meaning",
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            // The min width forces a squeezed meaning
+                                            // onto its own full line instead of
+                                            // wrapping in the leftover sliver.
+                                            modifier = Modifier
+                                                .align(Alignment.CenterVertically)
+                                                .widthIn(min = 120.dp),
+                                        )
+                                    }
                                 }
-                                card.meaning?.let { meaning ->
-                                    Text(
-                                        text = "·  $meaning",
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center,
-                                        // The min width forces a squeezed meaning
-                                        // onto its own full line instead of
-                                        // wrapping in the leftover sliver.
-                                        modifier = Modifier
-                                            .align(Alignment.CenterVertically)
-                                            .widthIn(min = 120.dp),
-                                    )
-                                }
+                                // Reading track shows the printed form, so warn when
+                                // the handwritten one looks different (renders
+                                // nothing for unaffected kana).
+                                PrintDivergenceBadge(
+                                    unitCharacters = unitCharactersFor(card.glyph),
+                                    label = "Looks different in handwriting",
+                                )
                             }
-                            // Reading track shows the printed form, so warn when
-                            // the handwritten one looks different (renders
-                            // nothing for unaffected kana).
-                            PrintDivergenceBadge(
-                                unitCharacters = unitCharactersFor(card.glyph),
-                                label = "Looks different in handwriting",
-                            )
                         }
                     }
                 }
-            }
             }
 
             // Bottom section: field (typing mode) + the primary action.
@@ -395,6 +406,74 @@ fun ReadingFlashcardScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The card's printed glyph, drawn with the native text renderer and centered on
+ * its measured INK bounds. A Compose [Text] centers the font's LINE box
+ * instead, and CJK line metrics sink the kana ink well below that box's
+ * center — on device the card showed far more empty space above the character
+ * than below it. Here the ink is fitted to the given box (width for longer
+ * words, leftover height, and a size cap), the canvas wraps the ink exactly,
+ * and the draw centers on the ink's own bounds — the same metric-driven
+ * centering as the tracing ghost (drawGhostCharacter). The print-forms
+ * typeface keeps さ/き/り in their connected printed forms; every other glyph
+ * falls back to the system font at render time, exactly like [PrintFontFamily].
+ * Deliberately fontScale-independent, matching the previous toNonScalingSp
+ * sizing (the glyph is bounded by geometry, not text preferences).
+ */
+@Composable
+private fun FlashcardGlyph(
+    glyph: String,
+    boxWidth: Dp,
+    boxHeight: Dp,
+) {
+    val context = LocalContext.current
+    val inkColor = LocalContentColor.current
+    val density = LocalDensity.current
+    val paint = remember {
+        Paint().apply {
+            isAntiAlias = true
+            typeface = ResourcesCompat.getFont(context, R.font.print_forms)
+        }
+    }
+    // Probe the ink at a reference size, scale to fit the box (92% of each
+    // side) and the cap, then re-measure at the final size so the centering
+    // offsets are exact. Leaves paint.textSize set for the draw below.
+    val bounds = remember(glyph, boxWidth, boxHeight) {
+        val probe = 100f
+        paint.textSize = probe
+        val b = android.graphics.Rect()
+        paint.getTextBounds(glyph, 0, glyph.length, b)
+        if (!b.isEmpty) {
+            with(density) {
+                val scale = minOf(
+                    boxWidth.toPx() * 0.92f / b.width(),
+                    boxHeight.toPx() * 0.92f / b.height(),
+                    120.dp.toPx() / probe,
+                )
+                paint.textSize = (probe * scale).coerceAtLeast(24.dp.toPx())
+            }
+            paint.getTextBounds(glyph, 0, glyph.length, b)
+        }
+        b
+    }
+    if (bounds.isEmpty) return
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(with(density) { bounds.height().toDp() }),
+    ) {
+        paint.color = inkColor.toArgb()
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawText(
+                glyph,
+                size.width / 2f - bounds.exactCenterX(),
+                size.height / 2f - bounds.exactCenterY(),
+                paint,
+            )
         }
     }
 }

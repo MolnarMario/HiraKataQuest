@@ -5,6 +5,7 @@ import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.scoring.ScoringMode
+import com.hive.hiragana.drawing.canvas.BrushEffect
 
 /**
  * User-facing app settings that survive process death. Synchronous by
@@ -104,6 +105,15 @@ interface SettingsRepository {
     fun getBrushInkColor(): Int
 
     fun setBrushInkColor(color: Int)
+
+    /**
+     * The artistic brush effect strokes are drawn with ([BrushEffect]). Purely
+     * visual — it never affects stroke geometry as seen by the scorer (which
+     * reads raw points). Default [BrushEffect.BRUSH] (the original ribbon look).
+     */
+    fun getBrushEffect(): BrushEffect
+
+    fun setBrushEffect(effect: BrushEffect)
 
     /**
      * Which character form the traced ghost shows: [CharacterForm.PRINTED]
