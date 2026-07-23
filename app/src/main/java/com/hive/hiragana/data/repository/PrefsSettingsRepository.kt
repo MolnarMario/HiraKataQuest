@@ -21,6 +21,12 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    override fun isBeginnerMode(): Boolean = prefs.getBoolean(KEY_BEGINNER_MODE, false)
+
+    override fun setBeginnerMode(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BEGINNER_MODE, enabled).apply()
+    }
+
     override fun isGridEnabled(): Boolean = prefs.getBoolean(KEY_GRID_ENABLED, true)
 
     override fun setGridEnabled(enabled: Boolean) {
@@ -107,6 +113,13 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putString(KEY_BRUSH_EFFECT, effect.prefValue).apply()
     }
 
+    override fun isAutoNarrateEnabled(): Boolean =
+        prefs.getBoolean(KEY_AUTO_NARRATE, false)
+
+    override fun setAutoNarrateEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_NARRATE, enabled).apply()
+    }
+
     override fun getCharacterForm(): CharacterForm =
         CharacterForm.fromPrefValue(prefs.getString(KEY_CHARACTER_FORM, null))
 
@@ -130,6 +143,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
 
     private companion object {
         const val PREFS_NAME = "settings"
+        const val KEY_BEGINNER_MODE = "beginner_mode"
         const val KEY_GRID_ENABLED = "grid_enabled"
         const val KEY_GHOST_ENABLED = "ghost_enabled"
         const val KEY_PRACTICE_LAYOUT_SPAN = "practice_layout_span"
@@ -143,6 +157,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_DEFAULT_SETS_SEEDED = "default_sets_seeded"
         const val KEY_BRUSH_INK_COLOR = "brush_ink_color"
         const val KEY_BRUSH_EFFECT = "brush_effect"
+        const val KEY_AUTO_NARRATE = "auto_narrate_enabled"
         const val KEY_CHARACTER_FORM = "character_form"
         const val KEY_APP_MODE = "app_mode"
         const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"

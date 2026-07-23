@@ -15,6 +15,15 @@ import com.hive.hiragana.drawing.canvas.BrushEffect
  */
 interface SettingsRepository {
 
+    /**
+     * Whether "Beginner mode" is on (default false). When on, the app shows the
+     * kana-concept ⓘ help icons + the "New to kana?" overview; when off they are
+     * hidden so the screens stay uncluttered for learners who know the terms.
+     */
+    fun isBeginnerMode(): Boolean
+
+    fun setBeginnerMode(enabled: Boolean)
+
     /** Whether the tracing canvas draws the practice-grid helper lines. */
     fun isGridEnabled(): Boolean
 
@@ -114,6 +123,17 @@ interface SettingsRepository {
     fun getBrushEffect(): BrushEffect
 
     fun setBrushEffect(effect: BrushEffect)
+
+    /**
+     * Whether a newly shown character/word is spoken aloud automatically by the
+     * device TTS the moment it appears — in Writing free practice and the
+     * writing quiz. Default false: the learner otherwise taps the speaker to
+     * hear the reading. Never applies in the Reading track (hearing the answer
+     * would defeat the recognition practice).
+     */
+    fun isAutoNarrateEnabled(): Boolean
+
+    fun setAutoNarrateEnabled(enabled: Boolean)
 
     /**
      * Which character form the traced ghost shows: [CharacterForm.PRINTED]

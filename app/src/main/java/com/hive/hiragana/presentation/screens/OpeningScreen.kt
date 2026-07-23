@@ -3,6 +3,7 @@ package com.hive.hiragana.presentation.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -14,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.model.AppMode
+import com.hive.hiragana.presentation.components.ConceptInfo
+import com.hive.hiragana.presentation.components.ConceptInfoIcon
 import com.hive.hiragana.presentation.components.KanaOverviewButton
 
 /**
@@ -32,6 +36,8 @@ import com.hive.hiragana.presentation.components.KanaOverviewButton
 @Composable
 fun OpeningScreen(
     onPick: (AppMode) -> Unit,
+    beginnerMode: Boolean = false,
+    onSetBeginnerMode: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -63,7 +69,23 @@ fun OpeningScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
                 )
-                KanaOverviewButton(modifier = Modifier.padding(bottom = 24.dp))
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 420.dp)
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    BeginnerModeRow(
+                        beginnerMode = beginnerMode,
+                        onSetBeginnerMode = onSetBeginnerMode,
+                    )
+                    // The "New to kana?" overview is itself a beginner tooltip, so
+                    // it only appears when Beginner mode is on.
+                    if (beginnerMode) {
+                        KanaOverviewButton(modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
 
                 ModeCard(
                     title = "Reading",
@@ -81,6 +103,43 @@ fun OpeningScreen(
                 }
             }
         }
+    }
+}
+
+/** The plain-language explainer for what Beginner mode does and who it helps. */
+private val BeginnerModeInfo = ConceptInfo(
+    title = "Beginner mode",
+    body = "Beginner mode adds small ⓘ help icons and a \"New to kana?\" guide " +
+        "around the app, explaining terms like hiragana, katakana, and voiced or " +
+        "combined kana in plain language. Turn it on if you are new to Japanese " +
+        "or want those explanations; leave it off for a cleaner screen once the " +
+        "terms feel familiar.",
+)
+
+/**
+ * The "Beginner mode" toggle row (leading ⓘ explainer, trailing [Switch]). Always
+ * visible on the opening screen — it is the control for the tooltips, not a
+ * tooltip itself. Default OFF (kept clean); ON reveals the kana-concept help.
+ */
+@Composable
+private fun BeginnerModeRow(
+    beginnerMode: Boolean,
+    onSetBeginnerMode: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ConceptInfoIcon(concept = BeginnerModeInfo)
+        Text(
+            text = "Beginner mode",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 2.dp),
+        )
+        Switch(checked = beginnerMode, onCheckedChange = onSetBeginnerMode)
     }
 }
 

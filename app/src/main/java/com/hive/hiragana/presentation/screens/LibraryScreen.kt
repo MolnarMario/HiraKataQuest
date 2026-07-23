@@ -307,12 +307,18 @@ fun LibraryScreen(
     initialTab: Int = 0,
     onSelectTab: (Int) -> Unit = {},
     pronunciation: (VocabularyWord) -> String = { "" },
+    // When on, the kana-concept ⓘ help icons show in the scope sheet; off hides
+    // them (Beginner mode, set on the opening screen).
+    beginnerMode: Boolean = false,
     brushInkColor: Int = 0xFF20222E.toInt(),
     onSelectBrushColor: (Int) -> Unit = {},
     brushEffect: BrushEffect = BrushEffect.BRUSH,
     onSelectBrushEffect: (BrushEffect) -> Unit = {},
     scoringMode: ScoringMode = ScoringMode.FORM,
     onSetScoringMode: (ScoringMode) -> Unit = {},
+    // Auto-narration: speak each newly shown character/word aloud (Writing only).
+    autoNarrateEnabled: Boolean = false,
+    onSetAutoNarrate: (Boolean) -> Unit = {},
     practiceSets: List<PracticeSet> = emptyList(),
     onSaveSet: (String, PracticeSetType, Script, List<String>) -> Unit = { _, _, _, _ -> },
     onUpdateSetMembers: (Long, List<String>) -> Unit = { _, _ -> },
@@ -686,6 +692,7 @@ fun LibraryScreen(
                 ScopeSheetContent(
                     activeScript = activeScript,
                     onSelectScript = onSelectScript,
+                    beginnerMode = beginnerMode,
                     appMode = appMode,
                     onSetAppMode = onSetAppMode,
                     includeDiacritics = includeDiacritics,
@@ -696,6 +703,8 @@ fun LibraryScreen(
                     onToggleExtended = onToggleExtended,
                     scoringMode = scoringMode,
                     onSetScoringMode = onSetScoringMode,
+                    autoNarrateEnabled = autoNarrateEnabled,
+                    onSetAutoNarrate = onSetAutoNarrate,
                     brushInkColor = brushInkColor,
                     onSelectBrushColor = onSelectBrushColor,
                     brushEffect = brushEffect,
@@ -937,6 +946,7 @@ private fun LibraryTopBar(
 private fun ScopeSheetContent(
     activeScript: Script,
     onSelectScript: (Script) -> Unit,
+    beginnerMode: Boolean,
     appMode: AppMode,
     onSetAppMode: (AppMode) -> Unit,
     includeDiacritics: Boolean,
@@ -947,6 +957,8 @@ private fun ScopeSheetContent(
     onToggleExtended: (Boolean) -> Unit,
     scoringMode: ScoringMode,
     onSetScoringMode: (ScoringMode) -> Unit,
+    autoNarrateEnabled: Boolean,
+    onSetAutoNarrate: (Boolean) -> Unit,
     brushInkColor: Int,
     onSelectBrushColor: (Int) -> Unit,
     brushEffect: BrushEffect,
@@ -998,7 +1010,7 @@ private fun ScopeSheetContent(
                             // explainer without re-selecting the segment; to
                             // read about the other script you first select it
                             // (its icon then appears), then tap the icon.
-                            if (script == activeScript) {
+                            if (script == activeScript && beginnerMode) {
                                 ConceptInfoIcon(
                                     concept = when (script) {
                                         Script.HIRAGANA -> KanaConcepts.hiragana
@@ -1018,21 +1030,21 @@ private fun ScopeSheetContent(
             onCheckedChange = onToggleDiacritics,
             label = "Voiced kana (゛゜)",
             hint = "が, ざ, ぱ …",
-            info = KanaConcepts.voiced,
+            info = KanaConcepts.voiced.takeIf { beginnerMode },
         )
         ScopeToggleRow(
             checked = includeYoon,
             onCheckedChange = onToggleYoon,
             label = "Combined kana (ゃゅょ)",
             hint = "きゃ, しゅ, きょ …",
-            info = KanaConcepts.combined,
+            info = KanaConcepts.combined.takeIf { beginnerMode },
         )
         ScopeToggleRow(
             checked = includeExtended,
             onCheckedChange = onToggleExtended,
             label = "Extended kana (っ ァ)",
             hint = "っ, ファ, ティ …",
-            info = KanaConcepts.extended,
+            info = KanaConcepts.extended.takeIf { beginnerMode },
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
@@ -1112,6 +1124,37 @@ private fun ScopeSheetContent(
                         },
                     )
                 }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+            // Auto-narration: speak each newly shown character/word aloud the
+            // instant it appears (in free practice and the writing quiz), so the
+            // learner hears the reading without tapping the speaker. Writing-only
+            // — narrating in Reading would give the answer away.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSetAutoNarrate(!autoNarrateEnabled) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Read aloud automatically",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        text = "Speak each new character or word the moment it " +
+                            "shows, so you hear it without tapping the speaker.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Switch(
+                    checked = autoNarrateEnabled,
+                    onCheckedChange = onSetAutoNarrate,
+                )
             }
         }
 

@@ -231,6 +231,9 @@ data class PracticeUiState(
     // Consumed by LibraryScreen once acted on. Transient (not in rebuilt()).
     val pendingOpenSetsManager: Boolean = false,
     // SETTINGS (persisted via SettingsRepository)
+    // Beginner mode: when on, the kana-concept ⓘ help icons + "New to kana?"
+    // overview are shown; off (default) hides them for a cleaner UI. Persisted.
+    val beginnerMode: Boolean = false,
     val isGridEnabled: Boolean = true,
     val isGhostEnabled: Boolean = true,
     val isLibraryGridView: Boolean = false,
@@ -299,6 +302,11 @@ data class PracticeUiState(
     // The device's Japanese TTS voice status — gates the pronunciation button
     // (play / offer download / disabled). Set by the VM's status collector.
     val ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
+    // Whether a newly shown character/word is spoken aloud automatically the
+    // moment it appears (persisted; default false). Writing track + writing quiz
+    // ONLY — never in Reading (that would give the answer away). The actual
+    // speaking is driven by PracticeScreen off this flag + the shown glyph.
+    val autoNarrateEnabled: Boolean = false,
 ) {
     /**
      * The scoped study deck: the active script, minus voiced kana / yōon /
@@ -452,6 +460,7 @@ class PracticeViewModel(
 
     private val _uiState = MutableStateFlow(
         PracticeUiState(
+            beginnerMode = settingsRepository.isBeginnerMode(),
             isGridEnabled = settingsRepository.isGridEnabled(),
             isGhostEnabled = settingsRepository.isGhostEnabled(),
             isLibraryGridView = settingsRepository.isLibraryGridView(),
@@ -465,6 +474,7 @@ class PracticeViewModel(
             brushInkColor = settingsRepository.getBrushInkColor(),
             brushEffect = settingsRepository.getBrushEffect(),
             characterForm = settingsRepository.getCharacterForm(),
+            autoNarrateEnabled = settingsRepository.isAutoNarrateEnabled(),
         ),
     )
     val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
@@ -892,6 +902,7 @@ class PracticeViewModel(
         characters = characters,
         allWords = allWords,
         practiceSets = practiceSets,
+        beginnerMode = beginnerMode,
         isGridEnabled = isGridEnabled,
         isGhostEnabled = isGhostEnabled,
         isLibraryGridView = isLibraryGridView,
@@ -908,6 +919,7 @@ class PracticeViewModel(
         includeExtended = includeExtended,
         characterForm = characterForm,
         appMode = appMode,
+        autoNarrateEnabled = autoNarrateEnabled,
         canvasClearKey = canvasClearKey + 1,
     )
 
@@ -1121,6 +1133,32 @@ class PracticeViewModel(
                 canvasClearKey = state.canvasClearKey + 1,
             )
         }
+    }
+
+    /**
+     * Auto-narration toggle (Study-scope sheet, Writing only). When on, the
+     * device TTS speaks each newly shown character/word the instant it appears —
+     * in free practice AND the writing quiz — so the learner hears the reading
+     * without tapping the speaker. Persisted. Reading never narrates (hearing
+     * the answer would defeat recognition practice), so the toggle is hidden in
+     * Reading mode. The speaking itself is driven by PracticeScreen off this
+     * flag and the shown glyph; this just persists + publishes the preference.
+     */
+    fun setAutoNarrate(enabled: Boolean) {
+        if (enabled == _uiState.value.autoNarrateEnabled) return
+        settingsRepository.setAutoNarrateEnabled(enabled)
+        _uiState.update { it.copy(autoNarrateEnabled = enabled) }
+    }
+
+    /**
+     * Beginner-mode toggle (opening screen). When on, the kana-concept ⓘ help
+     * icons + the "New to kana?" overview are shown; off (default) hides them so
+     * the screens stay uncluttered. Persisted; a display preference only.
+     */
+    fun setBeginnerMode(enabled: Boolean) {
+        if (enabled == _uiState.value.beginnerMode) return
+        settingsRepository.setBeginnerMode(enabled)
+        _uiState.update { it.copy(beginnerMode = enabled) }
     }
 
     /**
