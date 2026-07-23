@@ -8,6 +8,7 @@ import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.repository.SettingsRepository
 import com.hive.hiragana.domain.scoring.ScoringMode
+import com.hive.hiragana.drawing.canvas.BrushEffect
 
 /**
  * [SettingsRepository] backed by a plain [SharedPreferences] file —
@@ -99,6 +100,13 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putInt(KEY_BRUSH_INK_COLOR, color).apply()
     }
 
+    override fun getBrushEffect(): BrushEffect =
+        BrushEffect.fromPrefValue(prefs.getString(KEY_BRUSH_EFFECT, null))
+
+    override fun setBrushEffect(effect: BrushEffect) {
+        prefs.edit().putString(KEY_BRUSH_EFFECT, effect.prefValue).apply()
+    }
+
     override fun getCharacterForm(): CharacterForm =
         CharacterForm.fromPrefValue(prefs.getString(KEY_CHARACTER_FORM, null))
 
@@ -134,6 +142,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_LIBRARY_SECTION = "library_section"
         const val KEY_DEFAULT_SETS_SEEDED = "default_sets_seeded"
         const val KEY_BRUSH_INK_COLOR = "brush_ink_color"
+        const val KEY_BRUSH_EFFECT = "brush_effect"
         const val KEY_CHARACTER_FORM = "character_form"
         const val KEY_APP_MODE = "app_mode"
         const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"

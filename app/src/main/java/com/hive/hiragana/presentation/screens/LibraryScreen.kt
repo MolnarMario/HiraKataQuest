@@ -112,6 +112,9 @@ import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.ScriptScope
 import com.hive.hiragana.presentation.components.AutoShrinkText
+import com.hive.hiragana.presentation.components.ConceptInfo
+import com.hive.hiragana.presentation.components.ConceptInfoIcon
+import com.hive.hiragana.presentation.components.KanaConcepts
 import com.hive.hiragana.presentation.components.PrintFontFamily
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.domain.model.TableRow
@@ -120,6 +123,8 @@ import com.hive.hiragana.domain.model.VocabularyWord
 import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.presentation.components.BrushColorPicker
+import com.hive.hiragana.presentation.components.BrushEffectPicker
+import com.hive.hiragana.drawing.canvas.BrushEffect
 import com.hive.hiragana.presentation.components.fontScaleFraction
 import com.hive.hiragana.presentation.components.rememberUniformTextScale
 import com.hive.hiragana.presentation.components.toNonScalingSp
@@ -304,6 +309,8 @@ fun LibraryScreen(
     pronunciation: (VocabularyWord) -> String = { "" },
     brushInkColor: Int = 0xFF20222E.toInt(),
     onSelectBrushColor: (Int) -> Unit = {},
+    brushEffect: BrushEffect = BrushEffect.BRUSH,
+    onSelectBrushEffect: (BrushEffect) -> Unit = {},
     scoringMode: ScoringMode = ScoringMode.FORM,
     onSetScoringMode: (ScoringMode) -> Unit = {},
     practiceSets: List<PracticeSet> = emptyList(),
@@ -691,6 +698,8 @@ fun LibraryScreen(
                     onSetScoringMode = onSetScoringMode,
                     brushInkColor = brushInkColor,
                     onSelectBrushColor = onSelectBrushColor,
+                    brushEffect = brushEffect,
+                    onSelectBrushEffect = onSelectBrushEffect,
                     practiceSetCount = practiceSets.size,
                     onAddPracticeSet = { startNewSet() },
                     onSeePracticeSets = {
@@ -940,6 +949,8 @@ private fun ScopeSheetContent(
     onSetScoringMode: (ScoringMode) -> Unit,
     brushInkColor: Int,
     onSelectBrushColor: (Int) -> Unit,
+    brushEffect: BrushEffect,
+    onSelectBrushEffect: (BrushEffect) -> Unit,
     practiceSetCount: Int,
     onAddPracticeSet: () -> Unit,
     onSeePracticeSets: () -> Unit,
@@ -973,14 +984,30 @@ private fun ScopeSheetContent(
                         count = Script.entries.size,
                     ),
                     label = {
-                        Text(
-                            text = script.displayLabel,
-                            fontWeight = if (script == activeScript) {
-                                FontWeight.Bold
-                            } else {
-                                FontWeight.Normal
-                            },
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = script.displayLabel,
+                                fontWeight = if (script == activeScript) {
+                                    FontWeight.Bold
+                                } else {
+                                    FontWeight.Normal
+                                },
+                            )
+                            // The ⓘ rides the SELECTED segment only. Its own
+                            // click is consumed, so tapping it opens the
+                            // explainer without re-selecting the segment; to
+                            // read about the other script you first select it
+                            // (its icon then appears), then tap the icon.
+                            if (script == activeScript) {
+                                ConceptInfoIcon(
+                                    concept = when (script) {
+                                        Script.HIRAGANA -> KanaConcepts.hiragana
+                                        Script.KATAKANA -> KanaConcepts.katakana
+                                    },
+                                    modifier = Modifier.padding(start = 4.dp),
+                                )
+                            }
+                        }
                     },
                 )
             }
@@ -991,18 +1018,21 @@ private fun ScopeSheetContent(
             onCheckedChange = onToggleDiacritics,
             label = "Voiced kana (゛゜)",
             hint = "が, ざ, ぱ …",
+            info = KanaConcepts.voiced,
         )
         ScopeToggleRow(
             checked = includeYoon,
             onCheckedChange = onToggleYoon,
             label = "Combined kana (ゃゅょ)",
             hint = "きゃ, しゅ, きょ …",
+            info = KanaConcepts.combined,
         )
         ScopeToggleRow(
             checked = includeExtended,
             onCheckedChange = onToggleExtended,
             label = "Extended kana (っ ァ)",
             hint = "っ, ファ, ティ …",
+            info = KanaConcepts.extended,
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
@@ -1164,6 +1194,47 @@ private fun ScopeSheetContent(
                 onDismiss = { showColorPicker = false },
             )
         }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+        // Brush effect — the artistic stroke style (Brush / Calligraphy /
+        // Fountain pen / Marker), independent of the ink colour above. The row
+        // shows the current effect; tapping opens a preview picker.
+        var showEffectPicker by remember { mutableStateOf(false) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showEffectPicker = true },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Brush effect",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = "The style your strokes are drawn with.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = brushEffect.displayLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        if (showEffectPicker) {
+            BrushEffectPicker(
+                selected = brushEffect,
+                inkColor = Color(brushInkColor),
+                onPick = {
+                    onSelectBrushEffect(it)
+                    showEffectPicker = false
+                },
+                onDismiss = { showEffectPicker = false },
+            )
+        }
     }
 }
 
@@ -1175,23 +1246,36 @@ private val SCORING_CHOICES = listOf(
     ScoringMode.OFF to "Off",
 )
 
-/** One opt-in: label + hint on the left, a [Switch] on the right. */
+/**
+ * One opt-in: label + hint on the left, a [Switch] on the right. When [info] is
+ * given, a small ⓘ next to the label opens a plain-language explainer for
+ * first-time learners.
+ */
 @Composable
 private fun ScopeToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     label: String,
     hint: String,
+    info: ConceptInfo? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                if (info != null) {
+                    ConceptInfoIcon(
+                        concept = info,
+                        modifier = Modifier.padding(start = 2.dp),
+                    )
+                }
+            }
             Text(
                 text = hint,
                 style = MaterialTheme.typography.bodySmall,

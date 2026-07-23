@@ -28,6 +28,7 @@ import com.hive.hiragana.domain.update.UpdateInfo
 import com.hive.hiragana.domain.repository.VocabularyRepository
 import com.hive.hiragana.domain.scoring.CellRect
 import com.hive.hiragana.domain.scoring.CharacterScoreSummary
+import com.hive.hiragana.drawing.canvas.BrushEffect
 import com.hive.hiragana.domain.scoring.RecognitionResult
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.drawing.stroke.DrawingSession
@@ -186,6 +187,37 @@ class PracticeViewModelTest {
         advanceUntilIdle()
         assertEquals(SessionPhase.FREE, vm.uiState.value.phase)
         assertEquals(ScoringMode.OFF, vm.uiState.value.scoringMode)
+    }
+
+    /**
+     * The brush effect persists and, because it bakes different stroke
+     * geometry, switching it clears the sheet (bumps [canvasClearKey]).
+     */
+    @Test
+    fun `setBrushEffect persists and clears the sheet`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        val before = vm.uiState.value.canvasClearKey
+        vm.setBrushEffect(BrushEffect.CALLIGRAPHY)
+
+        assertEquals(BrushEffect.CALLIGRAPHY, vm.uiState.value.brushEffect)
+        assertEquals(BrushEffect.CALLIGRAPHY, settings.getBrushEffect())
+        assertEquals(before + 1, vm.uiState.value.canvasClearKey)
+    }
+
+    /** The persisted brush effect must survive a scope-setter rebuild. */
+    @Test
+    fun `brushEffect survives a scope-setter rebuild`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.setBrushEffect(BrushEffect.MARKER)
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+
+        assertEquals(BrushEffect.MARKER, vm.uiState.value.brushEffect)
     }
 
     /**
@@ -650,6 +682,7 @@ class PracticeViewModelTest {
         // seeding tests set it explicitly.
         var seededDefaults = true
         private var brushInkColor = 0xFF20222E.toInt()
+        private var brushEffect = BrushEffect.BRUSH
         private var characterForm = CharacterForm.PRINTED
 
         override fun isGridEnabled(): Boolean = grid
@@ -676,6 +709,8 @@ class PracticeViewModelTest {
         override fun setDefaultSetsSeeded() { seededDefaults = true }
         override fun getBrushInkColor(): Int = brushInkColor
         override fun setBrushInkColor(color: Int) { brushInkColor = color }
+        override fun getBrushEffect(): BrushEffect = brushEffect
+        override fun setBrushEffect(effect: BrushEffect) { brushEffect = effect }
         override fun getCharacterForm(): CharacterForm = characterForm
         override fun setCharacterForm(form: CharacterForm) { characterForm = form }
         private var appModeValue: AppMode? = null

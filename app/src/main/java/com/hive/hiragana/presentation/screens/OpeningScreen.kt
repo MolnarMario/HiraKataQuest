@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.model.AppMode
+import com.hive.hiragana.presentation.components.KanaOverviewButton
 
 /**
  * The app's home / launcher: pick a track — Reading (recognize the printed
@@ -60,8 +61,9 @@ fun OpeningScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 36.dp),
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
                 )
+                KanaOverviewButton(modifier = Modifier.padding(bottom = 24.dp))
 
                 ModeCard(
                     title = "Reading",

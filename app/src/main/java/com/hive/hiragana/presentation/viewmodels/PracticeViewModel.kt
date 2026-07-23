@@ -44,6 +44,7 @@ import com.hive.hiragana.domain.scoring.RecognitionResult
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.scoring.StrokeAttribution
 import com.hive.hiragana.domain.scoring.WordUnitScore
+import com.hive.hiragana.drawing.canvas.BrushEffect
 import com.hive.hiragana.drawing.stroke.DrawingSession
 import com.hive.hiragana.drawing.stroke.durationMillis
 import java.time.Clock
@@ -85,8 +86,9 @@ data class ReadingCard(val glyph: String, val romaji: String, val meaning: Strin
 
 /**
  * Reading-track flashcard study state: a flip through the scoped deck/words.
- * Self-graded (Got it / Missed) — pure study, so it does NOT feed the reading
- * quiz percentages. Transient (like [QuizState]); not carried across rebuilds.
+ * Answers (a multiple-choice tap or typed romaji) are checked on the card but
+ * NOT recorded — pure study, so it does not feed the reading quiz percentages.
+ * Transient (like [QuizState]); not carried across rebuilds.
  */
 data class ReadingFlashcardState(
     val cards: List<ReadingCard>,
@@ -256,6 +258,10 @@ data class PracticeUiState(
     // Brush ink color as a packed ARGB Int (persisted; purely visual — feeds
     // TracingCanvas.inkColor, never affects geometry or scoring). Default InkBlack.
     val brushInkColor: Int = 0xFF20222E.toInt(),
+    // The artistic brush effect strokes are drawn with (persisted; default
+    // BRUSH = the original ribbon). Purely visual — feeds TracingCanvas.brushEffect,
+    // never affects the raw points the scorer reads.
+    val brushEffect: BrushEffect = BrushEffect.BRUSH,
     // Which form the traced ghost shows (persisted; default PRINTED). Purely a
     // rendering choice — the stroke-order demo and the scorer always use the
     // KanjiVG strokes, so this switches only the ghost's rendering.
@@ -457,6 +463,7 @@ class PracticeViewModel(
             includeExtended = settingsRepository.isExtendedIncluded(),
             scoringMode = settingsRepository.getScoringMode(),
             brushInkColor = settingsRepository.getBrushInkColor(),
+            brushEffect = settingsRepository.getBrushEffect(),
             characterForm = settingsRepository.getCharacterForm(),
         ),
     )
@@ -890,6 +897,7 @@ class PracticeViewModel(
         isLibraryGridView = isLibraryGridView,
         librarySection = librarySection,
         brushInkColor = brushInkColor,
+        brushEffect = brushEffect,
         practiceLayout = practiceLayout,
         scoringMode = scoringMode,
         scoreStats = scoreStats,
@@ -1090,6 +1098,28 @@ class PracticeViewModel(
             if (state.brushInkColor == color) return@update state
             settingsRepository.setBrushInkColor(color)
             state.copy(brushInkColor = color)
+        }
+    }
+
+    /**
+     * Brush effect picker (persisted). Unlike the ink color, an effect bakes
+     * different geometry into committed ink, so switching clears the current
+     * sheet (same rule as a layout change — see [setPracticeLayout]) and drops
+     * any pending FREE feedback that would otherwise float over the blank sheet.
+     */
+    fun setBrushEffect(effect: BrushEffect) {
+        _uiState.update { state ->
+            if (state.brushEffect == effect) return@update state
+            settingsRepository.setBrushEffect(effect)
+            state.copy(
+                brushEffect = effect,
+                freeSubmitted = false,
+                lastScore = null,
+                lastScoredCharacter = null,
+                lastWordScores = null,
+                lastWordAverage = null,
+                canvasClearKey = state.canvasClearKey + 1,
+            )
         }
     }
 
@@ -1409,8 +1439,8 @@ class PracticeViewModel(
     }
 
     /**
-     * Advances to the next flashcard (wraps), face-down again. Self-graded, so
-     * "Got it" and "Missed" both simply move on — flashcards are study, not scored.
+     * Advances to the next flashcard (wraps), face-down again. Right or wrong
+     * both simply move on — flashcards are study, nothing is recorded.
      */
     fun flashcardNext() {
         _uiState.update { s ->

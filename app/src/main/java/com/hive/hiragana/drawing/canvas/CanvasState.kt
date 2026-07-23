@@ -39,6 +39,15 @@ class CanvasState {
     var brushBaseWidthPx: Float = 48f
 
     /**
+     * The brush effect to render new strokes with (uniform ribbon, calligraphy,
+     * etc). Plain state, assigned by the canvas each draw pass like
+     * [brushBaseWidthPx]; baked into a stroke's geometry when it is built, so a
+     * change only affects strokes drawn afterwards (switching effect clears the
+     * sheet, so committed ink never mixes effects).
+     */
+    var brushEffect: BrushEffect = BrushEffect.BRUSH
+
+    /**
      * The single guide cell (px) when the canvas is showing one character in
      * a 1×1 layout — the reference frame for FIT scoring. Null for word
      * sheets and multi-copy layouts, where "fit to the cell" is ill-defined.
@@ -106,13 +115,16 @@ class CanvasState {
     }
 
     private fun buildActivePath(stroke: UserStroke): Path =
-        StrokeRenderer.buildBrushPath(stroke.points, brushBaseWidthPx)
+        StrokeRenderer.buildBrushPath(
+            stroke.points,
+            brushBaseWidthPx * brushEffect.spec.widthScale,
+            brushEffect.spec.widthProfile,
+            brushEffect.spec.cap,
+        )
 
     private fun commitStroke(stroke: UserStroke) {
         currentSession.strokes.add(stroke)
-        completedPaths.add(
-            StrokeRenderer.buildBrushPath(stroke.points, brushBaseWidthPx),
-        )
+        completedPaths.add(buildActivePath(stroke))
         activeStroke = null
         activePath = null
     }
