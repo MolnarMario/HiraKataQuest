@@ -12,6 +12,37 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-24 — 0.1.9: Meaning practice, answer read-aloud, and word-practice fixes
+
+#### Added
+- **Flashcards can now test a word's meaning too**: a new "Also test meaning"
+  option on the reading flashcards (words only). After you answer the reading,
+  the card asks what the word means — in the same style you're already using
+  (type it in Typing mode, or pick it from choices in Multiple choice) — and
+  reveals both results together.
+- **Reading mode reads the answer aloud**: once you submit an answer — on a
+  flashcard or in the reading quiz — the character or word is spoken, so you
+  hear the reading you just recalled. On by default; turn it off with the new
+  "Read aloud automatically" switch in the Options menu (Reading's counterpart
+  of the Writing narration toggle — the answer is never spoken early).
+- The brush color picker now offers black plus one preset for each main
+  rainbow color, sized so every swatch fits the row.
+
+#### Changed
+- Flashcard typing flow: the romaji field and its Check/Next button now share
+  one row, the answer locks once checked, and the keyboard stays open for the
+  whole run — you can drive an entire session from the keyboard's Done key.
+- The flashcard keeps the character/word the same size before and after the
+  reveal (the result area is reserved instead of appearing and resizing things).
+
+#### Fixed
+- Ink now stays inside the box each stroke started in — strokes can no longer
+  bleed into a neighboring character's cell on word sheets.
+- Practicing a word from the Library now offers both Again and Next (Next
+  cycles through the word list), matching character practice.
+- The whole-word "Average" pill no longer sits flush against the paper's
+  bottom edge.
+
 ### 2026-07-23 — 0.1.8: Opening-screen and "About kana" polish
 
 #### Changed
