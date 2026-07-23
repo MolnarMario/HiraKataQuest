@@ -20,6 +20,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.model.AppMode
@@ -41,66 +43,76 @@ fun OpeningScreen(
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        // Scrollable but still centered: the column keeps at least the full
-        // viewport height (so Center works as before when everything fits),
-        // and on short screens / large font scales it scrolls instead of
-        // clipping the cards. Plain Center + verticalScroll would clip the
-        // TOP of overflowing content with no way to reach it.
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val minHeight = maxHeight
+        Column(modifier = Modifier.fillMaxSize()) {
+            // The title + cards fill the space above the footer and stay
+            // vertically centered. Scrollable but still centered: the column
+            // keeps at least the region height (so Center works when everything
+            // fits) and on short screens / large fonts it scrolls instead of
+            // clipping. Plain Center + verticalScroll would clip the TOP of
+            // overflowing content with no way to reach it.
+            BoxWithConstraints(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                val minHeight = maxHeight
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .heightIn(min = minHeight)
+                        .padding(horizontal = 28.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = "HiraKataQuest",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = "What would you like to practice?",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
+                    )
+
+                    ModeCard(
+                        title = "Reading",
+                        subtitle = "Recognize the printed kana you meet on signs, apps, and online. " +
+                            "See a character or word, recall its reading.",
+                        onClick = { onPick(AppMode.READING) },
+                    )
+                    Column(modifier = Modifier.padding(top = 20.dp)) {
+                        ModeCard(
+                            title = "Writing",
+                            subtitle = "Practice handwriting: trace the stroke-order form and get " +
+                                "instant feedback on your shape.",
+                            onClick = { onPick(AppMode.WRITING) },
+                        )
+                    }
+                }
+            }
+
+            // Beginner mode lives in a small, horizontally-centered footer pinned
+            // to the bottom of the screen (not in the flow with the cards).
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .heightIn(min = minHeight)
-                    .padding(horizontal = 28.dp, vertical = 40.dp),
+                    .padding(horizontal = 28.dp)
+                    .padding(top = 4.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
             ) {
-                Text(
-                    text = "HiraKataQuest",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = "What would you like to practice?",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                )
-                Column(
-                    modifier = Modifier
-                        .widthIn(max = 420.dp)
-                        .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    BeginnerModeRow(
-                        beginnerMode = beginnerMode,
-                        onSetBeginnerMode = onSetBeginnerMode,
-                    )
-                    // The "New to kana?" overview is itself a beginner tooltip, so
-                    // it only appears when Beginner mode is on.
-                    if (beginnerMode) {
-                        KanaOverviewButton(modifier = Modifier.padding(top = 4.dp))
-                    }
+                // The "New to kana?" overview is itself a beginner tooltip, so it
+                // only appears when Beginner mode is on.
+                if (beginnerMode) {
+                    KanaOverviewButton(modifier = Modifier.padding(bottom = 2.dp))
                 }
-
-                ModeCard(
-                    title = "Reading",
-                    subtitle = "Recognize the printed kana you meet on signs, apps, and online. " +
-                        "See a character or word, recall its reading.",
-                    onClick = { onPick(AppMode.READING) },
+                BeginnerModeRow(
+                    beginnerMode = beginnerMode,
+                    onSetBeginnerMode = onSetBeginnerMode,
                 )
-                Column(modifier = Modifier.padding(top = 20.dp)) {
-                    ModeCard(
-                        title = "Writing",
-                        subtitle = "Practice handwriting: trace the stroke-order form and get " +
-                            "instant feedback on your shape.",
-                        onClick = { onPick(AppMode.WRITING) },
-                    )
-                }
             }
         }
     }
@@ -117,29 +129,35 @@ private val BeginnerModeInfo = ConceptInfo(
 )
 
 /**
- * The "Beginner mode" toggle row (leading ⓘ explainer, trailing [Switch]). Always
- * visible on the opening screen — it is the control for the tooltips, not a
- * tooltip itself. Default OFF (kept clean); ON reveals the kana-concept help.
+ * The compact "Beginner mode" control (leading ⓘ explainer, small label,
+ * trailing [Switch]) shown centered in the opening screen's bottom footer — it
+ * is the control for the tooltips, not a tooltip itself. Default OFF (kept
+ * clean); ON reveals the kana-concept help. The switch is scaled down and
+ * tracks the system font scale so it stays proportional to the small label
+ * (never larger than a default switch).
  */
 @Composable
 private fun BeginnerModeRow(
     beginnerMode: Boolean,
     onSetBeginnerMode: (Boolean) -> Unit,
 ) {
+    val switchScale = (0.72f * LocalDensity.current.fontScale).coerceIn(0.5f, 1f)
     Row(
-        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
         ConceptInfoIcon(concept = BeginnerModeInfo)
         Text(
             text = "Beginner mode",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 2.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 2.dp),
         )
-        Switch(checked = beginnerMode, onCheckedChange = onSetBeginnerMode)
+        Switch(
+            checked = beginnerMode,
+            onCheckedChange = onSetBeginnerMode,
+            modifier = Modifier.scale(switchScale),
+        )
     }
 }
 
