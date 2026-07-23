@@ -231,6 +231,9 @@ data class PracticeUiState(
     // Consumed by LibraryScreen once acted on. Transient (not in rebuilt()).
     val pendingOpenSetsManager: Boolean = false,
     // SETTINGS (persisted via SettingsRepository)
+    // Beginner mode: when on, the kana-concept ⓘ help icons + "New to kana?"
+    // overview are shown; off (default) hides them for a cleaner UI. Persisted.
+    val beginnerMode: Boolean = false,
     val isGridEnabled: Boolean = true,
     val isGhostEnabled: Boolean = true,
     val isLibraryGridView: Boolean = false,
@@ -457,6 +460,7 @@ class PracticeViewModel(
 
     private val _uiState = MutableStateFlow(
         PracticeUiState(
+            beginnerMode = settingsRepository.isBeginnerMode(),
             isGridEnabled = settingsRepository.isGridEnabled(),
             isGhostEnabled = settingsRepository.isGhostEnabled(),
             isLibraryGridView = settingsRepository.isLibraryGridView(),
@@ -898,6 +902,7 @@ class PracticeViewModel(
         characters = characters,
         allWords = allWords,
         practiceSets = practiceSets,
+        beginnerMode = beginnerMode,
         isGridEnabled = isGridEnabled,
         isGhostEnabled = isGhostEnabled,
         isLibraryGridView = isLibraryGridView,
@@ -1143,6 +1148,17 @@ class PracticeViewModel(
         if (enabled == _uiState.value.autoNarrateEnabled) return
         settingsRepository.setAutoNarrateEnabled(enabled)
         _uiState.update { it.copy(autoNarrateEnabled = enabled) }
+    }
+
+    /**
+     * Beginner-mode toggle (opening screen). When on, the kana-concept ⓘ help
+     * icons + the "New to kana?" overview are shown; off (default) hides them so
+     * the screens stay uncluttered. Persisted; a display preference only.
+     */
+    fun setBeginnerMode(enabled: Boolean) {
+        if (enabled == _uiState.value.beginnerMode) return
+        settingsRepository.setBeginnerMode(enabled)
+        _uiState.update { it.copy(beginnerMode = enabled) }
     }
 
     /**

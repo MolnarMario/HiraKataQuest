@@ -15,6 +15,15 @@ import com.hive.hiragana.drawing.canvas.BrushEffect
  */
 interface SettingsRepository {
 
+    /**
+     * Whether "Beginner mode" is on (default false). When on, the app shows the
+     * kana-concept ⓘ help icons + the "New to kana?" overview; when off they are
+     * hidden so the screens stay uncluttered for learners who know the terms.
+     */
+    fun isBeginnerMode(): Boolean
+
+    fun setBeginnerMode(enabled: Boolean)
+
     /** Whether the tracing canvas draws the practice-grid helper lines. */
     fun isGridEnabled(): Boolean
 

@@ -21,6 +21,12 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    override fun isBeginnerMode(): Boolean = prefs.getBoolean(KEY_BEGINNER_MODE, false)
+
+    override fun setBeginnerMode(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BEGINNER_MODE, enabled).apply()
+    }
+
     override fun isGridEnabled(): Boolean = prefs.getBoolean(KEY_GRID_ENABLED, true)
 
     override fun setGridEnabled(enabled: Boolean) {
@@ -137,6 +143,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
 
     private companion object {
         const val PREFS_NAME = "settings"
+        const val KEY_BEGINNER_MODE = "beginner_mode"
         const val KEY_GRID_ENABLED = "grid_enabled"
         const val KEY_GHOST_ENABLED = "ghost_enabled"
         const val KEY_PRACTICE_LAYOUT_SPAN = "practice_layout_span"

@@ -247,6 +247,23 @@ class PracticeViewModelTest {
         assertEquals(true, vm.uiState.value.autoNarrateEnabled)
     }
 
+    /** Beginner mode defaults off, persists, and survives a scope-setter rebuild. */
+    @Test
+    fun `setBeginnerMode persists and survives a rebuild`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        assertEquals(false, vm.uiState.value.beginnerMode)
+        vm.setBeginnerMode(true)
+        assertEquals(true, vm.uiState.value.beginnerMode)
+        assertEquals(true, settings.isBeginnerMode())
+
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+        assertEquals(true, vm.uiState.value.beginnerMode)
+    }
+
     /**
      * A stale recognition result for a previous glyph must not clobber the
      * current glyph's score. Two FREE submits (A then B) each launch a
@@ -695,6 +712,7 @@ class PracticeViewModelTest {
      * false, grid/ghost true, layout SINGLE, library-grid false).
      */
     private class FakeSettingsRepository : SettingsRepository {
+        private var beginner = false
         private var grid = true
         private var ghost = true
         private var layout = PracticeLayout.SINGLE
@@ -713,6 +731,8 @@ class PracticeViewModelTest {
         private var autoNarrate = false
         private var characterForm = CharacterForm.PRINTED
 
+        override fun isBeginnerMode(): Boolean = beginner
+        override fun setBeginnerMode(enabled: Boolean) { beginner = enabled }
         override fun isGridEnabled(): Boolean = grid
         override fun setGridEnabled(enabled: Boolean) { grid = enabled }
         override fun isGhostEnabled(): Boolean = ghost

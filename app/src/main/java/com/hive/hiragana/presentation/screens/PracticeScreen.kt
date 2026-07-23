@@ -148,7 +148,11 @@ fun PracticeScreen(
 
             uiState.appMode == null -> {
                 // Home: pick a track. Back here falls through to the system (exit).
-                OpeningScreen(onPick = viewModel::setAppMode)
+                OpeningScreen(
+                    onPick = viewModel::setAppMode,
+                    beginnerMode = uiState.beginnerMode,
+                    onSetBeginnerMode = viewModel::setBeginnerMode,
+                )
             }
 
             uiState.quiz != null -> {
@@ -270,6 +274,7 @@ fun PracticeScreen(
                     initialTab = uiState.librarySection,
                     onSelectTab = viewModel::setLibrarySection,
                     pronunciation = uiState::pronunciationOf,
+                    beginnerMode = uiState.beginnerMode,
                     brushInkColor = uiState.brushInkColor,
                     onSelectBrushColor = viewModel::setBrushInkColor,
                     brushEffect = uiState.brushEffect,
