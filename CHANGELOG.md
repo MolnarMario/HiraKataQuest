@@ -12,6 +12,26 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-24 — 0.2.1: Undo, and practice-sheet sizes that earn their names
+
+#### Added
+- **Undo your latest stroke**: a new Undo button next to Clear in writing
+  practice reverts just the last stroke you drew, so one slip doesn't cost
+  the progress on the rest of the character or word.
+
+#### Changed
+- **The repetition layouts are now sizes — XL, L, M, S** (replacing
+  1×1/2×2/3×3, whose grid names meant nothing for words). XL is one big
+  scored copy — the default, and what the quiz uses. L, M, and S tile the
+  sheet with progressively smaller copies, and every step down is guaranteed
+  to give you both visibly smaller cells and strictly more copies to
+  practice on — for single characters and words of any length. Your saved
+  layout carries over (old 2×2 becomes L, old 3×3 becomes S).
+- Repetition sheets now **fill the canvas with complete rows** instead of a
+  fixed 4 or 9 slots — no more ragged, half-empty corner, and taller screens
+  simply get more practice squares. Cells never shrink below a writable
+  minimum (~40dp) for very long words.
+
 ### 2026-07-24 — 0.2.0: Practice sets sorted by recency
 
 #### Added
