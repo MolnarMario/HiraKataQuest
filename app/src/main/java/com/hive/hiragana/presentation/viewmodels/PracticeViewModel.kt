@@ -94,6 +94,10 @@ data class ReadingFlashcardState(
     val cards: List<ReadingCard>,
     val index: Int = 0,
     val revealed: Boolean = false,
+    // Launched from a saved set (vs a single browse item): closing should
+    // reopen the sets manager rather than the browse page, mirroring the
+    // quiz-from-set round-trip (see closeReadingFlashcards / closeQuiz).
+    val fromSet: Boolean = false,
 ) {
     val current: ReadingCard? get() = cards.getOrNull(index)
 }
@@ -1531,6 +1535,30 @@ class PracticeViewModel(
         _uiState.update { it.copy(readingFlashcard = ReadingFlashcardState(cards, start)) }
     }
 
+    /**
+     * Reading-track counterpart of [practiceSet]: opens the flashcard flip over
+     * exactly a saved set's members (a character set → glyph/reading cards, a
+     * word set → kana/reading/meaning cards). Members that no longer resolve are
+     * dropped; an empty resolved set is a no-op. Flagged [ReadingFlashcardState.fromSet]
+     * so closing returns to the sets manager.
+     */
+    fun openReadingFlashcardsForSet(setId: Long) {
+        val state = _uiState.value
+        val set = state.practiceSet(setId) ?: return
+        val cards = when (set.type) {
+            PracticeSetType.CHARACTERS -> set.members.mapNotNull { glyph ->
+                state.characters.firstOrNull { it.character == glyph }
+                    ?.let { ReadingCard(it.character, it.romaji, null) }
+            }
+            PracticeSetType.WORDS -> set.members.mapNotNull { kana ->
+                state.allWords.firstOrNull { it.kana == kana }
+                    ?.let { ReadingCard(it.kana, state.pronunciationOf(it), it.meaning) }
+            }
+        }
+        if (cards.isEmpty()) return
+        _uiState.update { it.copy(readingFlashcard = ReadingFlashcardState(cards, fromSet = true)) }
+    }
+
     /** Flips the current flashcard to reveal its reading + meaning. */
     fun flashcardReveal() {
         _uiState.update { s ->
@@ -1553,7 +1581,13 @@ class PracticeViewModel(
 
     /** Closes the flashcard overlay, back to the reading Library. */
     fun closeReadingFlashcards() {
-        _uiState.update { it.copy(readingFlashcard = null) }
+        _uiState.update {
+            it.copy(
+                readingFlashcard = null,
+                // A set-launched flip reopens the sets manager, like closeQuiz.
+                pendingOpenSetsManager = it.readingFlashcard?.fromSet == true,
+            )
+        }
     }
 
     /**

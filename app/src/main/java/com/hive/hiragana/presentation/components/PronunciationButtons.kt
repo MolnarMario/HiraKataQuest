@@ -29,7 +29,10 @@ import com.hive.hiragana.domain.audio.VoiceStatus
  *   isn't installed — tap opens the system "install voice data" flow so the
  *   user can download it for free (returning to the app re-checks — see the
  *   ON_RESUME refresh in PracticeScreen).
- * - [VoiceStatus.UNAVAILABLE]: no Japanese voice at all — the button greys out.
+ * - [VoiceStatus.UNAVAILABLE]: the currently-selected TTS engine reports no
+ *   Japanese support at all. Rather than a dead greyed-out button, tapping
+ *   opens the system Text-to-speech settings so the user can install a
+ *   Japanese voice or switch to an engine (e.g. Google TTS) that has one.
  */
 @Composable
 fun PronunciationButton(
@@ -43,11 +46,11 @@ fun PronunciationButton(
         onClick = {
             when (status) {
                 VoiceStatus.READY -> onSpeak(glyph)
-                VoiceStatus.NEEDS_DOWNLOAD -> installVoiceData(context)
-                VoiceStatus.UNAVAILABLE -> Unit
+                // Not ready (data missing OR the engine lacks Japanese): send the
+                // user to the system install/settings flow so it's never a no-op.
+                VoiceStatus.NEEDS_DOWNLOAD, VoiceStatus.UNAVAILABLE -> installVoiceData(context)
             }
         },
-        enabled = status != VoiceStatus.UNAVAILABLE,
         modifier = modifier.size(ButtonSize),
     ) {
         val color = LocalContentColor.current

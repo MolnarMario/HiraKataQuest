@@ -325,7 +325,15 @@ fun PracticeScreen(
                             },
                         )
                     },
-                    onPracticeSet = viewModel::practiceSet,
+                    onPracticeSet = { id ->
+                        // Reading mode: flip the set as flashcards; Writing mode:
+                        // free handwriting practice over the set (as before).
+                        if (uiState.appMode == AppMode.READING) {
+                            viewModel.openReadingFlashcardsForSet(id)
+                        } else {
+                            viewModel.practiceSet(id)
+                        }
+                    },
                     setsSortKey = uiState.setsSortKey,
                     onSetsSortSelected = viewModel::setSetsSort,
                     openSetsManagerSignal = uiState.pendingOpenSetsManager,
