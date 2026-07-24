@@ -26,7 +26,10 @@ enum class PracticeSetType {
  * ([HiraganaCharacter.character]) for a [PracticeSetType.CHARACTERS] set, the
  * word's [VocabularyWord.kana] for a [PracticeSetType.WORDS] set — in the order
  * the user selected them. [script] records which writing system the set was
- * built in (selection is always scoped to one script). Persisted via Room (see
+ * built in (selection is always scoped to one script). [updatedAt] is the
+ * wall-clock time (epoch ms) the set was created or last changed (rename or
+ * member edit) — it backs the sets manager's newest/oldest sort, where a
+ * just-edited set counts as recent. Persisted via Room (see
  * PracticeSetRepository), the same structured-user-data pattern as review cards
  * and vocabulary progress.
  */
@@ -36,4 +39,5 @@ data class PracticeSet(
     val type: PracticeSetType,
     val script: Script,
     val members: List<String>,
+    val updatedAt: Long = 0L,
 )

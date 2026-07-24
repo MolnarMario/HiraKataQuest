@@ -33,18 +33,20 @@ Since the post-Phase-3 stroke rework, the `strokes[]` geometry in those assets i
 <http://kanjivg.tagaini.net>) rather than hand-authored — see the import
 pipeline in §1; yōon and extended-katakana composites have no single KanjiVG
 file, so their strokes are **composed** from the base kana + a small kana. Room
-is **v5** and **unchanged by the content additions above**: those characters
+is **v6** and **unchanged by the content additions above**: those characters
 (ids like `kata_a`, `ga`, `kya`, `kata_fu_a`, `sokuon`) and words are just new
-rows in the existing tables — no migration. The schema itself grew four times: the
+rows in the existing tables — no migration. The schema itself grew five times: the
 Phase 3 v1→v2 migration renamed the original graded-attempts table to
 `practice_history` and added three tables for spaced-repetition state,
 introduction progress, and vocabulary unlocks; a later v2→v3 migration added
 three nullable handwriting-score columns to `practice_history`; a v3→v4
 migration added two tables for **practice sets** — user-curated lists of
-characters or words (§5); and a v4→v5 migration added the `reading_progress`
-table for the **Reading track**'s per-item quiz accuracy (§5). No network, no
-user-editable *asset* data; the four migrations (`MIGRATION_1_2`,
-`MIGRATION_2_3`, `MIGRATION_3_4`, `MIGRATION_4_5`) are the project's only ones.
+characters or words (§5); a v4→v5 migration added the `reading_progress`
+table for the **Reading track**'s per-item quiz accuracy (§5); and a v5→v6
+migration added `practice_sets.updatedAt` for the sets manager's newest/oldest
+sort (§5). No network, no user-editable *asset* data; the five migrations
+(`MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`, `MIGRATION_4_5`,
+`MIGRATION_5_6`) are the project's only ones.
 
 [Script]: ../app/src/main/java/com/hive/hiragana/domain/model/Script.kt
 [KanaKind]: ../app/src/main/java/com/hive/hiragana/domain/model/KanaKind.kt
@@ -422,22 +424,24 @@ and `vocabulary_progress` tables one-for-one (§5).
 
 ## 5. Room persistence
 
-All in `app/src/main/java/com/hive/hiragana/data/local/`. The schema is at **v5**.
+All in `app/src/main/java/com/hive/hiragana/data/local/`. The schema is at **v6**.
 **Phase 3 upgraded the database from v1 to v2** — additive changes plus one rename,
 via a real `Migration`, no destructive fallback — a later handwriting-scoring
 change upgraded **v2 to v3**, purely additive (three nullable columns), the
-practice-sets feature upgraded **v3 to v4**, purely additive (two new tables), and
-the Reading track upgraded **v4 to v5**, purely additive (one new table).
+practice-sets feature upgraded **v3 to v4**, purely additive (two new tables),
+the Reading track upgraded **v4 to v5**, purely additive (one new table), and the
+sets manager's newest/oldest sort upgraded **v5 to v6**, purely additive (one new
+column on `practice_sets`).
 
 ### Database
 
-`HiraganaDatabase` — `version = 5` (was 1, then 2, then 3, then 4), **`exportSchema = true`** (was
+`HiraganaDatabase` — `version = 6` (was 1, then 2, then 3, then 4, then 5), **`exportSchema = true`** (was
 `false` — this closes a wart §7 had flagged since Phase 1), file name
 `"hiragana-practice.db"` (unchanged), built via the `HiraganaDatabase.build(context)`
-companion helper (`Room.databaseBuilder(...).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()`).
+companion helper (`Room.databaseBuilder(...).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build()`).
 Instantiated lazily in `AppContainer`. The exported schema history is committed at
-`app/schemas/com.hive.hiragana.data.local.HiraganaDatabase/` — `2.json`, `3.json`,
-`4.json`, and `5.json` all exist; future schema changes must add a new numbered file here via a
+`app/schemas/com.hive.hiragana.data.local.HiraganaDatabase/` — `2.json` through
+`6.json` all exist; future schema changes must add a new numbered file here via a
 real `Migration`, never a destructive fallback.
 
 ### `MIGRATION_1_2`
@@ -500,7 +504,7 @@ change, both the per-kana word rows and the word-level average row carry non-nul
 form/fit (see §6). These persist the advisory
 handwriting score alongside each attempt (§4/§5 entity below); they never feed the SRS
 scheduler or any gate — the score is coaching feedback only. `HiraganaDatabase.build`
-registers all four migrations (`.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)`).
+registers all five migrations (`.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)`).
 
 ### `MIGRATION_3_4`
 
@@ -557,6 +561,23 @@ The Reading quiz records its tallies **here, not in `practice_history`** (that t
 stays exclusively the handwriting-attempt log). The Reading **flashcard** study mode
 checks answers on the card but records **nothing**. The table starts empty on any v4
 database — nothing to backfill.
+
+### `MIGRATION_5_6`
+
+A single `Migration(5, 6)` object (the sets manager's **"Updated: Newest/Oldest
+first" sort**), **purely additive** — one new column, no rename, no touch to any
+other data:
+
+```sql
+ALTER TABLE practice_sets ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0;
+UPDATE practice_sets SET updatedAt = createdAt;
+```
+
+Existing sets are backfilled with their creation time, so they keep a sensible
+recency until first edited. The `DEFAULT 0` must match the entity's
+`@ColumnInfo(defaultValue = "0")` — Room compares a declared default against the
+migrated table's and fails validation on a mismatch. From v6 on, `renameSet` and
+`replaceItems` re-stamp the column so an edited set counts as recently updated.
 
 ### Table: `practice_history` (`PracticeAttemptEntity`) — renamed from `practice_attempts`
 
@@ -667,6 +688,7 @@ opt-ins (a set is an explicit membership list, not a filter config).
 | `type` | `TEXT` | `type: String` | **`PracticeSetType` enum stored as its `name`** (`"CHARACTERS"`/`"WORDS"`) — decides how members resolve (a glyph vs a whole word's kana). `PracticeSetType.fromKey` decodes it, falling back to `CHARACTERS` on unknown/null |
 | `script` | `TEXT` | `script: String` | **`Script` enum stored as its `key`** — the writing system the set was built in (selection is always scoped to one script) |
 | `createdAt` | `INTEGER` | `createdAt: Long` | `System.currentTimeMillis()` epoch ms, stamped in the repository; the observe query sorts by this |
+| `updatedAt` | `INTEGER NOT NULL DEFAULT 0` (v6, `MIGRATION_5_6`) | `updatedAt: Long = 0L`, `@ColumnInfo(defaultValue = "0")` | Last created-or-edited time: starts equal to `createdAt` (the migration seeds existing rows from it) and is re-stamped on every rename/member edit. Backs the sets manager's "Updated: Newest/Oldest first" sort. The declared `defaultValue` must match the migration's `DEFAULT 0` or Room's schema validation fails |
 
 ### Table: `practice_set_items` (`PracticeSetItemEntity`) — v4
 
@@ -693,20 +715,23 @@ together via `@Embedded val set` + `@Relation(parentColumn = "id", entityColumn 
 | `insertSet` | `@Insert suspend fun insertSet(set): Long` | Returns the new set id |
 | `insertItems` | `@Insert suspend fun insertItems(items)` | |
 | `deleteItems` | `@Query("DELETE FROM practice_set_items WHERE setId = :setId") suspend fun deleteItems(setId)` | |
-| `renameSet` | `@Query("UPDATE practice_sets SET name = :name WHERE id = :setId") suspend fun renameSet(setId, name)` | |
+| `renameSet` | `@Query("UPDATE practice_sets SET name = :name, updatedAt = :updatedAt WHERE id = :setId") suspend fun renameSet(setId, name, updatedAt)` | Renaming also bumps `updatedAt` |
 | `deleteSet` | `@Query("DELETE FROM practice_sets WHERE id = :setId") suspend fun deleteSet(setId)` | Member rows cascade away with it |
+| `touchSet` | `@Query("UPDATE practice_sets SET updatedAt = :updatedAt WHERE id = :setId") suspend fun touchSet(setId, updatedAt)` | Bumps the header's `updatedAt`; called inside `replaceItems` |
 | `createSet` | `@Transaction suspend fun createSet(set, values): Long` | Inserts the header then its ordered members (a private `toItemEntities` maps each value to a `position`-indexed row) in one transaction |
-| `replaceItems` | `@Transaction suspend fun replaceItems(setId, values)` | Deletes then re-inserts a set's members wholesale (used when editing membership) |
+| `replaceItems` | `@Transaction suspend fun replaceItems(setId, values, updatedAt)` | Deletes then re-inserts a set's members wholesale (used when editing membership) and bumps `updatedAt` via `touchSet`, all in one transaction |
 
 **Domain model (`PracticeSet`)**: `domain/model/PracticeSet.kt` —
-`PracticeSet(id, name, type: PracticeSetType, script: Script, members: List<String>)`,
+`PracticeSet(id, name, type: PracticeSetType, script: Script, members: List<String>, updatedAt: Long)`,
 where `members` are the app's script-unique keys (glyph string for `CHARACTERS`, the
-word's `kana` for `WORDS`), in selection order.
+word's `kana` for `WORDS`), in selection order, and `updatedAt` is the created-or-last-edited
+time backing the sets manager's newest/oldest sort.
 
 **Repository (`RoomPracticeSetRepository`)**: implements `PracticeSetRepository`
 (`observeSets(): Flow<List<PracticeSet>>`, `createSet`, `renameSet`, `deleteSet`,
 `updateMembers`). Maps `PracticeSetWithItems` → `PracticeSet` with members sorted by
-`position`; `createSet` stamps `createdAt = System.currentTimeMillis()` (practice sets
+`position`; `createSet` stamps `createdAt = updatedAt = System.currentTimeMillis()`,
+and `renameSet`/`updateMembers` re-stamp `updatedAt` the same way (practice sets
 are plain user data, not SRS state, so they do **not** use the injected scheduler
 clock). Wired via `AppContainer.practiceSetRepository`.
 

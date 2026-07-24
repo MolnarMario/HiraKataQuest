@@ -13,9 +13,11 @@ import kotlinx.coroutines.flow.map
 /**
  * [PracticeSetRepository] backed by Room ([PracticeSetDao]). Maps between the
  * two-table entity shape and the flat domain [PracticeSet] (members are the
- * ordered item values). `createdAt` is stamped with wall-clock time — sets are
- * plain user data (ordering only), not SRS state, so they don't ride the
- * injected scheduler clock.
+ * ordered item values). `createdAt`/`updatedAt` are stamped with wall-clock
+ * time — sets are plain user data (ordering only), not SRS state, so they
+ * don't ride the injected scheduler clock. `updatedAt` starts equal to
+ * `createdAt` and is bumped on every rename/member edit (it backs the sets
+ * manager's newest/oldest sort).
  */
 class RoomPracticeSetRepository(
     private val dao: PracticeSetDao,
@@ -29,22 +31,27 @@ class RoomPracticeSetRepository(
         type: PracticeSetType,
         script: Script,
         members: List<String>,
-    ): Long = dao.createSet(
-        set = PracticeSetEntity(
-            name = name,
-            type = type.name,
-            script = script.key,
-            createdAt = System.currentTimeMillis(),
-        ),
-        values = members,
-    )
+    ): Long {
+        val now = System.currentTimeMillis()
+        return dao.createSet(
+            set = PracticeSetEntity(
+                name = name,
+                type = type.name,
+                script = script.key,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            values = members,
+        )
+    }
 
-    override suspend fun renameSet(id: Long, name: String) = dao.renameSet(id, name)
+    override suspend fun renameSet(id: Long, name: String) =
+        dao.renameSet(id, name, updatedAt = System.currentTimeMillis())
 
     override suspend fun deleteSet(id: Long) = dao.deleteSet(id)
 
     override suspend fun updateMembers(id: Long, members: List<String>) =
-        dao.replaceItems(id, members)
+        dao.replaceItems(id, members, updatedAt = System.currentTimeMillis())
 }
 
 private fun PracticeSetWithItems.toDomain(): PracticeSet = PracticeSet(
@@ -53,4 +60,5 @@ private fun PracticeSetWithItems.toDomain(): PracticeSet = PracticeSet(
     type = PracticeSetType.fromKey(set.type),
     script = Script.fromKey(set.script),
     members = items.sortedBy { it.position }.map { it.value },
+    updatedAt = set.updatedAt,
 )

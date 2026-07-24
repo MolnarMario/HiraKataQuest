@@ -1,5 +1,6 @@
 package com.hive.hiragana.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -9,9 +10,12 @@ import androidx.room.Relation
 
 /**
  * Room row for one saved practice set's header (`practice_sets` table, Room
- * v4). Its members live in [PracticeSetItemEntity] rows keyed by [id]; the two
- * are read together via [PracticeSetWithItems]. [type] stores
- * `PracticeSetType.name`, [script] stores `Script.key`.
+ * v4; [updatedAt] added in v6). Its members live in [PracticeSetItemEntity]
+ * rows keyed by [id]; the two are read together via [PracticeSetWithItems].
+ * [type] stores `PracticeSetType.name`, [script] stores `Script.key`.
+ * [updatedAt] is bumped on rename/member edits (creation sets it to
+ * [createdAt]); the `defaultValue` matches MIGRATION_5_6's ALTER TABLE default
+ * so Room's schema validation passes on migrated databases.
  */
 @Entity(tableName = "practice_sets")
 data class PracticeSetEntity(
@@ -20,6 +24,7 @@ data class PracticeSetEntity(
     val type: String,
     val script: String,
     val createdAt: Long,
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0L,
 )
 
 /**

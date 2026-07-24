@@ -326,6 +326,8 @@ fun PracticeScreen(
                         )
                     },
                     onPracticeSet = viewModel::practiceSet,
+                    setsSortKey = uiState.setsSortKey,
+                    onSetsSortSelected = viewModel::setSetsSort,
                     openSetsManagerSignal = uiState.pendingOpenSetsManager,
                     onConsumeOpenSetsManager = viewModel::consumeOpenSetsManager,
                     onSpeak = viewModel::speakTts,

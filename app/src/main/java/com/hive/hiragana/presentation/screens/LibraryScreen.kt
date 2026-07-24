@@ -329,6 +329,11 @@ fun LibraryScreen(
     onDeleteSet: (Long) -> Unit = {},
     onLaunchSetQuiz: (Long) -> Unit = {},
     onPracticeSet: (Long) -> Unit = {},
+    // The sets manager's persisted sort order (a [SetSort] name; null/unknown
+    // falls back to the default). Persisted so the list keeps the learner's
+    // chosen order across edit flows, quiz round-trips, and restarts.
+    setsSortKey: String? = null,
+    onSetsSortSelected: (String) -> Unit = {},
     openSetsManagerSignal: Boolean = false,
     onConsumeOpenSetsManager: () -> Unit = {},
     // Pronunciation (device TTS) shown on each browse row/card.
@@ -547,6 +552,8 @@ fun LibraryScreen(
             showSetsManager -> SetsManagerContent(
                 practiceSets = practiceSets,
                 scoreStats = scoreStats,
+                sortMode = SetSort.fromKey(setsSortKey),
+                onSortSelected = { onSetsSortSelected(it.name) },
                 onClose = { showSetsManager = false },
                 onAddSet = { startNewSet() },
                 onEdit = { startEditSet(it) },
@@ -2651,6 +2658,11 @@ private fun SelectableRow(
 private fun SetsManagerContent(
     practiceSets: List<PracticeSet>,
     scoreStats: Map<String, CharacterScoreSummary>,
+    // Hoisted (persisted) sort order: this composable leaves composition during
+    // the edit flow and set-launched quizzes, so a local remember would silently
+    // reset the learner's chosen order on every return.
+    sortMode: SetSort,
+    onSortSelected: (SetSort) -> Unit,
     onClose: () -> Unit,
     onAddSet: () -> Unit,
     onEdit: (PracticeSet) -> Unit,
@@ -2659,7 +2671,6 @@ private fun SetsManagerContent(
     onQuiz: (Long) -> Unit,
     onPractice: (Long) -> Unit,
 ) {
-    var sortMode by remember { mutableStateOf(SetSort.NAME_ASC) }
     // Each set's average score (null = no scored members), computed once and
     // reused for both sorting and the per-row badge.
     val scoreOf = remember(practiceSets, scoreStats) {
@@ -2672,6 +2683,16 @@ private fun SetsManagerContent(
             // Unscored sets sort to the end in both directions.
             SetSort.SCORE_DESC -> practiceSets.sortedByDescending { scoreOf[it.id] ?: Int.MIN_VALUE }
             SetSort.SCORE_ASC -> practiceSets.sortedBy { scoreOf[it.id] ?: Int.MAX_VALUE }
+            // Recency = created OR last edited (rename/member change bumps a
+            // set back to the top of "newest"). The id tie-break keeps the
+            // batch-seeded default sets — stamped within the same few ms — in
+            // their true insertion order.
+            SetSort.NEWEST -> practiceSets.sortedWith(
+                compareByDescending<PracticeSet> { it.updatedAt }.thenByDescending { it.id }
+            )
+            SetSort.OLDEST -> practiceSets.sortedWith(
+                compareBy<PracticeSet> { it.updatedAt }.thenBy { it.id }
+            )
         }
     }
     // Search filters the (already sorted) sets by name (session-local).
@@ -2719,7 +2740,7 @@ private fun SetsManagerContent(
                 }
             }
             if (practiceSets.size > 1) {
-                SetSortMenu(sortMode = sortMode, onSelect = { sortMode = it })
+                SetSortMenu(sortMode = sortMode, onSelect = onSortSelected)
             }
             TextButton(onClick = onAddSet) {
                 Text("New", style = MaterialTheme.typography.titleMedium)
@@ -2750,7 +2771,18 @@ private fun SetsManagerContent(
                 modifier = Modifier.padding(16.dp),
             )
         } else {
+            // Jump back to the top when the order's HEAD changes — picking a
+            // sort, or a rename/member edit bumping a set to #1 under the
+            // Updated sorts. The keyed LazyColumn otherwise stays anchored on
+            // the previously-top item, so the freshly bumped set slides in
+            // ABOVE the viewport and sits there invisible (user-caught: "it
+            // goes to the top, but it is off screen").
+            val setsListState = rememberLazyListState()
+            LaunchedEffect(sortMode, visibleSets.firstOrNull()?.id) {
+                setsListState.scrollToItem(0)
+            }
             LazyColumn(
+                state = setsListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -2772,7 +2804,15 @@ private fun SetsManagerContent(
 }
 
 /** Sort orders for the practice-sets manager. */
-private enum class SetSort { NAME_ASC, NAME_DESC, SCORE_DESC, SCORE_ASC }
+private enum class SetSort {
+    NAME_ASC, NAME_DESC, SCORE_DESC, SCORE_ASC, NEWEST, OLDEST;
+
+    companion object {
+        /** Decode a persisted [name]; unknown/null falls back to [NAME_ASC]. */
+        fun fromKey(key: String?): SetSort =
+            entries.firstOrNull { it.name == key } ?: NAME_ASC
+    }
+}
 
 /**
  * Average of a set's members' scored history (avgForm ?: avgFit), over members
@@ -2849,6 +2889,8 @@ private fun SetSortMenu(sortMode: SetSort, onSelect: (SetSort) -> Unit) {
 private val SET_SORT_OPTIONS = listOf(
     SetSort.NAME_ASC to "Name: A → Z",
     SetSort.NAME_DESC to "Name: Z → A",
+    SetSort.NEWEST to "Updated: Newest first",
+    SetSort.OLDEST to "Updated: Oldest first",
     SetSort.SCORE_DESC to "Score: High → Low",
     SetSort.SCORE_ASC to "Score: Low → High",
 )

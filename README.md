@@ -154,7 +154,7 @@ app/src/main/java/com/hive/hiragana/
 │   │                              # (LearningRepository retained but dormant)
 ├── data/
 │   ├── assets/                   # JSON loader for assets/hiragana/ (characters + vocabulary.json)
-│   ├── local/                    # Room v5: entities/DAOs, MIGRATION_1_2 … MIGRATION_4_5 (adds reading_progress), exportSchema=true
+│   ├── local/                    # Room v6: entities/DAOs, MIGRATION_1_2 … MIGRATION_5_6 (adds practice_sets.updatedAt), exportSchema=true
 │   └── repository/               # repo implementations
 └── drawing/
     ├── stroke/                   # StrokePoint, UserStroke, DrawingSession, StrokeCapture
