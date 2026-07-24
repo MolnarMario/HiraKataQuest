@@ -40,10 +40,10 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
     }
 
     override fun getPracticeLayout(): PracticeLayout =
-        PracticeLayout.fromSpan(prefs.getInt(KEY_PRACTICE_LAYOUT_SPAN, 1))
+        PracticeLayout.fromPrefKey(prefs.getInt(KEY_PRACTICE_LAYOUT_SPAN, 1))
 
     override fun setPracticeLayout(layout: PracticeLayout) {
-        prefs.edit().putInt(KEY_PRACTICE_LAYOUT_SPAN, layout.span).apply()
+        prefs.edit().putInt(KEY_PRACTICE_LAYOUT_SPAN, layout.prefKey).apply()
     }
 
     override fun getActiveScript(): Script =

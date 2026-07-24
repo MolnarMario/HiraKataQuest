@@ -40,6 +40,7 @@ import com.hive.hiragana.drawing.canvas.drawGhostCharacter
 import com.hive.hiragana.drawing.canvas.drawGhostStrokes
 import com.hive.hiragana.drawing.canvas.drawPracticeGrid
 import com.hive.hiragana.drawing.canvas.ghostFitScale
+import com.hive.hiragana.drawing.canvas.planSheetGrid
 import com.hive.hiragana.drawing.stroke.StrokeCapture
 import com.hive.hiragana.presentation.theme.GhostGrey
 import com.hive.hiragana.presentation.theme.GridBorder
@@ -59,13 +60,12 @@ private val SlotGap = 18.dp
 /**
  * The main drawing surface. Renders, in order:
  *   1. one 2x2 practice grid per glyph (a single square for a lone
- *      character; a horizontal row of smaller cells for a whole word),
- *      repeated [PracticeLayout.span]² times — every slot holds one full
- *      copy of the glyph row, arranged into however many slot columns
- *      give the biggest cells (single characters keep the classic
- *      span×span square; wide word slots stack as fewer, fuller rows
- *      down the sheet), so the learner can trace the same character/word
- *      several times on one sheet
+ *      character; a horizontal row of smaller cells for a whole word) —
+ *      XL ([PracticeLayout.SINGLE]) draws exactly one copy; the L/M/S
+ *      repetition sizes come from [planSheetGrid]'s chain, which guarantees
+ *      each step down has visibly smaller cells AND strictly more copies,
+ *      filling the sheet with complete rows — so the learner can trace the
+ *      same character/word several times on one sheet with no dead corner
  *   2. the light-grey ghost glyph centred in each cell
  *   3. the user's completed strokes
  *   4. the stroke currently being drawn
@@ -184,7 +184,6 @@ fun TracingCanvas(
                     }
                 },
         ) {
-            val repetitions = layout.span * layout.span
             val cellCount = characters.size.coerceAtLeast(1)
             val margin = 16.dp.toPx()
             val cellGap = if (cellCount > 1) CellGap.toPx() else 0f
@@ -192,28 +191,26 @@ fun TracingCanvas(
             val availWidth = size.width - margin
             val availHeight = size.height - margin
 
-            // A slot is one full copy of the glyph row. The picker fixes how
-            // many copies (span²) but NOT their arrangement: forcing span
-            // columns crams a word's wide slots into a thin band of tiny
-            // cells centred in leftover vertical space. Instead, try every
-            // column count and keep the one whose square cell comes out
-            // biggest — single characters keep the classic span×span square,
-            // words stack as fewer, fuller rows that use the sheet's height.
-            var cols = 1
-            var side = 0f
-            for (candidate in 1..repetitions) {
-                val candidateRows = (repetitions + candidate - 1) / candidate
-                val widthSide =
-                    ((availWidth - slotGap * (candidate - 1)) / candidate -
-                        cellGap * (cellCount - 1)) / cellCount
-                val heightSide = (availHeight - slotGap * (candidateRows - 1)) / candidateRows
-                val candidateSide = minOf(widthSide, heightSide)
-                if (candidateSide > side) {
-                    side = candidateSide
-                    cols = candidate
-                }
-            }
-            val rows = (repetitions + cols - 1) / cols
+            // A slot is one full copy of the glyph row. The grid comes from
+            // [planSheetGrid] (pure, unit-tested): XL is exactly one copy —
+            // the only layout with well-defined scoring cells — and the L/M/S
+            // sizes form a chain where each step is guaranteed BOTH visibly
+            // smaller cells (≤75% of the previous size's) AND strictly more
+            // copies, filling the sheet with complete rows (no ragged
+            // half-empty last row), down to a 40dp writability floor.
+            val grid = planSheetGrid(
+                layout = layout,
+                cellCount = cellCount,
+                availWidth = availWidth,
+                availHeight = availHeight,
+                cellGap = cellGap,
+                slotGap = slotGap,
+                cellFloor = 40.dp.toPx(),
+            )
+            val cols = grid.cols
+            val rows = grid.rows
+            val side = grid.side
+            val repetitions = grid.copies
 
             val slotContentWidth = side * cellCount + cellGap * (cellCount - 1)
             val gridWidth = slotContentWidth * cols + slotGap * (cols - 1)
@@ -227,8 +224,8 @@ fun TracingCanvas(
             val top = if (headerHeight > 0.dp) 0f else (size.height - gridHeight) / 2f
 
             // 1 + 2. one practice grid + ghost glyph per cell, repeated per
-            // slot; when the copies don't divide evenly the last row stays
-            // left-aligned, worksheet-style. The grid and ghost toggles each
+            // slot — always a complete cols×rows grid, so the sheet has no
+            // ragged half-empty last row. The grid and ghost toggles each
             // skip their own drawing only — cell layout is unchanged either
             // way, so ink and glyph positions stay identical.
             inkBounds.clear()

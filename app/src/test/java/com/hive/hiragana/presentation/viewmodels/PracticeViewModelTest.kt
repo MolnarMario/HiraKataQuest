@@ -473,13 +473,13 @@ class PracticeViewModelTest {
     @Test
     fun `multi-cell layout suppresses free-practice scoring`() = runTest(dispatcher) {
         val settings = FakeSettingsRepository()
-        settings.setPracticeLayout(PracticeLayout.GRID_2X2)
+        settings.setPracticeLayout(PracticeLayout.LARGE)
         val vm = buildViewModel(settings = settings)
         advanceUntilIdle()
 
         vm.practiceCharacter(deck().first())
         advanceUntilIdle()
-        assertEquals(PracticeLayout.GRID_2X2, vm.uiState.value.practiceLayout)
+        assertEquals(PracticeLayout.LARGE, vm.uiState.value.practiceLayout)
         assertEquals(SessionPhase.FREE, vm.uiState.value.phase)
 
         // A cell is passed, but the multi-cell guard short-circuits regardless.
@@ -526,7 +526,7 @@ class PracticeViewModelTest {
         assertTrue(vm.uiState.value.freeSubmitted)
         assertNotNull(vm.uiState.value.lastScore)
 
-        vm.setPracticeLayout(PracticeLayout.GRID_2X2)
+        vm.setPracticeLayout(PracticeLayout.LARGE)
         advanceUntilIdle()
         assertFalse(vm.uiState.value.freeSubmitted)
         assertNull(vm.uiState.value.lastScore)

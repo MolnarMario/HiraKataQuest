@@ -88,6 +88,10 @@ class CanvasState {
     val hasInk: Boolean
         get() = completedPaths.isNotEmpty() || activePath != null
 
+    /** True when there is a committed stroke [undoLastStroke] could remove. */
+    val canUndo: Boolean
+        get() = completedPaths.isNotEmpty()
+
     fun startStroke(point: StrokePoint) {
         // Defensive: if a stroke was somehow left open, commit it first.
         activeStroke?.let(::commitStroke)
@@ -120,6 +124,19 @@ class CanvasState {
         activePath = null
         completedPaths.clear()
         currentSession = DrawingSession()
+    }
+
+    /**
+     * Removes the most recently committed stroke — both its rendered ribbon
+     * and its raw points, so the two lists stay index-aligned (the canvas
+     * clips ribbon i to the cell stroke i started in) and a later score sees
+     * exactly what is on screen. A stroke still being drawn is untouched:
+     * Undo targets finished strokes only.
+     */
+    fun undoLastStroke() {
+        if (completedPaths.isEmpty()) return
+        completedPaths.removeAt(completedPaths.lastIndex)
+        currentSession.strokes.removeLastOrNull()
     }
 
     private fun buildActivePath(stroke: UserStroke): Path =
