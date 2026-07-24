@@ -550,7 +550,12 @@ fun LibraryScreen(
             )
 
             showSetsManager -> SetsManagerContent(
-                practiceSets = practiceSets,
+                // Scoped to the active script (the Options script picker): a set
+                // is built in one writing system, so Hiragana shows only hiragana
+                // sets and Katakana only katakana — Words and Characters of that
+                // script stay together.
+                practiceSets = practiceSets.filter { it.script == activeScript },
+                activeScript = activeScript,
                 scoreStats = scoreStats,
                 sortMode = SetSort.fromKey(setsSortKey),
                 onSortSelected = { onSetsSortSelected(it.name) },
@@ -721,7 +726,9 @@ fun LibraryScreen(
                     onSelectBrushColor = onSelectBrushColor,
                     brushEffect = brushEffect,
                     onSelectBrushEffect = onSelectBrushEffect,
-                    practiceSetCount = practiceSets.size,
+                    // Count only the active script's sets, matching what the
+                    // sets manager shows when opened (script-scoped).
+                    practiceSetCount = practiceSets.count { it.script == activeScript },
                     onAddPracticeSet = { startNewSet() },
                     onSeePracticeSets = {
                         showScopeSheet = false
@@ -2657,6 +2664,8 @@ private fun SelectableRow(
 @Composable
 private fun SetsManagerContent(
     practiceSets: List<PracticeSet>,
+    // The script the list is scoped to (drives the empty-state wording).
+    activeScript: Script,
     scoreStats: Map<String, CharacterScoreSummary>,
     // Hoisted (persisted) sort order: this composable leaves composition during
     // the edit flow and set-launched quizzes, so a local remember would silently
@@ -2757,8 +2766,9 @@ private fun SetsManagerContent(
         HorizontalDivider()
         if (practiceSets.isEmpty()) {
             Text(
-                text = "No saved sets yet. Tap “New”, or open a tab and use " +
-                    "“Add practice set” in the Study scope sheet.",
+                text = "No ${activeScript.key} practice sets yet. Tap “New”, or open a " +
+                    "tab and use “Add practice set” in the Study scope sheet. " +
+                    "(Sets are shown for the script picked in Options.)",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(16.dp),
