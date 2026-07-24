@@ -12,6 +12,27 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-24 — 0.2.0: Practice sets sorted by recency
+
+#### Added
+- **Sort practice sets by how recently you touched them**: the sets manager's
+  sort menu gains "Updated: Newest first" and "Updated: Oldest first".
+  Creating, renaming, or editing a set's members counts as touching it, so the
+  set you just worked on rises to the top of "Newest". (Backed by a new
+  `updatedAt` column — Room v5→v6, additive; existing sets inherit their
+  creation time.)
+
+#### Changed
+- **The sets list keeps your chosen sort order** across editing a set, running
+  a quiz from one, and app restarts — it only changes when you pick a
+  different order from the menu. (It previously reset to Name: A→Z every time
+  the manager was rebuilt.)
+
+#### Fixed
+- Picking a sort order, or an edit bumping a set to #1, now scrolls the sets
+  list back to the top — previously the list stayed anchored where it was, so
+  the new order (or the freshly bumped set) sat invisibly above the screen.
+
 ### 2026-07-24 — 0.1.9: Meaning practice, answer read-aloud, and word-practice fixes
 
 #### Added
