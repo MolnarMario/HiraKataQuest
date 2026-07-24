@@ -3,6 +3,7 @@ package com.hive.hiragana.presentation.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -22,8 +23,11 @@ private val CompactPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
  * **Again** (rewrite the SAME character) / **Next** (advance to the next).
  * Before submitting, an empty canvas offers **Skip** for the character deck.
  *
- * @param submitted false = writing sub-state (Clear · Submit/Skip), true =
- * reviewing the just-scored attempt (Again · Next).
+ * @param submitted false = writing sub-state (Undo · Clear · Submit/Skip),
+ * true = reviewing the just-scored attempt (Again · Next).
+ * @param canUndo true when a committed stroke exists to revert — the Undo
+ * button (shown while writing, next to Clear) removes just the latest stroke
+ * so one slip doesn't cost the rest of the character.
  * @param canAdvance true for the character deck (Next/Skip cycle through it);
  * false for single-word practice, which repeats one sheet and has no Next.
  * @param repetitionMode true for any multi-copy 2×2/3×3 sheet — character OR
@@ -41,6 +45,8 @@ fun FreePracticeActionBar(
     canAdvance: Boolean,
     repetitionMode: Boolean,
     scoringEnabled: Boolean,
+    canUndo: Boolean,
+    onUndo: () -> Unit,
     onClear: () -> Unit,
     onSubmit: () -> Unit,
     onRetry: () -> Unit,
@@ -57,9 +63,10 @@ fun FreePracticeActionBar(
         if (repetitionMode || !scoringEnabled) {
             // No single-character score to give — either a multi-copy
             // worksheet, or scoring turned Off in Study Scope. Skip the
-            // Submit/Again step: just Clear and move on. Next exists only for
-            // the character deck; single-word practice has nothing to advance
-            // to, so its lone Clear fills the row.
+            // Submit/Again step: just Undo/Clear and move on. Next exists only
+            // for the character deck; single-word practice has nothing to
+            // advance to, so Undo · Clear fill the row.
+            UndoButton(canUndo = canUndo, onUndo = onUndo)
             OutlinedButton(
                 onClick = onClear,
                 enabled = hasInk,
@@ -78,6 +85,7 @@ fun FreePracticeActionBar(
                 }
             }
         } else if (!submitted) {
+            UndoButton(canUndo = canUndo, onUndo = onUndo)
             OutlinedButton(
                 onClick = onClear,
                 enabled = hasInk,
@@ -114,6 +122,24 @@ fun FreePracticeActionBar(
                 }
             }
         }
+    }
+}
+
+/**
+ * Reverts just the latest committed stroke — a slip shouldn't cost every
+ * other stroke the way Clear does. Present only while writing (both the
+ * scored two-step and the repetition worksheet); the reviewing sub-state
+ * keeps its Again · Next pair.
+ */
+@Composable
+private fun RowScope.UndoButton(canUndo: Boolean, onUndo: () -> Unit) {
+    OutlinedButton(
+        onClick = onUndo,
+        enabled = canUndo,
+        modifier = Modifier.weight(1f),
+        contentPadding = CompactPadding,
+    ) {
+        BarLabel("Undo")
     }
 }
 

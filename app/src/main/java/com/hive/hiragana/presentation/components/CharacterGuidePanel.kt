@@ -67,7 +67,7 @@ import com.hive.hiragana.domain.model.VocabularyWord
  *   traced as one sheet, but each kana still gets its own "how to draw it" demo.
  *
  * A full-width controls strip along the panel's bottom edge (either mode)
- * holds the Library entry, the 1×1/2×2/3×3 repetition-layout picker
+ * holds the Library entry, the XL/L/M sheet-size picker
  * ([practiceLayout] + [onSelectLayout]), the grid toggle, and the ghost-glyph
  * toggle — in the panel, not on the canvas, so the drawing surface keeps its
  * full height.
@@ -274,7 +274,7 @@ private val ControlGap = 10.dp
 
 /**
  * Full-width strip along the panel's bottom edge: Library entry on the
- * left; the 1×1/2×2/3×3 repetition-layout picker, the grid toggle, and the
+ * left; the XL/L/M sheet-size picker, the grid toggle, and the
  * ghost-glyph toggle on the right (all canvas settings, so they sit
  * together).
  *
@@ -353,14 +353,14 @@ private fun PanelControlsRow(
                         label = {
                             // Chrome text: dp-sized so the label fits the fixed
                             // 40dp strip at any font scale, a notch smaller on
-                            // compact widths so "1×1" never clips to "1x".
+                            // compact widths so "XL" never clips.
                             // NOTE: must stay a plain Text — SegmentedButtonRow
                             // measures labels with INTRINSICS, and anything
                             // BoxWithConstraints-based (AutoShrinkText) crashes
                             // with "Asking for intrinsic measurements of
                             // SubcomposeLayout" (crashed on device).
                             Text(
-                                text = "${option.span}×${option.span}",
+                                text = option.sizeLabel,
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontSize = (if (compact) 10.dp else 12.dp)
                                         .toNonScalingSp(),

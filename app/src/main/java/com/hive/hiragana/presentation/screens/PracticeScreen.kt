@@ -498,8 +498,10 @@ private fun PracticeContent(
             // Submit two-step.
             repetitionMode = uiState.practiceLayout != PracticeLayout.SINGLE,
             // Scoring Off (Study Scope → "Score my writing" = Off) drops
-            // the Submit/score step, leaving just Clear · Next.
+            // the Submit/score step, leaving just Undo · Clear · Next.
             scoringEnabled = uiState.scoringMode != ScoringMode.OFF,
+            canUndo = canvasState.canUndo,
+            onUndo = { canvasState.undoLastStroke() },
             onClear = { canvasState.clear() },
             onSubmit = {
                 viewModel.freeSubmit(
