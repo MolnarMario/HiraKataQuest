@@ -24,8 +24,8 @@ android {
         applicationId = "com.hive.hiragana"
         minSdk = 26
         targetSdk = 34
-        versionCode = 13
-        versionName = "0.2.2"
+        versionCode = 14
+        versionName = "0.2.3"
     }
 
     signingConfigs {

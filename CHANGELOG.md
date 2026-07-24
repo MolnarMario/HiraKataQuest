@@ -12,6 +12,15 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-25 — 0.2.3: Practice sets scoped to the chosen script
+
+#### Changed
+- **The practice-sets manager now shows only the script you have selected**
+  in Options: pick Hiragana and you see just your hiragana sets, pick
+  Katakana and you see just your katakana sets (Words and Character sets of
+  that script still appear together). The "See sets" count next to it now
+  reflects that same per-script number instead of the combined total.
+
 ### 2026-07-25 — 0.2.2: Reading-mode fixes
 
 #### Fixed
