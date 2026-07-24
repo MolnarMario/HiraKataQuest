@@ -64,6 +64,7 @@ import com.hive.hiragana.R
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.MeaningMatch
+import com.hive.hiragana.domain.model.PrintDivergence
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.PronunciationButton
@@ -142,6 +143,18 @@ fun ReadingFlashcardScreen(
     val meaningOptions = remember(state.index, state.cards) {
         readingChoiceOptions(card.meaning.orEmpty(), state.cards.mapNotNull { it.meaning }, state.index + 7)
     }
+
+    // Whether this card carries a "Looks different in handwriting" badge (さ/き/り
+    // and their voiced/yōon variants). It's a per-card constant, so widening the
+    // reveal region's share of the card for these cards doesn't resize the glyph
+    // on reveal — it just gives the extra badge room to sit in view without a
+    // scroll. Card sizes to content share: glyph 0.6/reveal 0.4 normally, an
+    // even 0.5/0.5 when the badge is present.
+    val hasDivergenceBadge = remember(card.glyph) {
+        unitCharactersFor(card.glyph).any { PrintDivergence.noteFor(it.character) != null }
+    }
+    val glyphWeight = if (hasDivergenceBadge) 0.5f else 0.6f
+    val revealWeight = if (hasDivergenceBadge) 0.5f else 0.4f
 
     // Reading answered but the meaning still owed — the intermediate step
     // before the card reveals.
@@ -323,7 +336,7 @@ fun ReadingFlashcardScreen(
                             BoxWithConstraints(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(0.6f),
+                                    .weight(glyphWeight),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 FlashcardGlyph(
@@ -339,7 +352,7 @@ fun ReadingFlashcardScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(0.4f)
+                                    .weight(revealWeight)
                                     .verticalScroll(rememberScrollState()),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(gap, Alignment.CenterVertically),
