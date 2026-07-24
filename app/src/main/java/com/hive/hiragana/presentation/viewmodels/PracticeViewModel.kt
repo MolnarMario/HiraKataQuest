@@ -241,6 +241,10 @@ data class PracticeUiState(
     // persisted. Seeds the Library's initial tab AND decides whether a cold
     // start resumes free practice on a character or a word.
     val librarySection: Int = SECTION_CHARACTERS,
+    // The sets manager's last-used sort order (the UI sort enum's name; null =
+    // never picked, default order). Persisted so the list keeps its order
+    // across edit flows, quiz round-trips, and restarts.
+    val setsSortKey: String? = null,
     val practiceLayout: PracticeLayout = PracticeLayout.SINGLE,
     // SCRIPT (which writing system is being studied; persisted). [characters]
     // and [allWords] stay the FULL merged deck so cross-script glyph→romaji
@@ -474,6 +478,7 @@ class PracticeViewModel(
             isGhostEnabled = settingsRepository.isGhostEnabled(),
             isLibraryGridView = settingsRepository.isLibraryGridView(),
             librarySection = settingsRepository.getLibrarySection(),
+            setsSortKey = settingsRepository.getSetsSortKey(),
             practiceLayout = settingsRepository.getPracticeLayout(),
             activeScript = settingsRepository.getActiveScript(),
             includeDiacritics = settingsRepository.isDiacriticsIncluded(),
@@ -918,6 +923,7 @@ class PracticeViewModel(
         isGhostEnabled = isGhostEnabled,
         isLibraryGridView = isLibraryGridView,
         librarySection = librarySection,
+        setsSortKey = setsSortKey,
         brushInkColor = brushInkColor,
         brushEffect = brushEffect,
         practiceLayout = practiceLayout,
@@ -1088,6 +1094,17 @@ class PracticeViewModel(
         if (index == _uiState.value.librarySection) return
         settingsRepository.setLibrarySection(index)
         _uiState.update { it.copy(librarySection = index) }
+    }
+
+    /**
+     * Persists the sets manager's sort order (the UI sort enum's name). Kept
+     * so the list stays in the learner's chosen order across edit flows, quiz
+     * round-trips, and restarts — it only changes when they pick another sort.
+     */
+    fun setSetsSort(key: String) {
+        if (key == _uiState.value.setsSortKey) return
+        settingsRepository.setSetsSortKey(key)
+        _uiState.update { it.copy(setsSortKey = key) }
     }
 
     /**

@@ -220,6 +220,33 @@ class PracticeViewModelTest {
         assertEquals(BrushEffect.MARKER, vm.uiState.value.brushEffect)
     }
 
+    /** The sets-manager sort order persists and publishes into UI state. */
+    @Test
+    fun `setSetsSort persists and updates state`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        assertEquals(null, vm.uiState.value.setsSortKey)
+        vm.setSetsSort("NEWEST")
+
+        assertEquals("NEWEST", vm.uiState.value.setsSortKey)
+        assertEquals("NEWEST", settings.getSetsSortKey())
+    }
+
+    /** The persisted sets sort must survive a scope-setter rebuild. */
+    @Test
+    fun `setsSortKey survives a scope-setter rebuild`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.setSetsSort("SCORE_DESC")
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+
+        assertEquals("SCORE_DESC", vm.uiState.value.setsSortKey)
+    }
+
     /** The auto-narrate toggle persists and publishes into UI state. */
     @Test
     fun `setAutoNarrate persists and updates state`() = runTest(dispatcher) {
@@ -771,6 +798,7 @@ class PracticeViewModelTest {
         private var scoringMode = ScoringMode.FORM
         private var libraryGridView = false
         var sectionPref = 0
+        private var setsSortPref: String? = null
         // Defaults to true so unrelated tests don't seed the built-in sets; the
         // seeding tests set it explicitly.
         var seededDefaults = true
@@ -803,6 +831,8 @@ class PracticeViewModelTest {
         override fun setLibraryGridView(gridView: Boolean) { libraryGridView = gridView }
         override fun getLibrarySection(): Int = sectionPref
         override fun setLibrarySection(index: Int) { sectionPref = index }
+        override fun getSetsSortKey(): String? = setsSortPref
+        override fun setSetsSortKey(key: String) { setsSortPref = key }
         override fun hasSeededDefaultSets(): Boolean = seededDefaults
         override fun setDefaultSetsSeeded() { seededDefaults = true }
         override fun getBrushInkColor(): Int = brushInkColor

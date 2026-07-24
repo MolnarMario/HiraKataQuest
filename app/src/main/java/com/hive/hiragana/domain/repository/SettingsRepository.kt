@@ -97,6 +97,18 @@ interface SettingsRepository {
     fun setLibrarySection(index: Int)
 
     /**
+     * The saved-sets manager's last-used sort order, stored as the UI sort
+     * enum's name (e.g. "NAME_ASC"); null until the learner first picks one.
+     * Persisted so the list keeps the learner's chosen order across edit
+     * flows, quiz round-trips, and restarts — it only changes when they pick
+     * another order. A raw string because the enum is presentation-local;
+     * unknown values fall back to the default order at the decode site.
+     */
+    fun getSetsSortKey(): String?
+
+    fun setSetsSortKey(key: String)
+
+    /**
      * Whether the built-in default practice sets have already been seeded into
      * this install's library. One-time latch: false on a fresh install (and on
      * existing installs upgrading from before defaults existed) so they seed

@@ -28,8 +28,8 @@ interface PracticeSetDao {
     @Query("DELETE FROM practice_set_items WHERE setId = :setId")
     suspend fun deleteItems(setId: Long)
 
-    @Query("UPDATE practice_sets SET name = :name WHERE id = :setId")
-    suspend fun renameSet(setId: Long, name: String)
+    @Query("UPDATE practice_sets SET name = :name, updatedAt = :updatedAt WHERE id = :setId")
+    suspend fun renameSet(setId: Long, name: String, updatedAt: Long)
 
     @Query("DELETE FROM practice_sets WHERE id = :setId")
     suspend fun deleteSet(setId: Long)
@@ -42,11 +42,18 @@ interface PracticeSetDao {
         return id
     }
 
-    /** Replace a set's members wholesale (used when editing membership). */
+    @Query("UPDATE practice_sets SET updatedAt = :updatedAt WHERE id = :setId")
+    suspend fun touchSet(setId: Long, updatedAt: Long)
+
+    /**
+     * Replace a set's members wholesale (used when editing membership), and
+     * bump the header's `updatedAt` so the edit counts as recent activity.
+     */
     @Transaction
-    suspend fun replaceItems(setId: Long, values: List<String>) {
+    suspend fun replaceItems(setId: Long, values: List<String>, updatedAt: Long) {
         deleteItems(setId)
         insertItems(values.toItemEntities(setId))
+        touchSet(setId, updatedAt)
     }
 }
 

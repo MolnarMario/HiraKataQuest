@@ -93,6 +93,12 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putInt(KEY_LIBRARY_SECTION, index).apply()
     }
 
+    override fun getSetsSortKey(): String? = prefs.getString(KEY_SETS_SORT, null)
+
+    override fun setSetsSortKey(key: String) {
+        prefs.edit().putString(KEY_SETS_SORT, key).apply()
+    }
+
     override fun hasSeededDefaultSets(): Boolean =
         prefs.getBoolean(KEY_DEFAULT_SETS_SEEDED, false)
 
@@ -168,6 +174,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_SCORING_MODE = "scoring_mode"
         const val KEY_LIBRARY_GRID_VIEW = "library_grid_view"
         const val KEY_LIBRARY_SECTION = "library_section"
+        const val KEY_SETS_SORT = "sets_sort"
         const val KEY_DEFAULT_SETS_SEEDED = "default_sets_seeded"
         const val KEY_BRUSH_INK_COLOR = "brush_ink_color"
         const val KEY_BRUSH_EFFECT = "brush_effect"

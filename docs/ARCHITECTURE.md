@@ -157,7 +157,7 @@ Wiring chain (all in `HiraganaApplication.kt` and `PracticeViewModel.kt`):
    `HiraganaApplication` is registered via `android:name=".HiraganaApplication"` in
    `app/src/main/AndroidManifest.xml`.
 2. `AppContainer` (same file as the Application class) holds, all `by lazy`:
-   - `database: HiraganaDatabase` — `HiraganaDatabase.build(appContext)` (Room v5,
+   - `database: HiraganaDatabase` — `HiraganaDatabase.build(appContext)` (Room v6,
      `hiragana-practice.db`, private).
    - `assetDataSource: HiraganaAssetDataSource` — `HiraganaAssetDataSource(appContext.assets)`
      (private; Phase 3 extracted it to its own lazy so both `characterRepository` and
@@ -622,8 +622,10 @@ walk into a generated session.
   inflate the gate's backlog count, or hold the gate closed forever. The generator reads
   only its parameters and writes nothing — crash-safe resumability comes for free because
   the ViewModel persists each step's outcome as it happens.
-- **Persistence — Room v1 → v2 (and later → v3, → v4, → v5)**: `HiraganaDatabase` is now
-  `version = 5`, `exportSchema = true` (schema history committed at `app/schemas/`).
+- **Persistence — Room v1 → v2 (and later → v3, → v4, → v5, → v6)**: `HiraganaDatabase` is now
+  `version = 6`, `exportSchema = true` (schema history committed at `app/schemas/`).
+  `MIGRATION_5_6` additively adds `practice_sets.updatedAt` (2026-07-24, the sets
+  manager's newest/oldest sort — seeded from `createdAt`, re-stamped on rename/member edits);
   `MIGRATION_4_5` additively adds the reading-progress table (2026-07-09, §9);
   `MIGRATION_3_4` additively creates the two practice-set tables (§8-scoring). `MIGRATION_1_2` (a real `Migration(1, 2)`, no destructive
   fallback) renames `practice_attempts` → `practice_history`, adds its
@@ -911,8 +913,8 @@ than added to the counted `domain`/`data`/`presentation` core tables below.
 | `data/local/ReviewCardEntity.kt` / `ReviewCardDao.kt` | Phase 3: `review_cards` table (PK `characterId`) + `getAll`/`upsert` (REPLACE). |
 | `data/local/CharacterProgressEntity.kt` / `CharacterProgressDao.kt` | Phase 3: `character_progress` table (PK `characterId`) + `getAll`/`insert` (IGNORE)/`incrementTraces`. |
 | `data/local/VocabularyProgressEntity.kt` / `VocabularyProgressDao.kt` | Phase 3: `vocabulary_progress` table (PK `kana`) + `getAll`/`insert` (IGNORE)/`recordPractice`. |
-| `data/local/HiraganaDatabase.kt` | Room DB v5 (v1 → v2 → v3 → v4 → v5), `hiragana-practice.db`, `exportSchema = true`; `MIGRATION_1_2` (rename + Phase 3 tables), `MIGRATION_2_3` (nullable score columns), `MIGRATION_3_4` (practice-set tables), `MIGRATION_4_5` (reading-progress table, additive — 2026-07-09); `build(context)` factory registering all four. |
-| `data/local/PracticeSetEntity.kt` | Room `@Entity`s for `practice_sets` (header) + `practice_set_items` (members, `ON DELETE CASCADE`, index on setId) + `PracticeSetWithItems` `@Relation`. |
+| `data/local/HiraganaDatabase.kt` | Room DB v6 (v1 → v2 → v3 → v4 → v5 → v6), `hiragana-practice.db`, `exportSchema = true`; `MIGRATION_1_2` (rename + Phase 3 tables), `MIGRATION_2_3` (nullable score columns), `MIGRATION_3_4` (practice-set tables), `MIGRATION_4_5` (reading-progress table, additive — 2026-07-09), `MIGRATION_5_6` (`practice_sets.updatedAt`, additive — 2026-07-24); `build(context)` factory registering all five. |
+| `data/local/PracticeSetEntity.kt` | Room `@Entity`s for `practice_sets` (header, `updatedAt` since v6) + `practice_set_items` (members, `ON DELETE CASCADE`, index on setId) + `PracticeSetWithItems` `@Relation`. |
 | `data/local/PracticeSetDao.kt` | `observeSetsWithItems()` Flow + `@Transaction` `createSet`/`replaceItems` (header + ordered members) + `renameSet`/`deleteSet`. |
 | `data/repository/RoomPracticeSetRepository.kt` | `PracticeSetRepository` impl over `PracticeSetDao`; entity↔`PracticeSet` mapping (`type`/`script` decoded from stored keys). |
 

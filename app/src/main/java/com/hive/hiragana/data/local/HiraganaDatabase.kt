@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PracticeSetItemEntity::class,
         ReadingProgressEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class HiraganaDatabase : RoomDatabase() {
@@ -159,13 +159,31 @@ abstract class HiraganaDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v5 -> v6: adds `updatedAt` to `practice_sets` (last created-or-edited
+         * time, backing the sets manager's newest/oldest sort). Purely
+         * additive; existing sets seed it from `createdAt` so they keep a
+         * sensible recency until first edited. The `DEFAULT 0` matches the
+         * entity's `@ColumnInfo(defaultValue = "0")`.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE practice_sets ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL("UPDATE practice_sets SET updatedAt = createdAt")
+            }
+        }
+
         fun build(context: Context): HiraganaDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 HiraganaDatabase::class.java,
                 "hiragana-practice.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                )
                 .build()
     }
 }
