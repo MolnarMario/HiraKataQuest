@@ -12,6 +12,20 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-25 — 0.2.2: Reading-mode fixes
+
+#### Fixed
+- **Practicing a saved set in Reading mode now works.** It opens the set's
+  characters or words as reading flashcards; previously the button did
+  nothing in Reading mode (it only worked in Writing mode).
+- **The read-aloud speaker is no longer a dead button** when your phone's
+  text-to-speech engine has no Japanese voice: tapping it now opens the
+  system Text-to-speech settings so you can install a Japanese voice or
+  switch to an engine (such as Google Text-to-Speech) that has one.
+- **The "Looks different in handwriting" note is visible without scrolling**
+  on the reading flashcards for さ, き, and り — those cards now give the
+  reveal area more room so the note sits in view under the reading.
+
 ### 2026-07-24 — 0.2.1: Undo, and practice-sheet sizes that earn their names
 
 #### Added
