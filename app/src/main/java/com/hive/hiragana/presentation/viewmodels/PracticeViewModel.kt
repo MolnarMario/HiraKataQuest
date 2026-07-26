@@ -64,6 +64,7 @@ private const val TAG = "HiraganaSession"
 /** Library section (tab) index persisted via [SettingsRepository]. */
 private const val SECTION_CHARACTERS = 0
 private const val SECTION_WORDS = 1
+private const val SECTION_SETS = 2
 
 /**
  * Which surface the practice screen is showing. The app has only free
@@ -98,8 +99,8 @@ data class ReadingFlashcardState(
     val index: Int = 0,
     val revealed: Boolean = false,
     // Launched from a saved set (vs a single browse item): closing should
-    // reopen the sets manager rather than the browse page, mirroring the
-    // quiz-from-set round-trip (see closeReadingFlashcards / closeQuiz).
+    // reopen the Library on the Sets tab rather than the browse page, mirroring
+    // the quiz-from-set round-trip (see closeReadingFlashcards / closeQuiz).
     val fromSet: Boolean = false,
 ) {
     val current: ReadingCard? get() = cards.getOrNull(index)
@@ -234,8 +235,8 @@ data class PracticeUiState(
     // through the scoped deck/words). Transient, like [quiz].
     val readingFlashcard: ReadingFlashcardState? = null,
     // One-shot: set true when a SET-launched quiz closes, so the library
-    // reopens the practice-sets manager (not the browse page) underneath.
-    // Consumed by LibraryScreen once acted on. Transient (not in rebuilt()).
+    // reopens on the Sets tab (not the browse page) underneath. Consumed by
+    // LibraryScreen once acted on. Transient (not in rebuilt()).
     val pendingOpenSetsManager: Boolean = false,
     // SETTINGS (persisted via SettingsRepository)
     // Beginner mode: when on, the kana-concept ⓘ help icons + "New to kana?"
@@ -244,11 +245,12 @@ data class PracticeUiState(
     val isGridEnabled: Boolean = true,
     val isGhostEnabled: Boolean = true,
     val isLibraryGridView: Boolean = false,
-    // Which Library tab the learner last had open (0 = Characters, 1 = Words),
-    // persisted. Seeds the Library's initial tab AND decides whether a cold
-    // start resumes free practice on a character or a word.
+    // Which Library tab the learner last had open (0 = Characters, 1 = Words,
+    // 2 = Sets), persisted. Seeds the Library's initial tab AND decides whether
+    // a cold start resumes free practice on a character or a word (Sets falls
+    // back to a character — see enterFreePracticeFromLastSection).
     val librarySection: Int = SECTION_CHARACTERS,
-    // The sets manager's last-used sort order (the UI sort enum's name; null =
+    // The Sets tab's last-used sort order (the UI sort enum's name; null =
     // never picked, default order). Persisted so the list keeps its order
     // across edit flows, quiz round-trips, and restarts.
     val setsSortKey: String? = null,
@@ -554,9 +556,9 @@ class PracticeViewModel(
                 _uiState.update { it.copy(scoreStats = summaries.associateBy { s -> s.character }) }
             }
         }
-        // Long-lived: keeps saved practice sets live for the Study Scope sheet,
-        // the sets manager, and the Quiz-me source picker. Independent of
-        // session resets (carried through rebuilt()).
+        // Long-lived: keeps saved practice sets live for the Library's Sets tab
+        // and the Quiz-me source picker. Independent of session resets (carried
+        // through rebuilt()).
         viewModelScope.launch {
             practiceSetRepository.observeSets().collect { sets ->
                 _uiState.update { it.copy(practiceSets = sets) }
@@ -762,6 +764,8 @@ class PracticeViewModel(
      */
     private fun enterFreePracticeFromLastSection() {
         val state = _uiState.value
+        // Words resume on a random word; Characters AND the Sets tab
+        // (SECTION_SETS — no single item to resume) both fall to a character.
         if (state.librarySection == SECTION_WORDS) {
             val words = ScriptScope.scopedWords(
                 state.allWords,
@@ -1111,10 +1115,11 @@ class PracticeViewModel(
     }
 
     /**
-     * Remembers which Library tab (0 = Characters, 1 = Words) the learner last
-     * viewed. Persisted so the next cold start resumes free practice in that
-     * same area (see [enterFreePracticeFromLastSection]). A view preference
-     * only — no effect on the current in-progress practice.
+     * Remembers which Library tab (0 = Characters, 1 = Words, 2 = Sets) the
+     * learner last viewed. Persisted so the next cold start resumes free
+     * practice in that same area (see [enterFreePracticeFromLastSection]; the
+     * Sets tab resumes on a character). A view preference only — no effect on
+     * the current in-progress practice.
      */
     fun setLibrarySection(index: Int) {
         if (index == _uiState.value.librarySection) return
@@ -1123,7 +1128,7 @@ class PracticeViewModel(
     }
 
     /**
-     * Persists the sets manager's sort order (the UI sort enum's name). Kept
+     * Persists the Sets tab's sort order (the UI sort enum's name). Kept
      * so the list stays in the learner's chosen order across edit flows, quiz
      * round-trips, and restarts — it only changes when they pick another sort.
      */
@@ -1634,7 +1639,7 @@ class PracticeViewModel(
      * exactly a saved set's members (a character set → glyph/reading cards, a
      * word set → kana/reading/meaning cards). Members that no longer resolve are
      * dropped; an empty resolved set is a no-op. Flagged [ReadingFlashcardState.fromSet]
-     * so closing returns to the sets manager.
+     * so closing returns to the Sets tab.
      */
     fun openReadingFlashcardsForSet(setId: Long) {
         val state = _uiState.value
@@ -1678,7 +1683,7 @@ class PracticeViewModel(
         _uiState.update {
             it.copy(
                 readingFlashcard = null,
-                // A set-launched flip reopens the sets manager, like closeQuiz.
+                // A set-launched flip reopens the Sets tab, like closeQuiz.
                 pendingOpenSetsManager = it.readingFlashcard?.fromSet == true,
             )
         }
@@ -1688,7 +1693,7 @@ class PracticeViewModel(
      * Back/close/Done from any quiz stage; the library (and phase) underneath
      * resume untouched. A quiz launched from a saved set ([QuizState.selectedSetId]
      * non-null) flags [PracticeUiState.pendingOpenSetsManager] so the library
-     * reopens the sets manager rather than the browse page.
+     * reopens on the Sets tab rather than the browse page.
      */
     fun closeQuiz() {
         _uiState.update {
@@ -1707,7 +1712,7 @@ class PracticeViewModel(
         }
     }
 
-    /** Clears the [PracticeUiState.pendingOpenSetsManager] one-shot once the library has acted on it. */
+    /** Clears the [PracticeUiState.pendingOpenSetsManager] one-shot once the library has selected the Sets tab. */
     fun consumeOpenSetsManager() {
         if (_uiState.value.pendingOpenSetsManager) {
             _uiState.update { it.copy(pendingOpenSetsManager = false) }

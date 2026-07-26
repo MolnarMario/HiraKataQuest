@@ -246,8 +246,8 @@ removed phases** (the guided fields — `reviewQueue`, `newCharacter`, `vocabula
 | `quiz: QuizState?` | QUIZ (write-from-memory overlay launched from the library; renders above it). `QuizState` holds a `QuizStage` (`SETUP`/`RUNNING`/`SUMMARY`), the requested count, a per-quiz `showGrid`, the chosen `items: List<QuizItem>`, a `selectedSetId: Long?` (null = active-script character scope; else a saved practice set), `index`, `revealed`/`submitted` two-step flags, and `results` (auto quality-score headline by item key). `QuizItem` is a sealed interface (`key`/`prompt`/`answer`/`glyphs`/`subtitle`) with `CharQuizItem(character)` and `WordQuizItem(word, prompt)`, so a quiz can now draw **words** as well as characters. **Reading generalization (2026-07-09):** the quiz gained a `QuizKind` (Writing = write-from-memory vs Reading = recognition) and, for Reading, a `ReadingAnswerStyle` (multiple-choice / type-the-romaji / color-the-answer) plus a "test meaning?" flag; `setReadingAnswerStyle(style)` and `setReadingTestMeaning(bool)` configure it and `readingResult` carries the graded reading outcome. A Writing submit auto-scores (no self-grade — `quizSubmit(cells)` branches character → `recordAttempt`, word → `recordWordAttempt` per-kana average) and records a `PracticeSource.QUIZ` attempt; a Reading answer is checked with `RomajiMatch` (see §9) and rolled into `ReadingProgressRepository` — **neither has SRS/unlock side effects**. |
 | `appMode: AppMode?` | Always relevant (2026-07-09). `AppMode {READING, WRITING}`; **`null` ⇒ show the opening screen** (no mode chosen). Seeded from + persisted via `SettingsRepository` (key `app_mode`) and preserved through every `rebuilt()`. `setAppMode(mode)` switches, `goToOpening()` resets to `null`. Drives the `PracticeScreen` `when {}` branch order (see §4/§5/§9). |
 | `readingFlashcard: ReadingFlashcardState?`, `readingStats` | READING. `ReadingFlashcardState` holds a `List<ReadingCard>` + current index + a `revealed` flag for the reading flashcard drill (`openReadingFlashcardsForCharacters()`/`…ForWords()` and set-scoped variants build it; `flashcardReveal`/`flashcardNext`/`closeReadingFlashcards` drive it). `readingStats: Map<String, ReadingProgress>` mirrors the Writing side's `scoreStats` and tints/sorts the Library in Reading mode. |
-| `practiceSets: List<PracticeSet>` | Always relevant. The user's saved practice sets, observed from `PracticeSetRepository.observeSets()` in `init` and carried through the `rebuilt()` helper (durable). Feeds the Study-scope sets manager and the quiz source picker. |
-| `pendingOpenSetsManager: Boolean` | LIBRARY (one-shot). Set true by `closeQuiz()` when the closing quiz's `selectedSetId != null`, so the library reopens the practice-sets manager instead of the browse page — needed because the quiz overlay decomposes `LibraryScreen` and loses its local `showSetsManager` state. Consumed by a `LibraryScreen` `LaunchedEffect` calling `consumeOpenSetsManager()`, which clears it. |
+| `practiceSets: List<PracticeSet>` | Always relevant. The user's saved practice sets, observed from `PracticeSetRepository.observeSets()` in `init` and carried through the `rebuilt()` helper (durable). Feeds the Library's **Sets tab** (2026-07-27, `SetsTabContent`) and the quiz source picker. |
+| `pendingOpenSetsManager: Boolean` | LIBRARY (one-shot). Set true by `closeQuiz()`/`closeReadingFlashcards()` when the closing quiz/flip was launched from a set (`selectedSetId != null` / `fromSet`), so the library reopens on the **Sets tab** instead of the browse page — needed because the quiz overlay decomposes `LibraryScreen` and resets its local `selectedTab`. Consumed by a `LibraryScreen` `LaunchedEffect` that selects + persists tab 2 (`onSelectTab(2)`), then calls `consumeOpenSetsManager()` to clear it. |
 | `freeWords: List<VocabularyWord>` | FREE (word-set practice). The FREE word-set queue when a `PracticeSetType.WORDS` set is launched via `practiceSet(id)`; `advanceToNextCharacter()` cycles it (modulo wrap), keeping `freeWord` pointed at the current item. Empty for single-character/word FREE. |
 | `isGridEnabled`, `isGhostEnabled`, `isLibraryGridView`, `practiceLayout`, `activeScript`, `includeDiacritics`, `includeYoon`, `includeExtended`, `scoringMode`, `brushInkColor` | SETTINGS: seeded from and persisted via `SettingsRepository` (keys `grid_enabled`, `ghost_enabled`, `library_grid_view`, `practice_layout_span`, `active_script`, `diacritics_included`, `yoon_included`, `extended_included`, `scoring_mode`, `brush_ink_color`). |
 | `lastScore`, `lastScoredCharacter`, `lastWordScores`, `lastWordAverage`, `scoreStats` | SCORING (§8): the most recent single-glyph `CharacterScore` and the glyph it was computed for (drives `ScoreFeedbackCard`); `lastWordScores: List<WordUnitScore>?` + `lastWordAverage: Int?` are the transient per-kana word breakdown (drives `WordScoreChips` above the canvas + `WordAverageCard` below); and `scoreStats: Map<String, CharacterScoreSummary>` for the Library's per-character readout. The single-glyph and word fields are mutually exclusive — each is set with the other nulled, and all four are reset wherever `lastScore` is (on every advance/retry/entry point, and when scoring is `OFF`). |
@@ -392,7 +392,7 @@ LIBRARY (available from the guide panel's "Library" button)
   (both close the overlay, bump canvasClearKey; record PracticeSource.FREE
   attempts only)
 
-PRACTICE SETS (user-curated lists; CRUD from the Study-scope sheet's sets manager)
+PRACTICE SETS (user-curated lists; CRUD from the Library's Sets tab, SetsTabContent)
   savePracticeSet(name, type, script, members) → RoomPracticeSetRepository.createSet
   updatePracticeSetMembers(id, members)        → replaceItems (edit membership)
   renamePracticeSet(id, name) / deletePracticeSet(id)
@@ -405,7 +405,7 @@ PRACTICE SETS (user-curated lists; CRUD from the Study-scope sheet's sets manage
                     List<QuizItem> for that source
   closeQuiz() → clears quiz; if the closing quiz's selectedSetId != null, raises the
                     pendingOpenSetsManager one-shot so the reopened library lands on the
-                    sets manager (LibraryScreen consumes it via consumeOpenSetsManager)
+                    Sets tab (LibraryScreen selects tab 2, then consumeOpenSetsManager)
 
 LOOP-BACK (after any GRADE branch, or NEXT)
   canvasClearKey incremented in PracticeUiState
@@ -746,14 +746,19 @@ engine:
   into `PracticeUiState.practiceSets` (carried through `rebuilt()`), CRUDs via
   `savePracticeSet`/`updatePracticeSetMembers`/`renamePracticeSet`/`deletePracticeSet`, and
   launches a set into FREE via `practiceSet(id)` (a WORDS set drives the new
-  `PracticeUiState.freeWords` queue) or into the quiz via `openQuiz(setId)`. The Library
-  Study-scope sheet grew a selection mode (drag-to-range-select via `detectDragGestures` +
-  edge auto-scroll through `LazyListState.scrollBy`), a sets manager, and a name dialog —
-  all in `LibraryScreen.kt`. That sheet is now `skipPartiallyExpanded = true` with its
+  `PracticeUiState.freeWords` queue) or into the quiz via `openQuiz(setId)`. **Sets are a
+  first-class Library tab as of 2026-07-27** (`SetsTabContent`, a third tab beside
+  Characters and Words — see §9's Library tabs note): script-scoped, driven by the shared
+  top-bar search, with an inline header (count + persisted `SetSortMenu` + a "New"
+  `DropdownMenu` picking Character/Word set). It replaced the old Study-scope-sheet "Add
+  practice set" / "See sets" buttons and the full-screen `SetsManagerContent` overlay. The
+  selection mode used to build/edit a set (drag-to-range-select via `detectDragGestures` +
+  edge auto-scroll through `LazyListState.scrollBy`) and its name dialog still live in
+  `LibraryScreen.kt`. The Study-scope sheet is `skipPartiallyExpanded = true` with its
   content `heightIn(max = 90% screen)` + `verticalScroll` (fit-content with a scroll
   fallback on short screens). Follow-up polish, all still in `LibraryScreen.kt`:
-  `exitSelection()` now **always** returns to the sets manager (save, cancel ✕, or Back
-  alike, new or edited set); the sets manager shows each set's average via a
+  `exitSelection()` now **always** returns to the Sets tab (save, cancel ✕, or Back
+  alike, new or edited set — it selects + persists tab 2); the Sets tab shows each set's average via a
   `setAverage(set, scoreStats)` helper (mean of members' `scoreStats[member].avgScore()`
   = `avgForm ?: avgFit` over scored members, null when none) rendered on `SetManagerRow`
   with the same `scoreSpectrumColor` tint + corner number as char/word cards (no new
@@ -946,7 +951,7 @@ than added to the counted `domain`/`data`/`presentation` core tables below.
 | `presentation/components/PracticeActionBar.kt` | `PracticeActionBar` (session phases): Clear · Again · Hard · Good · Easy; ink-gated enabling; grade button colors. Also defines `FreePracticeActionBar` — the FREE two-step (Clear · Submit/Skip → Again · Next), collapsing to Clear · Next for a multi-copy worksheet or when scoring is Off. |
 | `presentation/components/CharacterGuidePanel.kt` | Top panel: glyph + (session label or romaji/deck-position or vocabulary word+meaning+"New word!" badge) + animated stroke-order preview + count label; optional `onOpenLibrary` renders a "Library" `TextButton`. |
 | `presentation/screens/PracticeScreen.kt` | The single screen: collects `uiState`, remembers `CanvasState`, `LaunchedEffect(canvasClearKey)` clear, branches on library overlay vs the 0.25/0.65/0.10 `Column`, loading/error(+Retry) branches. Back-nav (2026-07-05): FREE has `BackHandler { openLibrary }` (Back → Library); the Library branch has NO `BackHandler` (hardware Back → exit app); the quiz branch keeps `BackHandler { closeQuiz }`. |
-| `presentation/screens/LibraryScreen.kt` | Post-Phase-3 full-screen library overlay: `LazyColumn` (or grid chart) of every character ("Learned"/"Not started") and every word ("Unlocked"/"Locked"), all rows tappable into FREE practice (`practiceCharacter`/`practiceWord`); closed by the back arrow or system Back. Tints chart squares / word cards / list rows by each glyph's `scoreStats` average (`avgForm ?: avgFit`) via `scoreSpectrumColor`, score shown top-right; app bar reordered (Search leftmost, `BasicTextField` field, view toggle persists during search). Study-scope `ModalBottomSheet` is now `skipPartiallyExpanded` + `heightIn(max 90%)` + `verticalScroll`; also hosts the practice-set selection mode (`SelectionModeContent` with a list⇄grid toggle: `SelectableList`/`SelectableGrid`/`SelectableGridCell`, both drag-to-range-select via `detectDragGestures` + edge auto-scroll), sets manager (`SetManagerRow` with per-set `setAverage` score tint, `SetSortMenu`/`SetSort` sorting, `drawSortGlyph`; `exitSelection()` always returns here), and name dialog. |
+| `presentation/screens/LibraryScreen.kt` | Post-Phase-3 full-screen library overlay: `LazyColumn` (or grid chart) of every character ("Learned"/"Not started") and every word ("Unlocked"/"Locked"), all rows tappable into FREE practice (`practiceCharacter`/`practiceWord`); closed by the back arrow or system Back. Tints chart squares / word cards / list rows by each glyph's `scoreStats` average (`avgForm ?: avgFit`) via `scoreSpectrumColor`, score shown top-right; app bar reordered (Search leftmost, `BasicTextField` field, view toggle persists during search). Study-scope `ModalBottomSheet` is now `skipPartiallyExpanded` + `heightIn(max 90%)` + `verticalScroll`. **Practice sets are the third tab** (2026-07-27, `SetsTabContent` — a `ScrollableTabRow` sizes the three tab labels to content so their live counts never clip; script-scoped, top-bar search filters set names, inline header = count + `SetSortMenu`/`SetSort` + a "New" `DropdownMenu` picking Character/Word set): `SetManagerRow` with per-set `setAverage` score tint + `drawSortGlyph`. Building/editing a set still opens the selection mode (`SelectionModeContent` with a list⇄grid toggle: `SelectableList`/`SelectableGrid`/`SelectableGridCell`, both drag-to-range-select via `detectDragGestures` + edge auto-scroll) then a name dialog; `exitSelection()` returns to the Sets tab (selects + persists tab 2). |
 
 ### `app/src/test/.../domain/learning` (3, Phase 3)
 
