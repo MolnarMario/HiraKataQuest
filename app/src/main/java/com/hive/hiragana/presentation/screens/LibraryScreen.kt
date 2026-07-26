@@ -50,8 +50,8 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.TopAppBar
@@ -261,14 +261,14 @@ private fun readingSubtitle(stat: ReadingProgress?): String {
  * here, never in the ViewModel).
  *
  * **Practice sets** (hand-picked character/word lists, distinct from the
- * declarative scope opt-ins) are managed from the scope sheet's "Practice
- * sets" section: "Add practice set" enters a [SelectionModeContent] over the
- * current tab's FULL unscoped list (tap-toggle + drag-range select, list⇄grid
- * toggle), and "See existing practice sets" opens [SetsManagerContent] (sort
- * menu, per-set average-score badge, and Quiz/Practice/Edit/Rename/Delete per
- * set). Selection and manager visibility are overlay-local; saving a set, and
- * finishing a set-launched quiz ([PracticeViewModel.pendingOpenSetsManager]),
- * both land back on the manager rather than the browse view.
+ * declarative scope opt-ins) live on the third tab, [SetsTabContent] (scoped
+ * to the active script, with a persisted sort menu, per-set average-score
+ * badge, and Quiz/Practice/Edit/Rename/Delete per set). Its "New" button picks
+ * the set type, then enters a [SelectionModeContent] over that tab's FULL
+ * unscoped list (tap-toggle + drag-range select, list⇄grid toggle). Selection
+ * visibility is overlay-local; saving a set — and finishing a set-launched
+ * quiz ([PracticeViewModel.pendingOpenSetsManager]) — both land back on the
+ * Sets tab rather than the browse view.
  *
  * Rendered as a full-screen overlay above whatever phase is active; Back
  * (or the arrow) closes it — except while searching, when Back just
@@ -302,8 +302,8 @@ fun LibraryScreen(
     // selector in the Study-scope sheet.
     appMode: AppMode = AppMode.WRITING,
     onSetAppMode: (AppMode) -> Unit = {},
-    // Which tab to open on (0 = Characters, 1 = Words), seeded from the
-    // persisted last-used section; [onSelectTab] persists the learner's switch.
+    // Which tab to open on (0 = Characters, 1 = Words, 2 = Sets), seeded from
+    // the persisted last-used section; [onSelectTab] persists the switch.
     initialTab: Int = 0,
     onSelectTab: (Int) -> Unit = {},
     pronunciation: (VocabularyWord) -> String = { "" },
@@ -379,16 +379,13 @@ fun LibraryScreen(
     var editingSetId by remember { mutableStateOf<Long?>(null) }
     var selectionType by remember { mutableStateOf(PracticeSetType.CHARACTERS) }
     var selectionScript by remember { mutableStateOf(activeScript) }
-    var showSetsManager by remember { mutableStateOf(false) }
     var showNameDialog by remember { mutableStateOf(false) }
 
-    fun startNewSet() {
-        selectionType = if (selectedTab == 0) PracticeSetType.CHARACTERS else PracticeSetType.WORDS
+    fun startNewSet(type: PracticeSetType) {
+        selectionType = type
         selectionScript = activeScript
         selectedValues.clear()
         editingSetId = null
-        showScopeSheet = false
-        showSetsManager = false
         selectionMode = true
     }
 
@@ -398,27 +395,29 @@ fun LibraryScreen(
         selectedValues.clear()
         selectedValues.addAll(set.members)
         editingSetId = set.id
-        showSetsManager = false
         selectionMode = true
     }
 
     fun exitSelection() {
         // Any exit from selection — save, cancel (✕), or Back — lands on the
-        // Practice sets manager rather than the Library browse page, whether the
-        // set was new or edited.
+        // Sets tab rather than the Library browse page, whether the set was new
+        // or edited. onSelectTab persists it so the tab survives a later
+        // decompose (e.g. a set-launched quiz composing above the Library).
         selectionMode = false
         editingSetId = null
         selectedValues.clear()
         showNameDialog = false
-        showSetsManager = true
+        selectedTab = 2
+        onSelectTab(2)
     }
 
-    // When a set-launched quiz closes, the ViewModel raises a one-shot so the
-    // library reopens the sets manager (the quiz decomposed this screen, losing
-    // its local showSetsManager). Act on it once, then clear it.
+    // When a set-launched quiz/flashcard closes, the ViewModel raises a one-shot
+    // so the library reopens on the Sets tab (the quiz decomposed this screen,
+    // resetting selectedTab). Select the tab, persist it, then clear the shot.
     LaunchedEffect(openSetsManagerSignal) {
         if (openSetsManagerSignal) {
-            showSetsManager = true
+            selectedTab = 2
+            onSelectTab(2)
             onConsumeOpenSetsManager()
         }
     }
@@ -430,11 +429,11 @@ fun LibraryScreen(
         searching = false
         query = ""
     }
-    // Selection mode / sets manager each capture Back to step back out of
-    // themselves rather than closing the whole library (LIFO — enabled only in
-    // their own state).
+    // Selection mode captures Back to step back out of itself (onto the Sets
+    // tab) rather than closing the whole library (LIFO — enabled only in its
+    // own state). The Sets tab itself does not capture Back — like the other
+    // tabs, Back closes the Library.
     BackHandler(enabled = selectionMode) { exitSelection() }
-    BackHandler(enabled = showSetsManager) { showSetsManager = false }
 
     // Scope to the active script and the three opt-ins first (the selector +
     // toggles are the "what am I studying" controls), then apply the free-text
@@ -481,6 +480,18 @@ fun LibraryScreen(
             scriptWords
         } else {
             scriptWords.filter { it.matches(normalizedQuery, wordRomaji[it.kana].orEmpty()) }
+        }
+    }
+    // The Sets tab shows only the active script's sets (a set is built in one
+    // writing system), then the shared top-bar search filters them by name.
+    val scriptSets = remember(practiceSets, activeScript) {
+        practiceSets.filter { it.script == activeScript }
+    }
+    val filteredSets = remember(scriptSets, normalizedQuery) {
+        if (normalizedQuery.isEmpty()) {
+            scriptSets
+        } else {
+            scriptSets.filter { it.name.searchNormalize().contains(normalizedQuery) }
         }
     }
 
@@ -553,31 +564,6 @@ fun LibraryScreen(
                 onCancel = { exitSelection() },
             )
 
-            showSetsManager -> SetsManagerContent(
-                // Scoped to the active script (the Options script picker): a set
-                // is built in one writing system, so Hiragana shows only hiragana
-                // sets and Katakana only katakana — Words and Characters of that
-                // script stay together.
-                practiceSets = practiceSets.filter { it.script == activeScript },
-                activeScript = activeScript,
-                scoreStats = scoreStats,
-                sortMode = SetSort.fromKey(setsSortKey),
-                onSortSelected = { onSetsSortSelected(it.name) },
-                onClose = { showSetsManager = false },
-                onAddSet = { startNewSet() },
-                onEdit = { startEditSet(it) },
-                onRename = onRenameSet,
-                onDelete = onDeleteSet,
-                onQuiz = { id ->
-                    showSetsManager = false
-                    onLaunchSetQuiz(id)
-                },
-                onPractice = { id ->
-                    showSetsManager = false
-                    onPracticeSet(id)
-                },
-            )
-
             else -> Column(modifier = Modifier.fillMaxSize()) {
             LibraryTopBar(
                 searching = searching,
@@ -595,29 +581,94 @@ fun LibraryScreen(
                 onOpenScope = { showScopeSheet = true },
                 onStartQuiz = onStartQuiz,
                 onClose = onClose,
-                showViewToggle = true,
+                // The Sets tab has no chart/grid form and its own inline sort,
+                // so the top-bar view toggle + list Sort menu hide there.
+                showViewToggle = selectedTab != 2,
                 isGridView = isGridView,
                 onToggleView = { onSetGridView(!isGridView) },
-                showSort = !gridMode,
+                showSort = !gridMode && selectedTab != 2,
                 sortMode = listSort,
                 onSortSelected = { listSort = it },
                 sortOptions = if (appMode == AppMode.READING) READING_SORT_OPTIONS else ITEM_SORT_OPTIONS,
             )
 
-            TabRow(selectedTabIndex = selectedTab) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0; onSelectTab(0) },
-                    text = { Text("Characters (${filteredCharacters.size})") },
+            // A ScrollableTabRow, NOT a plain TabRow: TabRow splits the width
+            // into EQUAL thirds, so the longest label ("Characters (247)")
+            // clipped inside its third while "Sets (16)" wasted most of its own
+            // (user-caught). ScrollableTabRow sizes each tab to its CONTENT, so a
+            // longer word simply takes more room and the counts never clip; with
+            // only three short tabs it fills the width from the left without
+            // actually scrolling. edgePadding = 0 drops the default 52dp left
+            // inset so the first tab starts at the edge. The uniform shrink is a
+            // large-font safety (policy rule 3): it only drops below 1 when the
+            // three natural widths would exceed the row, keeping them one line
+            // instead of forcing a scroll. BoxWithConstraints is the PARENT of
+            // the row — safe, unlike a shrink-measuring child inside a Tab.
+            BoxWithConstraints {
+                val tabLabels = listOf(
+                    "Characters (${filteredCharacters.size})",
+                    "Words (${filteredWords.size})",
+                    "Sets (${filteredSets.size})",
                 )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1; onSelectTab(1) },
-                    text = { Text("Words (${filteredWords.size})") },
+                val tabStyle = MaterialTheme.typography.titleSmall
+                val tabScale = rememberUniformTextScale(
+                    labels = tabLabels,
+                    style = tabStyle,
+                    availableWidth = maxWidth,
+                    // Material Tab reserves 16dp horizontal text padding per side.
+                    reservedPerItem = 32.dp,
+                    minScale = 0.7f,
                 )
+                val tabLabelStyle = tabStyle.copy(
+                    fontSize = tabStyle.fontSize * tabScale,
+                    lineHeight = if (tabStyle.lineHeight.isSp) {
+                        tabStyle.lineHeight * tabScale
+                    } else {
+                        tabStyle.lineHeight
+                    },
+                )
+                ScrollableTabRow(
+                    selectedTabIndex = selectedTab,
+                    edgePadding = 0.dp,
+                ) {
+                    tabLabels.forEachIndexed { index, label ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index; onSelectTab(index) },
+                            text = {
+                                Text(
+                                    text = label,
+                                    style = tabLabelStyle,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    // Content-sized tabs shouldn't clip; ellipsis
+                                    // is only a last-resort guard below the floor.
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                        )
+                    }
+                }
             }
 
             when {
+                // First branch: a persisted chart/grid view must never route the
+                // Sets tab to CharacterChart/WordGrid.
+                selectedTab == 2 -> SetsTabContent(
+                    sets = filteredSets,
+                    hasAnySets = scriptSets.isNotEmpty(),
+                    query = trimmedQuery,
+                    activeScript = activeScript,
+                    scoreStats = scoreStats,
+                    sortMode = SetSort.fromKey(setsSortKey),
+                    onSortSelected = { onSetsSortSelected(it.name) },
+                    onNewSet = { type -> startNewSet(type) },
+                    onEdit = { startEditSet(it) },
+                    onRename = onRenameSet,
+                    onDelete = onDeleteSet,
+                    onQuiz = onLaunchSetQuiz,
+                    onPractice = onPracticeSet,
+                )
                 gridMode && selectedTab == 0 -> CharacterChart(
                     characters = filteredCharacters,
                     scoreStats = scoreStats,
@@ -732,14 +783,6 @@ fun LibraryScreen(
                     onSelectBrushColor = onSelectBrushColor,
                     brushEffect = brushEffect,
                     onSelectBrushEffect = onSelectBrushEffect,
-                    // Count only the active script's sets, matching what the
-                    // sets manager shows when opened (script-scoped).
-                    practiceSetCount = practiceSets.count { it.script == activeScript },
-                    onAddPracticeSet = { startNewSet() },
-                    onSeePracticeSets = {
-                        showScopeSheet = false
-                        showSetsManager = true
-                    },
                 )
             }
         }
@@ -992,9 +1035,6 @@ private fun ScopeSheetContent(
     onSelectBrushColor: (Int) -> Unit,
     brushEffect: BrushEffect,
     onSelectBrushEffect: (BrushEffect) -> Unit,
-    practiceSetCount: Int,
-    onAddPracticeSet: () -> Unit,
-    onSeePracticeSets: () -> Unit,
 ) {
     // Cap at ~90% of the screen and make the body scroll only if it overflows
     // (short devices). On a normal screen the sheet — opened skipPartiallyExpanded
@@ -1199,45 +1239,6 @@ private fun ScopeSheetContent(
             checked = mnemonicsEnabled,
             onCheckedChange = onSetMnemonics,
         )
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
-
-        // Practice sets are hand-picked lists (an explicit membership), kept
-        // visually + conceptually separate from the declarative scope toggles
-        // above. "Add" enters selection mode on the current tab; "See existing"
-        // opens the manager.
-        Text(
-            text = "Practice sets",
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Text(
-            text = "Save a hand-picked list of characters or words to quiz or " +
-                "practice later — separate from the scope filters above.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedButton(
-                onClick = onAddPracticeSet,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Add practice set")
-            }
-            OutlinedButton(
-                onClick = onSeePracticeSets,
-                enabled = practiceSetCount > 0,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(
-                    text = if (practiceSetCount > 0) "See sets ($practiceSetCount)" else "See sets",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
@@ -2680,13 +2681,20 @@ private fun SelectableRow(
 }
 
 /**
- * The saved-sets manager: list every set with actions to quiz it, practice it
- * (no scoring side effects), edit its membership, rename, or delete.
+ * The Sets tab body (the third Library tab, beside Characters and Words): list
+ * the active script's saved sets with actions to quiz, practice (no scoring
+ * side effects), edit membership, rename, or delete. [sets] arrives already
+ * script-scoped AND name-filtered by the shared top-bar search; [hasAnySets]
+ * distinguishes "no sets at all" (guidance to create one) from "no search
+ * match". A slim header carries the count, the persisted [sortMode] menu, and
+ * the "New" button whose menu picks the set type (there is no browse tab to
+ * infer it from here).
  */
 @Composable
-private fun SetsManagerContent(
-    practiceSets: List<PracticeSet>,
-    // The script the list is scoped to (drives the empty-state wording).
+private fun SetsTabContent(
+    sets: List<PracticeSet>,
+    hasAnySets: Boolean,
+    query: String,
     activeScript: Script,
     scoreStats: Map<String, CharacterScoreSummary>,
     // Hoisted (persisted) sort order: this composable leaves composition during
@@ -2694,8 +2702,7 @@ private fun SetsManagerContent(
     // reset the learner's chosen order on every return.
     sortMode: SetSort,
     onSortSelected: (SetSort) -> Unit,
-    onClose: () -> Unit,
-    onAddSet: () -> Unit,
+    onNewSet: (PracticeSetType) -> Unit,
     onEdit: (PracticeSet) -> Unit,
     onRename: (Long, String) -> Unit,
     onDelete: (Long) -> Unit,
@@ -2704,98 +2711,84 @@ private fun SetsManagerContent(
 ) {
     // Each set's average score (null = no scored members), computed once and
     // reused for both sorting and the per-row badge.
-    val scoreOf = remember(practiceSets, scoreStats) {
-        practiceSets.associate { it.id to setAverage(it, scoreStats) }
+    val scoreOf = remember(sets, scoreStats) {
+        sets.associate { it.id to setAverage(it, scoreStats) }
     }
-    val sortedSets = remember(practiceSets, sortMode, scoreOf) {
+    val sortedSets = remember(sets, sortMode, scoreOf) {
         when (sortMode) {
-            SetSort.NAME_ASC -> practiceSets.sortedBy { it.name.lowercase() }
-            SetSort.NAME_DESC -> practiceSets.sortedByDescending { it.name.lowercase() }
+            SetSort.NAME_ASC -> sets.sortedBy { it.name.lowercase() }
+            SetSort.NAME_DESC -> sets.sortedByDescending { it.name.lowercase() }
             // Unscored sets sort to the end in both directions.
-            SetSort.SCORE_DESC -> practiceSets.sortedByDescending { scoreOf[it.id] ?: Int.MIN_VALUE }
-            SetSort.SCORE_ASC -> practiceSets.sortedBy { scoreOf[it.id] ?: Int.MAX_VALUE }
+            SetSort.SCORE_DESC -> sets.sortedByDescending { scoreOf[it.id] ?: Int.MIN_VALUE }
+            SetSort.SCORE_ASC -> sets.sortedBy { scoreOf[it.id] ?: Int.MAX_VALUE }
             // Recency = created OR last edited (rename/member change bumps a
             // set back to the top of "newest"). The id tie-break keeps the
             // batch-seeded default sets — stamped within the same few ms — in
             // their true insertion order.
-            SetSort.NEWEST -> practiceSets.sortedWith(
+            SetSort.NEWEST -> sets.sortedWith(
                 compareByDescending<PracticeSet> { it.updatedAt }.thenByDescending { it.id }
             )
-            SetSort.OLDEST -> practiceSets.sortedWith(
+            SetSort.OLDEST -> sets.sortedWith(
                 compareBy<PracticeSet> { it.updatedAt }.thenBy { it.id }
             )
         }
     }
-    // Search filters the (already sorted) sets by name (session-local).
-    var searching by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
-    val normalizedQuery = remember(query) { query.trim().searchNormalize() }
-    val visibleSets = remember(sortedSets, normalizedQuery) {
-        if (normalizedQuery.isEmpty()) sortedSets
-        else sortedSets.filter { it.name.searchNormalize().contains(normalizedQuery) }
-    }
     Column(modifier = Modifier.fillMaxSize()) {
+        // Slim header: count + (persisted) sort menu + a "New" button whose
+        // menu picks the set type. Always rendered — even with zero sets, "New"
+        // must stay reachable; only the sort menu is count-gated.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+                .padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                )
-            }
             Text(
-                text = "Practice sets",
-                style = MaterialTheme.typography.headlineSmall,
+                text = "${sets.size} set${if (sets.size == 1) "" else "s"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            if (practiceSets.isNotEmpty()) {
-                IconButton(
-                    onClick = {
-                        if (searching) {
-                            searching = false
-                            query = ""
-                        } else {
-                            searching = true
-                        }
-                    },
-                    modifier = Modifier.size(40.dp),
+            if (sets.size > 1) {
+                SetSortMenu(sortMode = sortMode, onSelect = onSortSelected)
+            }
+            var newExpanded by remember { mutableStateOf(false) }
+            Box {
+                TextButton(onClick = { newExpanded = true }) {
+                    Text("New", style = MaterialTheme.typography.titleMedium)
+                }
+                DropdownMenu(
+                    expanded = newExpanded,
+                    onDismissRequest = { newExpanded = false },
                 ) {
-                    Icon(
-                        imageVector = if (searching) Icons.Filled.Close else Icons.Filled.Search,
-                        contentDescription = if (searching) "Close search" else "Search sets",
+                    DropdownMenuItem(
+                        text = { Text("Character set") },
+                        onClick = {
+                            newExpanded = false
+                            onNewSet(PracticeSetType.CHARACTERS)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Word set") },
+                        onClick = {
+                            newExpanded = false
+                            onNewSet(PracticeSetType.WORDS)
+                        },
                     )
                 }
             }
-            if (practiceSets.size > 1) {
-                SetSortMenu(sortMode = sortMode, onSelect = onSortSelected)
-            }
-            TextButton(onClick = onAddSet) {
-                Text("New", style = MaterialTheme.typography.titleMedium)
-            }
-        }
-        if (searching) {
-            PracticeSetSearchField(
-                query = query,
-                onQueryChange = { query = it },
-                placeholder = "Search sets",
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            )
         }
         HorizontalDivider()
-        if (practiceSets.isEmpty()) {
+        if (!hasAnySets) {
             Text(
-                text = "No ${activeScript.key} practice sets yet. Tap “New”, or open a " +
-                    "tab and use “Add practice set” in the Study scope sheet. " +
-                    "(Sets are shown for the script picked in Options.)",
+                text = "No ${activeScript.key} practice sets yet. Tap “New” to build " +
+                    "one from any characters or words. (Sets follow the script " +
+                    "picked in Options.)",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(16.dp),
             )
-        } else if (visibleSets.isEmpty()) {
+        } else if (sets.isEmpty()) {
             Text(
                 text = "No sets match “${query.trim()}”.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -2804,13 +2797,13 @@ private fun SetsManagerContent(
             )
         } else {
             // Jump back to the top when the order's HEAD changes — picking a
-            // sort, or a rename/member edit bumping a set to #1 under the
-            // Updated sorts. The keyed LazyColumn otherwise stays anchored on
-            // the previously-top item, so the freshly bumped set slides in
-            // ABOVE the viewport and sits there invisible (user-caught: "it
-            // goes to the top, but it is off screen").
+            // sort, a rename/member edit bumping a set to #1 under the Updated
+            // sorts, or a search keystroke changing the first match. The keyed
+            // LazyColumn otherwise stays anchored on the previously-top item, so
+            // the freshly bumped set slides in ABOVE the viewport and sits there
+            // invisible (user-caught: "it goes to the top, but it is off screen").
             val setsListState = rememberLazyListState()
-            LaunchedEffect(sortMode, visibleSets.firstOrNull()?.id) {
+            LaunchedEffect(sortMode, sortedSets.firstOrNull()?.id) {
                 setsListState.scrollToItem(0)
             }
             LazyColumn(
@@ -2819,7 +2812,7 @@ private fun SetsManagerContent(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(visibleSets, key = { it.id }) { set ->
+                items(sortedSets, key = { it.id }) { set ->
                     SetManagerRow(
                         set = set,
                         score = scoreOf[set.id],

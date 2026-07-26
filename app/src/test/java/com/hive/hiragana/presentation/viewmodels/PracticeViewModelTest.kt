@@ -538,6 +538,58 @@ class PracticeViewModelTest {
         assertNull(state.freeWord)
     }
 
+    /**
+     * The Sets tab (section 2) has no single item to resume, so a cold start
+     * with it as the last section falls back to a character — even with words
+     * in scope — rather than landing on a blank sheet.
+     */
+    @Test
+    fun `launch falls back to a character when last section was the sets tab`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        settings.sectionPref = 2 // Sets
+        val vm = buildViewModel(settings = settings, words = listOf(aiWord()))
+        advanceUntilIdle()
+        vm.setAppMode(AppMode.WRITING)
+
+        val state = vm.uiState.value
+        assertEquals(SessionPhase.FREE, state.phase)
+        assertTrue(state.freeCharacters.isNotEmpty())
+        assertNull(state.freeWord)
+    }
+
+    /** Selecting the Sets tab persists (index 2) and publishes into UI state. */
+    @Test
+    fun `setLibrarySection persists the sets tab`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        vm.setLibrarySection(2)
+
+        assertEquals(2, vm.uiState.value.librarySection)
+        assertEquals(2, settings.getLibrarySection())
+    }
+
+    /**
+     * Closing a quiz that was launched from a saved set raises the one-shot so
+     * the Library reopens on the Sets tab; consuming it clears the shot.
+     */
+    @Test
+    fun `closing a set-launched quiz raises and consumes the sets-tab signal`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.savePracticeSet("MySet", PracticeSetType.CHARACTERS, Script.HIRAGANA, listOf("あ"))
+        advanceUntilIdle()
+        val id = vm.uiState.value.practiceSets.first { it.name == "MySet" }.id
+
+        vm.openQuiz(id)
+        vm.closeQuiz()
+        assertEquals(true, vm.uiState.value.pendingOpenSetsManager)
+
+        vm.consumeOpenSetsManager()
+        assertEquals(false, vm.uiState.value.pendingOpenSetsManager)
+    }
+
     // ---- default practice sets ------------------------------------------
 
     /**

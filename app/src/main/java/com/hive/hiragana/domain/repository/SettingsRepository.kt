@@ -98,7 +98,7 @@ interface SettingsRepository {
     fun setLibrarySection(index: Int)
 
     /**
-     * The saved-sets manager's last-used sort order, stored as the UI sort
+     * The Sets tab's last-used sort order, stored as the UI sort
      * enum's name (e.g. "NAME_ASC"); null until the learner first picks one.
      * Persisted so the list keeps the learner's chosen order across edit
      * flows, quiz round-trips, and restarts — it only changes when they pick

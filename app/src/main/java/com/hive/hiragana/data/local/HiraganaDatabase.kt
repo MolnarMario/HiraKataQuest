@@ -161,7 +161,7 @@ abstract class HiraganaDatabase : RoomDatabase() {
 
         /**
          * v5 -> v6: adds `updatedAt` to `practice_sets` (last created-or-edited
-         * time, backing the sets manager's newest/oldest sort). Purely
+         * time, backing the Sets tab's newest/oldest sort). Purely
          * additive; existing sets seed it from `createdAt` so they keep a
          * sensible recency until first edited. The `DEFAULT 0` matches the
          * entity's `@ColumnInfo(defaultValue = "0")`.

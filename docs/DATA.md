@@ -711,7 +711,7 @@ together via `@Embedded val set` + `@Relation(parentColumn = "id", entityColumn 
 
 | Method | Signature | Notes |
 |---|---|---|
-| `observeSetsWithItems` | `@Transaction @Query("SELECT * FROM practice_sets ORDER BY createdAt DESC") fun observeSetsWithItems(): Flow<List<PracticeSetWithItems>>` | Newest first; observed as a `Flow` so the Study Scope sheet and Quiz-me source picker stay live as sets change. `@Transaction` because it fans out to the member rows |
+| `observeSetsWithItems` | `@Transaction @Query("SELECT * FROM practice_sets ORDER BY createdAt DESC") fun observeSetsWithItems(): Flow<List<PracticeSetWithItems>>` | Newest first; observed as a `Flow` so the Library's Sets tab and the Quiz-me source picker stay live as sets change. `@Transaction` because it fans out to the member rows |
 | `insertSet` | `@Insert suspend fun insertSet(set): Long` | Returns the new set id |
 | `insertItems` | `@Insert suspend fun insertItems(items)` | |
 | `deleteItems` | `@Query("DELETE FROM practice_set_items WHERE setId = :setId") suspend fun deleteItems(setId)` | |
