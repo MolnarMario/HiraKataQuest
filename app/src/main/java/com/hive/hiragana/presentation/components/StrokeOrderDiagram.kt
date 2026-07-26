@@ -20,8 +20,7 @@ import androidx.compose.ui.graphics.vector.PathNode
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.model.HiraganaCharacter
-import com.hive.hiragana.presentation.theme.DiagramStroke
-import com.hive.hiragana.presentation.theme.PaperWhite
+import com.hive.hiragana.presentation.theme.LocalKanaColors
 
 private data class ParsedStroke(val path: Path, val start: Offset)
 
@@ -33,7 +32,7 @@ private data class ParsedStroke(val path: Path, val start: Offset)
 fun StrokeOrderDiagram(
     character: HiraganaCharacter,
     modifier: Modifier = Modifier,
-    strokeColor: Color = DiagramStroke,
+    strokeColor: Color = LocalKanaColors.current.diagramStroke,
 ) {
     val badgeColor = MaterialTheme.colorScheme.primary
 
@@ -51,11 +50,15 @@ fun StrokeOrderDiagram(
         }
     }
 
-    val badgeTextPaint = remember {
+    // The numeral sits ON the primary-colored badge disc, so it's on-primary
+    // (== PaperWhite in light: zero visual change; a dark-appropriate dark in
+    // dark, where the primary disc is light). Keyed so a flip rebuilds it.
+    val badgeTextColor = MaterialTheme.colorScheme.onPrimary
+    val badgeTextPaint = remember(badgeTextColor) {
         Paint().apply {
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
-            color = PaperWhite.toArgb()
+            color = badgeTextColor.toArgb()
             isFakeBoldText = true
         }
     }

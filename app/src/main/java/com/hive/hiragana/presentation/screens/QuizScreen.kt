@@ -78,7 +78,7 @@ import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
 import com.hive.hiragana.presentation.components.WordAverageCard
 import com.hive.hiragana.presentation.components.WordScoreChips
-import com.hive.hiragana.presentation.theme.InkBlack
+import com.hive.hiragana.presentation.theme.LocalKanaColors
 import kotlin.math.roundToInt
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.presentation.viewmodels.QuizKind
@@ -125,7 +125,7 @@ fun QuizScreen(
     lastScoredCharacter: String?,
     lastWordScores: List<WordUnitScore>?,
     lastWordAverage: Int?,
-    inkColor: Color = InkBlack,
+    inkColor: Color = LocalKanaColors.current.defaultInk,
     brushEffect: BrushEffect = BrushEffect.BRUSH,
     // Traced-ghost form + a per-glyph stroke lookup for the HANDWRITTEN ghost
     // (the quiz reveals the ghost only after Submit); PRINTED keeps the font.

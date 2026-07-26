@@ -39,15 +39,17 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.hive.hiragana.presentation.theme.InkBlack
+import com.hive.hiragana.presentation.theme.LocalKanaColors
 
 /**
- * One-tap preset swatches: black (the default ink) first, then one of each main
- * rainbow colour. Rendered as equal-width circles that always fill the row, so
- * the whole set fits perfectly regardless of how many there are.
+ * One-tap rainbow preset swatches. The FIRST swatch — the active theme's
+ * default ink — is prepended inside the composable (via [LocalKanaColors]):
+ * charcoal on the light paper, chalk on the dark one. Swapped rather than
+ * added so the row keeps 8 equal-width circles; the other theme's default
+ * stays reachable through the SV panel, and charcoal is illegible on the
+ * dark sheet anyway.
  */
-private val PRESET_SWATCHES = listOf(
-    InkBlack,          // default ink
+private val RainbowSwatches = listOf(
     Color(0xFFE53935), // red
     Color(0xFFFB8C00), // orange
     Color(0xFFFBC02D), // yellow
@@ -59,9 +61,8 @@ private val PRESET_SWATCHES = listOf(
 
 /**
  * A compact HSV brush-color picker in a dialog — a saturation/value square, a
- * hue slider, quick preset swatches, and a live preview of the ink on white so
- * the learner can judge legibility before committing. All local while picking;
- * [onPick] fires once on "Done" (Cancel discards). Built from Compose Canvas +
+ * hue slider, and quick preset swatches. All local while picking; [onPick]
+ * fires once on "Done" (Cancel discards). Built from Compose Canvas +
  * `Color.hsv` + `android.graphics.Color.colorToHSV`, so no color-picker
  * dependency is added.
  */
@@ -79,6 +80,8 @@ fun BrushColorPicker(
     var value by remember { mutableFloatStateOf(seed[2]) }      // 0..1
     val current = Color.hsv(hue, sat, value)
     val outline = MaterialTheme.colorScheme.outline
+    // First preset = the active theme's default ink (charcoal light / chalk dark).
+    val presetSwatches = listOf(LocalKanaColors.current.defaultInk) + RainbowSwatches
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -120,7 +123,7 @@ fun BrushColorPicker(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    PRESET_SWATCHES.forEach { swatch ->
+                    presetSwatches.forEach { swatch ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)

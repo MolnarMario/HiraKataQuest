@@ -76,7 +76,7 @@ import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.KanaMnemonic
 import com.hive.hiragana.domain.model.KanaMnemonics
 import com.hive.hiragana.domain.model.MnemonicOverlay
-import com.hive.hiragana.presentation.theme.DiagramStroke
+import com.hive.hiragana.presentation.theme.LocalKanaColors
 import kotlinx.coroutines.launch
 
 /**
@@ -673,7 +673,7 @@ private fun MnemonicGlyph(
             strokes = character.strokes,
             viewBox = character.viewBox,
             modifier = Modifier.matchParentSize(),
-            color = DiagramStroke,
+            color = LocalKanaColors.current.diagramStroke,
         )
         Canvas(modifier = Modifier.matchParentSize()) {
             if (overlayPaths.isEmpty()) return@Canvas

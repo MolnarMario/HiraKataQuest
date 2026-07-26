@@ -129,6 +129,8 @@ import com.hive.hiragana.presentation.components.fontScaleFraction
 import com.hive.hiragana.presentation.components.rememberUniformTextScale
 import com.hive.hiragana.presentation.components.toNonScalingSp
 import com.hive.hiragana.presentation.theme.scoreSpectrumColor
+import com.hive.hiragana.presentation.theme.LocalKanaColors
+import com.hive.hiragana.domain.model.AppearanceMode
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
@@ -312,6 +314,10 @@ fun LibraryScreen(
     beginnerMode: Boolean = false,
     brushInkColor: Int = 0xFF20222E.toInt(),
     onSelectBrushColor: (Int) -> Unit = {},
+    // The dark-appearance ink twin; the Options row edits whichever theme is
+    // active. Default = InkChalk.
+    brushInkColorDark: Int = 0xFFEFE7DA.toInt(),
+    onSelectBrushColorDark: (Int) -> Unit = {},
     brushEffect: BrushEffect = BrushEffect.BRUSH,
     onSelectBrushEffect: (BrushEffect) -> Unit = {},
     scoringMode: ScoringMode = ScoringMode.FORM,
@@ -326,6 +332,10 @@ fun LibraryScreen(
     // Hint buttons (both modes).
     mnemonicsEnabled: Boolean = true,
     onSetMnemonics: (Boolean) -> Unit = {},
+    // Light/dark appearance (System / Light / Dark), shown at the bottom of
+    // the Study-scope sheet.
+    appearance: AppearanceMode = AppearanceMode.LIGHT,
+    onSetAppearance: (AppearanceMode) -> Unit = {},
     practiceSets: List<PracticeSet> = emptyList(),
     onSaveSet: (String, PracticeSetType, Script, List<String>) -> Unit = { _, _, _, _ -> },
     onUpdateSetMembers: (Long, List<String>) -> Unit = { _, _ -> },
@@ -779,8 +789,12 @@ fun LibraryScreen(
                     onSetReadingAutoSpeak = onSetReadingAutoSpeak,
                     mnemonicsEnabled = mnemonicsEnabled,
                     onSetMnemonics = onSetMnemonics,
+                    appearance = appearance,
+                    onSetAppearance = onSetAppearance,
                     brushInkColor = brushInkColor,
                     onSelectBrushColor = onSelectBrushColor,
+                    brushInkColorDark = brushInkColorDark,
+                    onSelectBrushColorDark = onSelectBrushColorDark,
                     brushEffect = brushEffect,
                     onSelectBrushEffect = onSelectBrushEffect,
                 )
@@ -1031,8 +1045,12 @@ private fun ScopeSheetContent(
     onSetReadingAutoSpeak: (Boolean) -> Unit,
     mnemonicsEnabled: Boolean,
     onSetMnemonics: (Boolean) -> Unit,
+    appearance: AppearanceMode,
+    onSetAppearance: (AppearanceMode) -> Unit,
     brushInkColor: Int,
     onSelectBrushColor: (Int) -> Unit,
+    brushInkColorDark: Int,
+    onSelectBrushColorDark: (Int) -> Unit,
     brushEffect: BrushEffect,
     onSelectBrushEffect: (BrushEffect) -> Unit,
 ) {
@@ -1245,6 +1263,10 @@ private fun ScopeSheetContent(
         // Brush ink colour — a purely-visual personalization (the colour your
         // strokes are drawn in). Moved here from the app bar so it reads as the
         // labeled setting it is; the swatch on the right opens the HSV picker.
+        // Each appearance keeps its own ink; the row edits the ACTIVE one.
+        val darkAppearanceActive = LocalKanaColors.current.isDark
+        val activeInk = if (darkAppearanceActive) brushInkColorDark else brushInkColor
+        val onPickActiveInk = if (darkAppearanceActive) onSelectBrushColorDark else onSelectBrushColor
         var showColorPicker by remember { mutableStateOf(false) }
         Row(
             modifier = Modifier
@@ -1258,12 +1280,16 @@ private fun ScopeSheetContent(
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    text = "The color your strokes are drawn in.",
+                    text = if (darkAppearanceActive) {
+                        "The color your strokes are drawn in. Dark mode keeps its own ink."
+                    } else {
+                        "The color your strokes are drawn in."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            val ink = Color(brushInkColor)
+            val ink = Color(activeInk)
             val outline = MaterialTheme.colorScheme.outline
             Canvas(modifier = Modifier.size(28.dp)) {
                 drawCircle(ink)
@@ -1272,9 +1298,9 @@ private fun ScopeSheetContent(
         }
         if (showColorPicker) {
             BrushColorPicker(
-                initial = Color(brushInkColor),
+                initial = Color(activeInk),
                 onPick = {
-                    onSelectBrushColor(it.toArgb())
+                    onPickActiveInk(it.toArgb())
                     showColorPicker = false
                 },
                 onDismiss = { showColorPicker = false },
@@ -1313,13 +1339,49 @@ private fun ScopeSheetContent(
         if (showEffectPicker) {
             BrushEffectPicker(
                 selected = brushEffect,
-                inkColor = Color(brushInkColor),
+                inkColor = Color(activeInk),
                 onPick = {
                     onSelectBrushEffect(it)
                     showEffectPicker = false
                 },
                 onDismiss = { showEffectPicker = false },
             )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+        // Appearance — System follows the device's dark-mode setting; Light/Dark
+        // force it. App-controlled end to end (forceDarkAllowed stays false):
+        // dark mode darkens the whole UI INCLUDING the writing paper, which then
+        // uses its own ink (the row above).
+        Text(text = "Appearance", style = MaterialTheme.typography.titleSmall)
+        Text(
+            text = "Dark turns the writing paper dark and gives it its own " +
+                "ink color. System follows your device setting.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            AppearanceMode.entries.forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = mode == appearance,
+                    onClick = { onSetAppearance(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = AppearanceMode.entries.size,
+                    ),
+                    label = {
+                        Text(
+                            text = mode.displayLabel,
+                            fontWeight = if (mode == appearance) {
+                                FontWeight.Bold
+                            } else {
+                                FontWeight.Normal
+                            },
+                        )
+                    },
+                )
+            }
         }
     }
 }
@@ -1681,7 +1743,7 @@ private fun ChartCell(
     modifier: Modifier = Modifier,
 ) {
     // Score tint when scored; otherwise a neutral surface.
-    val container = score?.let { scoreSpectrumColor(it) }
+    val container = score?.let { scoreSpectrumColor(it, LocalKanaColors.current.isDark) }
         ?: MaterialTheme.colorScheme.surfaceVariant
     Box(
         modifier = modifier
@@ -1806,7 +1868,7 @@ private fun WordCard(
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
     // Score tint when scored; otherwise a neutral surface.
-    val container = score?.let { scoreSpectrumColor(it) }
+    val container = score?.let { scoreSpectrumColor(it, LocalKanaColors.current.isDark) }
         ?: MaterialTheme.colorScheme.surfaceVariant
     Box(
         modifier = Modifier
@@ -1961,7 +2023,7 @@ private fun LibraryRow(
 ) {
     // Tint the whole row by score when available; otherwise the default card color.
     val cardColors = score?.let {
-        CardDefaults.cardColors(containerColor = scoreSpectrumColor(it))
+        CardDefaults.cardColors(containerColor = scoreSpectrumColor(it, LocalKanaColors.current.isDark))
     } ?: CardDefaults.cardColors()
     Card(modifier = Modifier.fillMaxWidth(), colors = cardColors) {
         Row(
@@ -2633,7 +2695,7 @@ private fun SelectableRow(
 ) {
     val avg = summary.avgScore()
     val best = summary.bestScore()
-    val container = avg?.let { scoreSpectrumColor(it) }
+    val container = avg?.let { scoreSpectrumColor(it, LocalKanaColors.current.isDark) }
         ?: MaterialTheme.colorScheme.surfaceVariant
     val subtitle = when {
         avg != null && best != null -> "avg $avg · best $best"
@@ -2936,7 +2998,7 @@ private fun SetManagerRow(
     val kindLabel = if (set.type == PracticeSetType.WORDS) "words" else "characters"
     // Tint the whole card by the set's average score, matching the char/word cards.
     val cardColors = score?.let {
-        CardDefaults.cardColors(containerColor = scoreSpectrumColor(it))
+        CardDefaults.cardColors(containerColor = scoreSpectrumColor(it, LocalKanaColors.current.isDark))
     } ?: CardDefaults.cardColors()
     Card(modifier = Modifier.fillMaxWidth(), colors = cardColors) {
         Box(modifier = Modifier.fillMaxWidth()) {
