@@ -1281,7 +1281,7 @@ private fun ScopeSheetContent(
                 )
                 Text(
                     text = if (darkAppearanceActive) {
-                        "The color your strokes are drawn in — dark appearance keeps its own ink."
+                        "The color your strokes are drawn in. Dark mode keeps its own ink."
                     } else {
                         "The color your strokes are drawn in."
                     },

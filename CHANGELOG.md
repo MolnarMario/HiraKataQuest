@@ -20,9 +20,9 @@ listed newest-first by milestone. Detailed provenance lives in
   choose, so nothing changes on update. Dark is a warm, paper-like night theme
   (not a harsh inversion): the writing worksheet itself darkens, with the ghost
   glyph and grid dimmed to match, and your brush gets a **separate ink for dark
-  mode** (a light chalk by default) so strokes stay legible on the dark sheet —
-  the same brush-ink row edits whichever appearance is active. **System**
-  follows your phone's dark-mode setting. Score tints, the score-feedback card,
+  mode** (a light chalk by default) so strokes stay legible on the dark sheet.
+  The same brush-ink row edits whichever appearance is active. **System**
+  follows your phone's own dark-mode setting. Score tints, the score-feedback card,
   and every Library surface get dark-appropriate colors too. (Also fixes a
   latent bug where the status-bar icons could turn invisible on phones set to
   system dark mode.)
