@@ -23,8 +23,17 @@ import java.text.Normalizer
 object RomajiMatch {
 
     /** True when [input] is an acceptable romaji for [expected]. */
-    fun matches(input: String, expected: String): Boolean =
-        canonical(input).isNotEmpty() && canonical(input) == canonical(expected)
+    fun matches(input: String, expected: String): Boolean {
+        val typed = canonical(input)
+        if (typed.isEmpty()) return false
+        val want = canonical(expected)
+        if (typed == want) return true
+        // を: the deck stores its spelling "wo", but the particle is
+        // PRONOUNCED plain "o" (and the mnemonic copy teaches that), so a
+        // learner typing what they hear must pass. One-directional — "wo"
+        // typed for お stays wrong (お is never spelled wo).
+        return want == "wo" && typed == "o"
+    }
 
     /** The comparison form; also handy for tests. */
     fun canonical(raw: String): String {

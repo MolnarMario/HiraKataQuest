@@ -53,4 +53,14 @@ class RomajiMatchTest {
         assertFalse(RomajiMatch.matches("", "ka"))
         assertFalse(RomajiMatch.matches("   ", "ka"))
     }
+
+    @Test
+    fun `wo accepts its spoken reading o, one-directional`() {
+        // を is spelled "wo" in the deck but pronounced plain "o" (the
+        // mnemonic copy teaches exactly that), so typing what you hear passes.
+        assertTrue(RomajiMatch.matches("o", "wo"))
+        assertTrue(RomajiMatch.matches("wo", "wo"))
+        // The reverse stays wrong: お is never spelled wo.
+        assertFalse(RomajiMatch.matches("wo", "o"))
+    }
 }

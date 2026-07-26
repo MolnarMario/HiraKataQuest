@@ -66,6 +66,9 @@ import com.hive.hiragana.drawing.canvas.BrushEffect
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.presentation.components.AutoShrinkText
+import com.hive.hiragana.presentation.components.CustomMnemonicStore
+import com.hive.hiragana.presentation.components.MnemonicBadge
+import com.hive.hiragana.presentation.components.MnemonicHintButton
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.fontScaleFraction
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
@@ -135,6 +138,12 @@ fun QuizScreen(
     // Deck characters for a kana string's reading units — the reading quiz's
     // reveal card uses it for the "print differs" badge (handwritten strokes).
     unitCharactersFor: (String) -> List<HiraganaCharacter> = { emptyList() },
+    // Memory hints: the pre-answer Hint buttons + the reveal chip, plus the
+    // learner's promoted alternates and the picker's selection sink.
+    mnemonicsEnabled: Boolean = true,
+    mnemonicChoices: Map<String, String> = emptyMap(),
+    onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
+    customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
     // Pronunciation (device TTS).
     onSpeak: (String) -> Unit = {},
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
@@ -169,6 +178,10 @@ fun QuizScreen(
                     onSpeak = onSpeak,
                     ttsStatus = ttsStatus,
                     unitCharactersFor = unitCharactersFor,
+                    mnemonicsEnabled = mnemonicsEnabled,
+                    mnemonicChoices = mnemonicChoices,
+                    onChooseMnemonic = onChooseMnemonic,
+                    customMnemonics = customMnemonics,
                 )
             } else {
                 QuizRunning(
@@ -187,6 +200,11 @@ fun QuizScreen(
                     brushEffect = brushEffect,
                     characterForm = characterForm,
                     glyphStrokesFor = glyphStrokesFor,
+                    unitCharactersFor = unitCharactersFor,
+                    mnemonicsEnabled = mnemonicsEnabled,
+                    mnemonicChoices = mnemonicChoices,
+                    onChooseMnemonic = onChooseMnemonic,
+                    customMnemonics = customMnemonics,
                     onSpeak = onSpeak,
                     ttsStatus = ttsStatus,
                 )
@@ -496,6 +514,10 @@ private fun ReadingQuizRunning(
     onSpeak: (String) -> Unit,
     ttsStatus: VoiceStatus,
     unitCharactersFor: (String) -> List<HiraganaCharacter>,
+    mnemonicsEnabled: Boolean,
+    mnemonicChoices: Map<String, String>,
+    onChooseMnemonic: (String, String?) -> Unit,
+    customMnemonics: CustomMnemonicStore,
 ) {
     val current = quiz.current ?: return
     var showExitConfirm by rememberSaveable { mutableStateOf(false) }
@@ -568,6 +590,20 @@ private fun ReadingQuizRunning(
                 modifier = Modifier.padding(top = 20.dp),
             )
 
+            // Pre-answer memory hint: the glyph is the visible prompt, so the
+            // dialog may show it; the keyword hints the hidden SOUND — that is
+            // the point of an opt-in, tap-to-open hint. Renders nothing when no
+            // unit has a mnemonic. Answers record normally either way.
+            if (!quiz.revealed && romajiOk == null && mnemonicsEnabled) {
+                MnemonicHintButton(
+                    unitCharacters = unitCharactersFor(current.answer),
+                    showGlyph = true,
+                    mnemonicChoices = mnemonicChoices,
+                    onChoose = onChooseMnemonic,
+                    customs = customMnemonics,
+                )
+            }
+
             if (quiz.revealed) {
                 ReadingRevealCard(
                     item = current,
@@ -576,6 +612,10 @@ private fun ReadingQuizRunning(
                     onSpeak = onSpeak,
                     ttsStatus = ttsStatus,
                     unitCharacters = unitCharactersFor(current.answer),
+                    mnemonicsEnabled = mnemonicsEnabled,
+                    mnemonicChoices = mnemonicChoices,
+                    onChooseMnemonic = onChooseMnemonic,
+                    customMnemonics = customMnemonics,
                 )
             } else if (romajiOk == null) {
                 Text("What's the reading?", style = MaterialTheme.typography.titleSmall)
@@ -708,6 +748,10 @@ private fun ReadingRevealCard(
     onSpeak: (String) -> Unit,
     ttsStatus: VoiceStatus,
     unitCharacters: List<HiraganaCharacter> = emptyList(),
+    mnemonicsEnabled: Boolean = true,
+    mnemonicChoices: Map<String, String> = emptyMap(),
+    onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
+    customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
 ) {
     val allOk = romajiOk && (meaningOk != false)
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -742,6 +786,16 @@ private fun ReadingRevealCard(
                 unitCharacters = unitCharacters,
                 label = "Looks different in handwriting",
             )
+            // Memory hint for the kana just answered — re-reading the story
+            // right after a recall attempt is when it encodes best.
+            if (mnemonicsEnabled) {
+                MnemonicBadge(
+                    unitCharacters = unitCharacters,
+                    mnemonicChoices = mnemonicChoices,
+                    onChoose = onChooseMnemonic,
+                    customs = customMnemonics,
+                )
+            }
         }
     }
 }
@@ -878,6 +932,11 @@ private fun QuizRunning(
     brushEffect: BrushEffect = BrushEffect.BRUSH,
     characterForm: CharacterForm = CharacterForm.PRINTED,
     glyphStrokesFor: (List<String>) -> List<List<String>> = { emptyList() },
+    unitCharactersFor: (String) -> List<HiraganaCharacter> = { emptyList() },
+    mnemonicsEnabled: Boolean = true,
+    mnemonicChoices: Map<String, String> = emptyMap(),
+    onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
+    customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
     onSpeak: (String) -> Unit = {},
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
@@ -933,26 +992,60 @@ private fun QuizRunning(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 // Hear the reading — the same sound the romaji prompt already
-                // gives, so it never reveals the glyph shape being tested.
-                PronunciationButton(
-                    glyph = current.answer,
-                    status = ttsStatus,
-                    onSpeak = onSpeak,
-                )
+                // gives, so it never reveals the glyph shape being tested. The
+                // Hint shares this row (no new vertical cost in the 0.22
+                // header): its dialog is TEXT-ONLY here (showGlyph = false) —
+                // the shape IS the hidden answer, so no kana, no specimen; the
+                // story's words are the hint (per the owner's decision).
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PronunciationButton(
+                        glyph = current.answer,
+                        status = ttsStatus,
+                        onSpeak = onSpeak,
+                    )
+                    if (!quiz.submitted && mnemonicsEnabled) {
+                        MnemonicHintButton(
+                            unitCharacters = unitCharactersFor(current.answer),
+                            showGlyph = false,
+                            mnemonicChoices = mnemonicChoices,
+                            onChoose = onChooseMnemonic,
+                            customs = customMnemonics,
+                        )
+                    }
+                }
             }
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 // The kana answer appears only after Submit (revealed), so the
-                // learner commits from memory first.
+                // learner commits from memory first. The icon-only memory-hint
+                // pill shares the answer's ROW (never its own row: the 0.22
+                // header column is height-bounded and the Grid switch below
+                // must stay visible on short screens) — a failed recall is
+                // exactly when re-reading the story helps, and the full-glyph
+                // dialog is fine now that the answer is on screen.
                 if (quiz.revealed) {
-                    Text(
-                        text = current.answer,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = 1,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (mnemonicsEnabled) {
+                            MnemonicBadge(
+                                unitCharacters = unitCharactersFor(current.answer),
+                                iconOnly = true,
+                                mnemonicChoices = mnemonicChoices,
+                                onChoose = onChooseMnemonic,
+                                customs = customMnemonics,
+                            )
+                        }
+                        Text(
+                            text = current.answer,
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                        )
+                    }
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

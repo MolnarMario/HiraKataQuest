@@ -4,7 +4,10 @@ import com.hive.hiragana.domain.audio.PronunciationPlayer
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
+import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_STORY_MAX
+import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_TITLE_MAX
 import com.hive.hiragana.domain.model.Grade
+import com.hive.hiragana.domain.model.KanaMnemonic
 import com.hive.hiragana.domain.model.ReadingProgress
 import com.hive.hiragana.domain.repository.ReadingProgressRepository
 import com.hive.hiragana.domain.model.HiraganaCharacter
@@ -316,6 +319,108 @@ class PracticeViewModelTest {
         vm.setActiveScript(Script.KATAKANA)
         advanceUntilIdle()
         assertEquals(true, vm.uiState.value.beginnerMode)
+    }
+
+    /**
+     * The memory-hints toggle defaults ON, persists, publishes into UI state,
+     * and clears the sheet (the chip lives in the paper card's reserved footer
+     * strip, so the strip layout changes — same rule as a brush-effect change).
+     */
+    @Test
+    fun `setMnemonicsEnabled persists and clears the sheet`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        assertEquals(true, vm.uiState.value.mnemonicsEnabled)
+        val clearKey = vm.uiState.value.canvasClearKey
+        vm.setMnemonicsEnabled(false)
+
+        assertEquals(false, vm.uiState.value.mnemonicsEnabled)
+        assertEquals(false, settings.isMnemonicsEnabled())
+        assertEquals(clearKey + 1, vm.uiState.value.canvasClearKey)
+    }
+
+    /** The persisted memory-hints preference must survive a scope-setter rebuild. */
+    @Test
+    fun `mnemonicsEnabled survives a scope-setter rebuild`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.setMnemonicsEnabled(false)
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+
+        assertEquals(false, vm.uiState.value.mnemonicsEnabled)
+    }
+
+    /**
+     * Promoting a mnemonic alternate persists per kana, clears back to the
+     * default with null, and survives a scope-setter rebuild.
+     */
+    @Test
+    fun `chooseMnemonic persists per kana and survives a rebuild`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        vm.chooseMnemonic("あ", "ANTENNA")
+        assertEquals("ANTENNA", vm.uiState.value.mnemonicChoices["あ"])
+        assertEquals("ANTENNA", settings.getMnemonicChoices()["あ"])
+
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+        assertEquals("ANTENNA", vm.uiState.value.mnemonicChoices["あ"])
+
+        vm.chooseMnemonic("あ", null)
+        assertEquals(false, vm.uiState.value.mnemonicChoices.containsKey("あ"))
+        assertEquals(false, settings.getMnemonicChoices().containsKey("あ"))
+    }
+
+    /**
+     * Adding a custom mnemonic stores it (title uppercased + clamped), promotes
+     * it to the kana's default, survives a rebuild, and deleting it restores
+     * the built-in default.
+     */
+    @Test
+    fun `add and delete custom mnemonic`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        vm.addCustomMnemonic("あ", "my apple", "It looks like an apple to me.")
+        val saved = vm.uiState.value.customMnemonics["あ"]!!.single()
+        assertEquals("MY APPLE", saved.keyword)          // uppercased
+        assertEquals("It looks like an apple to me.", saved.story)
+        assertEquals("MY APPLE", vm.uiState.value.mnemonicChoices["あ"])  // now default
+        assertEquals("MY APPLE", settings.getCustomMnemonics()["あ"]!!.single().keyword)
+
+        // Survives a scope-setter rebuild.
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+        assertEquals("MY APPLE", vm.uiState.value.customMnemonics["あ"]!!.single().keyword)
+
+        // Blank input is ignored.
+        vm.addCustomMnemonic("あ", "   ", "   ")
+        assertEquals(1, vm.uiState.value.customMnemonics["あ"]!!.size)
+
+        // Delete removes it and clears the (now-dangling) default choice.
+        vm.deleteCustomMnemonic("あ", "MY APPLE")
+        assertEquals(false, vm.uiState.value.customMnemonics.containsKey("あ"))
+        assertEquals(false, vm.uiState.value.mnemonicChoices.containsKey("あ"))
+        assertEquals(false, settings.getCustomMnemonics().containsKey("あ"))
+    }
+
+    /** A custom title/description longer than the limits is clamped when stored. */
+    @Test
+    fun `custom mnemonic is clamped to the character limits`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.addCustomMnemonic("い", "x".repeat(100), "y".repeat(500))
+        val saved = vm.uiState.value.customMnemonics["い"]!!.single()
+        assertEquals(CUSTOM_MNEMONIC_TITLE_MAX, saved.keyword.length)
+        assertEquals(CUSTOM_MNEMONIC_STORY_MAX, saved.story.length)
     }
 
     /**
@@ -845,6 +950,19 @@ class PracticeViewModelTest {
         override fun setReadingAutoSpeakEnabled(enabled: Boolean) { readingAutoSpeak = enabled }
         override fun isReadingMeaningPractice(): Boolean = readingMeaningPractice
         override fun setReadingMeaningPractice(enabled: Boolean) { readingMeaningPractice = enabled }
+        private var mnemonics = true
+        override fun isMnemonicsEnabled(): Boolean = mnemonics
+        override fun setMnemonicsEnabled(enabled: Boolean) { mnemonics = enabled }
+        private var mnemonicChoices = mapOf<String, String>()
+        override fun getMnemonicChoices(): Map<String, String> = mnemonicChoices
+        override fun setMnemonicChoices(choices: Map<String, String>) {
+            mnemonicChoices = choices
+        }
+        private var customMnemonics = mapOf<String, List<KanaMnemonic>>()
+        override fun getCustomMnemonics(): Map<String, List<KanaMnemonic>> = customMnemonics
+        override fun setCustomMnemonics(customs: Map<String, List<KanaMnemonic>>) {
+            customMnemonics = customs
+        }
         override fun getCharacterForm(): CharacterForm = characterForm
         override fun setCharacterForm(form: CharacterForm) { characterForm = form }
         private var appModeValue: AppMode? = null

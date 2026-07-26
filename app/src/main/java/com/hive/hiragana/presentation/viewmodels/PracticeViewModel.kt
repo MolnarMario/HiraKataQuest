@@ -11,7 +11,10 @@ import com.hive.hiragana.domain.audio.PronunciationPlayer
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.DefaultPracticeSets
 import com.hive.hiragana.domain.model.Grade
+import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_STORY_MAX
+import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_TITLE_MAX
 import com.hive.hiragana.domain.model.HiraganaCharacter
+import com.hive.hiragana.domain.model.KanaMnemonic
 import com.hive.hiragana.domain.model.PracticeAttempt
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.KanaUnits
@@ -324,6 +327,19 @@ data class PracticeUiState(
     // Whether the Reading flashcards also test the word's MEANING after the
     // reading (words only — characters have none). Persisted; default false.
     val readingMeaningPractice: Boolean = false,
+    // Whether memory hints (mnemonics) show: the "How to remember" chip in
+    // free practice and on answer reveals, plus the quiz/flashcard Hint
+    // buttons (persisted; default true). Display-only — never touches
+    // scoring, attempts, or scheduling.
+    val mnemonicsEnabled: Boolean = true,
+    // The learner's per-kana mnemonic choices (glyph -> promoted alternate's
+    // keyword; absent = the default). Persisted. Display-only.
+    val mnemonicChoices: Map<String, String> = emptyMap(),
+    // The learner's own ("Add your own") mnemonics: glyph -> the entries they
+    // authored (title/description). Merged with the built-ins in the dialog;
+    // creating one promotes it to that kana's default (via mnemonicChoices).
+    // Persisted. Display-only.
+    val customMnemonics: Map<String, List<KanaMnemonic>> = emptyMap(),
 ) {
     /**
      * The scoped study deck: the active script, minus voiced kana / yōon /
@@ -495,6 +511,9 @@ class PracticeViewModel(
             autoNarrateEnabled = settingsRepository.isAutoNarrateEnabled(),
             readingAutoSpeakEnabled = settingsRepository.isReadingAutoSpeakEnabled(),
             readingMeaningPractice = settingsRepository.isReadingMeaningPractice(),
+            mnemonicsEnabled = settingsRepository.isMnemonicsEnabled(),
+            mnemonicChoices = settingsRepository.getMnemonicChoices(),
+            customMnemonics = settingsRepository.getCustomMnemonics(),
         ),
     )
     val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
@@ -943,6 +962,9 @@ class PracticeViewModel(
         autoNarrateEnabled = autoNarrateEnabled,
         readingAutoSpeakEnabled = readingAutoSpeakEnabled,
         readingMeaningPractice = readingMeaningPractice,
+        mnemonicsEnabled = mnemonicsEnabled,
+        mnemonicChoices = mnemonicChoices,
+        customMnemonics = customMnemonics,
         canvasClearKey = canvasClearKey + 1,
     )
 
@@ -1148,6 +1170,21 @@ class PracticeViewModel(
     }
 
     /**
+     * Clears the writing sheet plus any pending FREE feedback that would
+     * otherwise float over it — the shared tail of every setter whose change
+     * invalidates committed ink or the paper card's strip layout
+     * ([setPracticeLayout], [setBrushEffect], [setMnemonicsEnabled]).
+     */
+    private fun PracticeUiState.withClearedSheet(): PracticeUiState = copy(
+        freeSubmitted = false,
+        lastScore = null,
+        lastScoredCharacter = null,
+        lastWordScores = null,
+        lastWordAverage = null,
+        canvasClearKey = canvasClearKey + 1,
+    )
+
+    /**
      * Brush effect picker (persisted). Unlike the ink color, an effect bakes
      * different geometry into committed ink, so switching clears the current
      * sheet (same rule as a layout change — see [setPracticeLayout]) and drops
@@ -1157,15 +1194,7 @@ class PracticeViewModel(
         _uiState.update { state ->
             if (state.brushEffect == effect) return@update state
             settingsRepository.setBrushEffect(effect)
-            state.copy(
-                brushEffect = effect,
-                freeSubmitted = false,
-                lastScore = null,
-                lastScoredCharacter = null,
-                lastWordScores = null,
-                lastWordAverage = null,
-                canvasClearKey = state.canvasClearKey + 1,
-            )
+            state.copy(brushEffect = effect).withClearedSheet()
         }
     }
 
@@ -1212,6 +1241,79 @@ class PracticeViewModel(
     }
 
     /**
+     * Memory-hints (mnemonics) toggle (Study-scope sheet, both modes). When
+     * on, the "How to remember" chip and the quiz/flashcard Hint buttons show
+     * wherever a kana has a mnemonic. Persisted; display-only for scoring.
+     * The chip lives in the paper card's reserved footer strip, so toggling
+     * changes the sheet's strip layout — clear the sheet like [setBrushEffect]
+     * (strip heights must stay constant under px-stored ink) and drop any
+     * pending FREE feedback with it.
+     */
+    fun setMnemonicsEnabled(enabled: Boolean) {
+        _uiState.update { state ->
+            if (state.mnemonicsEnabled == enabled) return@update state
+            settingsRepository.setMnemonicsEnabled(enabled)
+            state.copy(mnemonicsEnabled = enabled).withClearedSheet()
+        }
+    }
+
+    /**
+     * Promotes one kana's mnemonic alternate (the "More ways to remember"
+     * picker in the mnemonic dialog); a null [keyword] restores the default.
+     * Persisted per kana. Display-only, so no sheet clear: the chip and
+     * dialog just resolve a different entry from now on.
+     */
+    fun chooseMnemonic(glyph: String, keyword: String?) {
+        val current = _uiState.value.mnemonicChoices
+        val updated = if (keyword == null) current - glyph else current + (glyph to keyword)
+        if (updated == current) return
+        settingsRepository.setMnemonicChoices(updated)
+        _uiState.update { it.copy(mnemonicChoices = updated) }
+    }
+
+    /**
+     * Saves a learner-authored ("Add your own") mnemonic for [glyph] and
+     * promotes it to that kana's default. Title/description are trimmed,
+     * clamped to [CUSTOM_MNEMONIC_TITLE_MAX]/[CUSTOM_MNEMONIC_STORY_MAX], and
+     * the title uppercased (like the built-in keywords). A same-title entry for
+     * the glyph is replaced rather than duplicated. No-ops on blank input.
+     */
+    fun addCustomMnemonic(glyph: String, title: String, description: String) {
+        val cleanTitle = title.trim().uppercase().take(CUSTOM_MNEMONIC_TITLE_MAX)
+        val cleanStory = description.trim().take(CUSTOM_MNEMONIC_STORY_MAX)
+        if (cleanTitle.isBlank() || cleanStory.isBlank()) return
+        val entry = KanaMnemonic(keyword = cleanTitle, story = cleanStory)
+        val current = _uiState.value.customMnemonics
+        val forGlyph = current[glyph].orEmpty().filterNot { it.keyword == cleanTitle } + entry
+        val updatedCustoms = current + (glyph to forGlyph)
+        // Creating it makes it this kana's default (the shown mnemonic).
+        val updatedChoices = _uiState.value.mnemonicChoices + (glyph to cleanTitle)
+        settingsRepository.setCustomMnemonics(updatedCustoms)
+        settingsRepository.setMnemonicChoices(updatedChoices)
+        _uiState.update {
+            it.copy(customMnemonics = updatedCustoms, mnemonicChoices = updatedChoices)
+        }
+    }
+
+    /**
+     * Deletes a learner-authored mnemonic. If it was the current default, the
+     * choice is cleared so the kana falls back to its built-in default.
+     */
+    fun deleteCustomMnemonic(glyph: String, title: String) {
+        val current = _uiState.value.customMnemonics
+        val remaining = current[glyph].orEmpty().filterNot { it.keyword == title }
+        val updatedCustoms = if (remaining.isEmpty()) current - glyph else current + (glyph to remaining)
+        if (updatedCustoms == current) return
+        settingsRepository.setCustomMnemonics(updatedCustoms)
+        var choices = _uiState.value.mnemonicChoices
+        if (choices[glyph] == title) {
+            choices = choices - glyph
+            settingsRepository.setMnemonicChoices(choices)
+        }
+        _uiState.update { it.copy(customMnemonics = updatedCustoms, mnemonicChoices = choices) }
+    }
+
+    /**
      * Beginner-mode toggle (opening screen). When on, the kana-concept ⓘ help
      * icons + the "New to kana?" overview are shown; off (default) hides them so
      * the screens stay uncluttered. Persisted; a display preference only.
@@ -1234,15 +1336,7 @@ class PracticeViewModel(
         _uiState.update { state ->
             if (state.practiceLayout == layout) return@update state
             settingsRepository.setPracticeLayout(layout)
-            state.copy(
-                practiceLayout = layout,
-                freeSubmitted = false,
-                lastScore = null,
-                lastScoredCharacter = null,
-                lastWordScores = null,
-                lastWordAverage = null,
-                canvasClearKey = state.canvasClearKey + 1,
-            )
+            state.copy(practiceLayout = layout).withClearedSheet()
         }
     }
 

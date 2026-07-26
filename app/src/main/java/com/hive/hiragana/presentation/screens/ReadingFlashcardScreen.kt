@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
@@ -66,10 +67,35 @@ import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.MeaningMatch
 import com.hive.hiragana.domain.model.PrintDivergence
 import com.hive.hiragana.domain.model.RomajiMatch
+import com.hive.hiragana.presentation.components.CustomMnemonicStore
+import com.hive.hiragana.presentation.components.MnemonicBadge
+import com.hive.hiragana.presentation.components.MnemonicHintButton
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.viewmodels.ReadingFlashcardState
 import kotlin.random.Random
+
+// The reveal region's FIXED reserved height. It is reserved in every state
+// (blank/Hint before answering, the result after) and the glyph takes the
+// leftover above it — so the glyph box, hence the glyph, is identical in the
+// question and answer states and nothing jumps on reveal. Sized to hold the
+// tallest reveal we show: Correct!/Not quite + the reading·audio·meaning row +
+// the badges row (the "Looks different" badge and the "How to remember" chip
+// share ONE row — the chip goes icon-only when the badge is also present, the
+// same rule the practice footer uses — so this stays 3 rows, never 4).
+//
+// ⚠️ IF YOU ADD A REVEAL ROW (or un-share the badges): raise this so it still
+// fits. Do NOT drop the reserve / switch to wrapContentHeight / shrink the
+// bottom section to "make room" — that regrows the card and makes the glyph
+// jump. Under-sizing this reserve is what clipped the mnemonic chip on device
+// (2026-07-26); the verticalScroll on the reveal is only an extreme-font safety.
+private val RevealReserve = 132.dp
+
+// A single answer-option row height. Every bottom-section slot uses it so the
+// section is the same height whether it shows the options or just Next (with
+// blank spacers for the spent slots) — that constant height keeps the card
+// above from resizing, so the glyph doesn't jump on reveal.
+private val OptionSlotHeight = 52.dp
 
 /**
  * Reading-track flashcard study: flip through the scoped deck/words. The front
@@ -95,13 +121,16 @@ import kotlin.random.Random
  * percentages; only the reading quiz writes `reading_progress`.
  *
  * Layout: the glyph and the result/meaning region get FIXED shares of the card
- * height, so the word stays the same size before and after the result shows
- * (the result region is reserved even while blank, and scrolls if it can't fit
- * rather than shrinking the glyph). Nothing clips when the keyboard shrinks the
- * window (adjustResize; on API 30+ the IME arrives via PracticeScreen's
- * safeDrawing inset host instead). The field keeps focus across card flips, so
- * the keyboard stays open for a smooth run; it only closes when switching to
- * Multiple choice.
+ * ([GLYPH_SHARE]/[REVEAL_SHARE]) and the bottom section reserves a constant
+ * height ([OptionSlotHeight] per slot), so the card never resizes and the glyph
+ * stays the same size AND position before and after the result shows — nothing
+ * jumps on reveal. The reveal gets the larger share, sized to hold all its rows
+ * (result + reading + the "Looks different" badge + the "How to remember" chip)
+ * so none of them clip; its verticalScroll is only a small-screen / large-font
+ * safety. Nothing clips when the keyboard shrinks the window (adjustResize; on
+ * API 30+ the IME arrives via PracticeScreen's safeDrawing inset host instead).
+ * The field keeps focus across card flips, so the keyboard stays open for a
+ * smooth run; it only closes when switching to Multiple choice.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -119,6 +148,13 @@ fun ReadingFlashcardScreen(
     // Whether to also test the word's meaning after the reading (words only).
     testMeaning: Boolean = false,
     onSetTestMeaning: (Boolean) -> Unit = {},
+    // Memory hints: the pre-answer Hint button + the "How to remember" chip
+    // on the reveal (both render only where a kana has a mnemonic), plus the
+    // learner's promoted alternates and the picker's selection sink.
+    mnemonicsEnabled: Boolean = true,
+    mnemonicChoices: Map<String, String> = emptyMap(),
+    onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
+    customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
     modifier: Modifier = Modifier,
 ) {
     val card = state.current ?: return
@@ -144,17 +180,15 @@ fun ReadingFlashcardScreen(
         readingChoiceOptions(card.meaning.orEmpty(), state.cards.mapNotNull { it.meaning }, state.index + 7)
     }
 
-    // Whether this card carries a "Looks different in handwriting" badge (さ/き/り
-    // and their voiced/yōon variants). It's a per-card constant, so widening the
-    // reveal region's share of the card for these cards doesn't resize the glyph
-    // on reveal — it just gives the extra badge room to sit in view without a
-    // scroll. Card sizes to content share: glyph 0.6/reveal 0.4 normally, an
-    // even 0.5/0.5 when the badge is present.
-    val hasDivergenceBadge = remember(card.glyph) {
-        unitCharactersFor(card.glyph).any { PrintDivergence.noteFor(it.character) != null }
+    // The card's reading units, resolved once per card (the reveal badges and
+    // the hint all need them).
+    val cardUnits = remember(card.glyph) { unitCharactersFor(card.glyph) }
+    // Whether this card also carries the "Looks different in handwriting" badge
+    // (only さ/き/り). When it does, the mnemonic chip beside it goes icon-only
+    // so the two fit one row (keeps the reveal at 3 rows — see RevealReserve).
+    val hasDivergence = remember(cardUnits) {
+        cardUnits.any { PrintDivergence.noteFor(it.character) != null }
     }
-    val glyphWeight = if (hasDivergenceBadge) 0.5f else 0.6f
-    val revealWeight = if (hasDivergenceBadge) 0.5f else 0.4f
 
     // Reading answered but the meaning still owed — the intermediate step
     // before the card reveals.
@@ -330,13 +364,20 @@ fun ReadingFlashcardScreen(
                                 .padding(horizontal = 20.dp, vertical = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            // The glyph gets a FIXED share of the card height, so
-                            // it stays the same size whether or not the result is
-                            // showing (it no longer shrinks on reveal).
+                            // The glyph takes the LEFTOVER above the reveal's fixed
+                            // reserve ([RevealReserve]). Because that reserve is a
+                            // constant and the card height is constant (the bottom
+                            // section reserves a constant height — see below), the
+                            // glyph's box is identical in the question and answer
+                            // states, so the glyph stays the exact same size AND
+                            // position when you answer. Nothing jumps on reveal.
+                            // FlashcardGlyph also size-caps itself, so extra
+                            // leftover on a tall screen is just padding, never a
+                            // stretched glyph.
                             BoxWithConstraints(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(glyphWeight),
+                                    .weight(1f),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 FlashcardGlyph(
@@ -345,14 +386,15 @@ fun ReadingFlashcardScreen(
                                     boxHeight = this.maxHeight,
                                 )
                             }
-                            // Reserved result/meaning region — the other fixed
-                            // share, blank until answered. Centered content;
-                            // scrolls if a long meaning + badge exceeds its share
-                            // so it can never clip.
+                            // Result/meaning region: the FIXED [RevealReserve]
+                            // height (see its doc for the sizing rule + the ⚠️
+                            // warning), reserved in both states so the glyph above
+                            // never moves. verticalScroll is an extreme-font safety
+                            // only; at normal sizes nothing scrolls.
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(revealWeight)
+                                    .height(RevealReserve)
                                     .verticalScroll(rememberScrollState()),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(gap, Alignment.CenterVertically),
@@ -424,13 +466,32 @@ fun ReadingFlashcardScreen(
                                         }
                                     }
                                 }
-                                // Reading track shows the printed form, so warn when
-                                // the handwritten one looks different (renders
-                                // nothing for unaffected kana).
-                                PrintDivergenceBadge(
-                                    unitCharacters = unitCharactersFor(card.glyph),
-                                    label = "Looks different in handwriting",
-                                )
+                                // Both badges share ONE row so the reveal stays 3
+                                // rows (see RevealReserve). The divergence warning
+                                // (only さ/き/り) keeps its text; the mnemonic chip
+                                // goes icon-only when the divergence badge is also
+                                // present so the pair fits 360dp — the same rule
+                                // the practice footer uses. Each badge renders
+                                // nothing when it has no content, so this Row is
+                                // usually just the mnemonic chip (or empty).
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    PrintDivergenceBadge(
+                                        unitCharacters = cardUnits,
+                                        label = "Looks different in handwriting",
+                                    )
+                                    if (mnemonicsEnabled) {
+                                        MnemonicBadge(
+                                            unitCharacters = cardUnits,
+                                            iconOnly = hasDivergence,
+                                            mnemonicChoices = mnemonicChoices,
+                                            onChoose = onChooseMnemonic,
+                                            customs = customMnemonics,
+                                        )
+                                    }
+                                }
                             } else if (inMeaningPhase) {
                                 // Reading answered — confirm it, then ask the meaning.
                                 Row(
@@ -447,6 +508,20 @@ fun ReadingFlashcardScreen(
                                 Text(
                                     text = "What does it mean?",
                                     style = MaterialTheme.typography.titleMedium,
+                                )
+                            } else if (mnemonicsEnabled) {
+                                // Pre-answer: the reserved result region is
+                                // otherwise blank, so the Hint sits here and is
+                                // replaced by the result on reveal — nothing
+                                // moves. The glyph is the visible prompt, so
+                                // the dialog may show the specimen; the keyword
+                                // hints the hidden sound.
+                                MnemonicHintButton(
+                                    unitCharacters = cardUnits,
+                                    showGlyph = true,
+                                    mnemonicChoices = mnemonicChoices,
+                                    onChoose = onChooseMnemonic,
+                                    customs = customMnemonics,
                                 )
                             }
                             }
@@ -519,31 +594,35 @@ fun ReadingFlashcardScreen(
                 } else {
                     // Multiple choice: tap the reading, then (if testing meaning)
                     // tap the meaning, then Next advances.
+                    // Every slot is a FIXED height so this bottom section is the
+                    // same height whether it shows the answer options or just
+                    // Next — which keeps the CARD above a constant height, so the
+                    // glyph never resizes/jumps on reveal (the card's fixed
+                    // glyph/reveal split depends on this constant height). The
+                    // reveal state reserves the spent option rows as BLANK spacers
+                    // (not disabled pills — those read as broken buttons; the
+                    // learner just sees clean space below Next).
+                    //
+                    // ⚠️ Do NOT collapse the reveal state to Next-only: that
+                    // shrinks the bottom, grows the card, and makes the glyph jump.
                     when {
                         state.revealed -> {
-                            // Keep the SAME number of button rows as the answering
-                            // state so the card above doesn't grow/shrink between
-                            // the question and the result: Next on top, then the
-                            // spent option slots as empty greyed (disabled) pills —
-                            // no leftover text to distract, just placeholders that
-                            // hold the height.
-                            val shown = if (needMeaning) meaningOptions else readingOptions
-                            Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
+                            val slots = if (needMeaning) meaningOptions else readingOptions
+                            Button(
+                                onClick = onNext,
+                                modifier = Modifier.fillMaxWidth().height(OptionSlotHeight),
+                            ) {
                                 Text("Next")
                             }
-                            repeat((shown.size - 1).coerceAtLeast(0)) {
-                                OutlinedButton(
-                                    onClick = {},
-                                    enabled = false,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {}
+                            repeat((slots.size - 1).coerceAtLeast(0)) {
+                                Spacer(modifier = Modifier.fillMaxWidth().height(OptionSlotHeight))
                             }
                         }
                         inMeaningPhase ->
                             meaningOptions.forEach { option ->
                                 OutlinedButton(
                                     onClick = { answerMeaning(option == card.meaning) },
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth().height(OptionSlotHeight),
                                 ) {
                                     Text(option)
                                 }
@@ -552,7 +631,7 @@ fun ReadingFlashcardScreen(
                             readingOptions.forEach { option ->
                                 OutlinedButton(
                                     onClick = { answerReading(option == card.romaji) },
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth().height(OptionSlotHeight),
                                 ) {
                                     Text(option)
                                 }

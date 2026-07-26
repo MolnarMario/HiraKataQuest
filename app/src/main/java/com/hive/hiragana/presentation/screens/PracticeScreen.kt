@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
+import com.hive.hiragana.domain.model.KanaMnemonics
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.PrintDivergence
 import com.hive.hiragana.domain.audio.VoiceStatus
@@ -46,7 +47,9 @@ import com.hive.hiragana.presentation.viewmodels.SessionPhase
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.presentation.components.CharacterGuidePanel
+import com.hive.hiragana.presentation.components.CustomMnemonicStore
 import com.hive.hiragana.presentation.components.FreePracticeActionBar
+import com.hive.hiragana.presentation.components.MnemonicBadge
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
@@ -68,6 +71,16 @@ fun PracticeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val canvasState = remember { CanvasState() }
+
+    // The learner's own mnemonics + add/delete sinks, bundled once for every
+    // mnemonic dialog surface (footer chip, flashcards, both quizzes).
+    val customMnemonicStore = remember(uiState.customMnemonics) {
+        CustomMnemonicStore(
+            byGlyph = uiState.customMnemonics,
+            onAdd = viewModel::addCustomMnemonic,
+            onDelete = viewModel::deleteCustomMnemonic,
+        )
+    }
 
     // Re-check the Japanese TTS voice each time the app resumes, so a voice the
     // user just installed (via the pronunciation button's download prompt)
@@ -219,6 +232,10 @@ fun PracticeScreen(
                     onSetAnswerStyle = viewModel::setReadingAnswerStyle,
                     onSetTestMeaning = viewModel::setReadingTestMeaning,
                     unitCharactersFor = uiState::unitCharacters,
+                    mnemonicsEnabled = uiState.mnemonicsEnabled,
+                    mnemonicChoices = uiState.mnemonicChoices,
+                    onChooseMnemonic = viewModel::chooseMnemonic,
+                    customMnemonics = customMnemonicStore,
                     onSpeak = viewModel::speakTts,
                     ttsStatus = uiState.ttsStatus,
                 )
@@ -236,6 +253,10 @@ fun PracticeScreen(
                     unitCharactersFor = uiState::unitCharacters,
                     testMeaning = uiState.readingMeaningPractice,
                     onSetTestMeaning = viewModel::setReadingMeaningPractice,
+                    mnemonicsEnabled = uiState.mnemonicsEnabled,
+                    mnemonicChoices = uiState.mnemonicChoices,
+                    onChooseMnemonic = viewModel::chooseMnemonic,
+                    customMnemonics = customMnemonicStore,
                 )
             }
 
@@ -310,6 +331,8 @@ fun PracticeScreen(
                     onSetAutoNarrate = viewModel::setAutoNarrate,
                     readingAutoSpeakEnabled = uiState.readingAutoSpeakEnabled,
                     onSetReadingAutoSpeak = viewModel::setReadingAutoSpeak,
+                    mnemonicsEnabled = uiState.mnemonicsEnabled,
+                    onSetMnemonics = viewModel::setMnemonicsEnabled,
                     practiceSets = uiState.practiceSets,
                     onSaveSet = viewModel::savePracticeSet,
                     onUpdateSetMembers = viewModel::updatePracticeSetMembers,
@@ -424,13 +447,17 @@ private fun PracticeContent(
             // ever fills the strip, so it isn't reserved at all.
             val wordScores = uiState.lastWordScores
             val isWordSheet = uiState.canvasGlyphs.size > 1
-            // The "Looks different in print" units for this sheet — the
-            // footer strip below the writing square is only reserved when
-            // there is something to say there (or a word average to show).
-            val divergenceUnits = activeWord?.let(uiState::wordUnitCharacters)
+            // The footer strip below the writing square is only reserved when
+            // there is something to say there: a "Looks different in print"
+            // divergence, a memory hint ("How to remember"), or a word average
+            // after a scored word submit.
+            val footerUnits = activeWord?.let(uiState::wordUnitCharacters)
                 ?: listOfNotNull(character)
-            val hasDivergence = divergenceUnits.any {
+            val hasDivergence = footerUnits.any {
                 PrintDivergence.noteFor(it.character) != null
+            }
+            val hasMnemonic = uiState.mnemonicsEnabled && footerUnits.any {
+                KanaMnemonics.mnemonicFor(it.character) != null
             }
             val scoredSheet = uiState.scoringMode != ScoringMode.OFF &&
                 uiState.practiceLayout == PracticeLayout.SINGLE
@@ -471,13 +498,41 @@ private fun PracticeContent(
                 // average taking precedence). Reserved structurally so the
                 // chip can never overlap the square's border (it did when it
                 // floated on whatever margin was left).
-                footerHeight = if (hasDivergence || (isWordSheet && scoredSheet)) 44.dp else 0.dp,
+                footerHeight = if (hasDivergence || hasMnemonic || (isWordSheet && scoredSheet)) {
+                    44.dp
+                } else {
+                    0.dp
+                },
                 footer = {
                     val avg = uiState.lastWordAverage
                     if (wordScores != null && avg != null) {
                         WordAverageCard(average = avg)
                     } else {
-                        PrintDivergenceBadge(unitCharacters = divergenceUnits)
+                        // A plain Row, NOT a FlowRow (whose overflow silently
+                        // drops children on compact screens). Both chips
+                        // co-occur only on さ/き/り sheets (and words holding
+                        // them); two full-text pills don't fit a 360dp strip,
+                        // so the mnemonic chip collapses to icon-only and the
+                        // rarer divergence warning keeps its text.
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (hasMnemonic) {
+                                MnemonicBadge(
+                                    unitCharacters = footerUnits,
+                                    iconOnly = hasDivergence,
+                                    mnemonicChoices = uiState.mnemonicChoices,
+                                    onChoose = viewModel::chooseMnemonic,
+                                    customs = CustomMnemonicStore(
+                                        byGlyph = uiState.customMnemonics,
+                                        onAdd = viewModel::addCustomMnemonic,
+                                        onDelete = viewModel::deleteCustomMnemonic,
+                                    ),
+                                )
+                            }
+                            PrintDivergenceBadge(unitCharacters = footerUnits)
+                        }
                     }
                 },
                 modifier = Modifier

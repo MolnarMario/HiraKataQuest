@@ -2,8 +2,11 @@ package com.hive.hiragana.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
 import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
+import com.hive.hiragana.domain.model.KanaMnemonic
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.repository.SettingsRepository
@@ -140,6 +143,66 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putBoolean(KEY_READING_MEANING_PRACTICE, enabled).apply()
     }
 
+    override fun isMnemonicsEnabled(): Boolean =
+        prefs.getBoolean(KEY_MNEMONICS_ENABLED, true)
+
+    override fun setMnemonicsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_MNEMONICS_ENABLED, enabled).apply()
+    }
+
+    // Encoded as one line per choice, "glyph=KEYWORD" (kana glyphs and the
+    // uppercase keywords never contain '=' or a newline) — a whole Room table
+    // for at most 46 tiny picks would be overkill.
+    override fun getMnemonicChoices(): Map<String, String> =
+        prefs.getString(KEY_MNEMONIC_CHOICES, null)
+            .orEmpty()
+            .lineSequence()
+            .mapNotNull { line ->
+                val i = line.indexOf('=')
+                if (i <= 0 || i == line.length - 1) null
+                else line.substring(0, i) to line.substring(i + 1)
+            }
+            .toMap()
+
+    override fun setMnemonicChoices(choices: Map<String, String>) {
+        val encoded = choices.entries.joinToString("\n") { "${it.key}=${it.value}" }
+        prefs.edit().putString(KEY_MNEMONIC_CHOICES, encoded).apply()
+    }
+
+    // Custom mnemonics carry free-form title/description text (newlines, '=',
+    // any character), so the line-based encoding above won't do — store them as
+    // JSON via the platform org.json (the same parser the asset loader uses; no
+    // new dependency). Shape: { "<glyph>": [ {"t": title, "d": description}, … ] }
+    override fun getCustomMnemonics(): Map<String, List<KanaMnemonic>> {
+        val raw = prefs.getString(KEY_CUSTOM_MNEMONICS, null) ?: return emptyMap()
+        return runCatching {
+            val root = JSONObject(raw)
+            buildMap {
+                for (glyph in root.keys()) {
+                    val arr = root.getJSONArray(glyph)
+                    val list = (0 until arr.length()).map { i ->
+                        val o = arr.getJSONObject(i)
+                        KanaMnemonic(keyword = o.getString("t"), story = o.getString("d"))
+                    }
+                    if (list.isNotEmpty()) put(glyph, list)
+                }
+            }
+        }.getOrDefault(emptyMap())
+    }
+
+    override fun setCustomMnemonics(customs: Map<String, List<KanaMnemonic>>) {
+        val root = JSONObject()
+        for ((glyph, list) in customs) {
+            if (list.isEmpty()) continue
+            val arr = JSONArray()
+            for (m in list) {
+                arr.put(JSONObject().put("t", m.keyword).put("d", m.story))
+            }
+            root.put(glyph, arr)
+        }
+        prefs.edit().putString(KEY_CUSTOM_MNEMONICS, root.toString()).apply()
+    }
+
     override fun getCharacterForm(): CharacterForm =
         CharacterForm.fromPrefValue(prefs.getString(KEY_CHARACTER_FORM, null))
 
@@ -181,6 +244,9 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_AUTO_NARRATE = "auto_narrate_enabled"
         const val KEY_READING_AUTO_SPEAK = "reading_auto_speak_enabled"
         const val KEY_READING_MEANING_PRACTICE = "reading_meaning_practice"
+        const val KEY_MNEMONICS_ENABLED = "mnemonics_enabled"
+        const val KEY_MNEMONIC_CHOICES = "mnemonic_choices"
+        const val KEY_CUSTOM_MNEMONICS = "custom_mnemonics"
         const val KEY_CHARACTER_FORM = "character_form"
         const val KEY_APP_MODE = "app_mode"
         const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"

@@ -2,6 +2,7 @@ package com.hive.hiragana.domain.repository
 
 import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
+import com.hive.hiragana.domain.model.KanaMnemonic
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.scoring.ScoringMode
@@ -168,6 +169,39 @@ interface SettingsRepository {
     fun isReadingMeaningPractice(): Boolean
 
     fun setReadingMeaningPractice(enabled: Boolean)
+
+    /**
+     * Whether memory hints (mnemonics) are shown: the "How to remember" chip
+     * in free practice and on answer reveals, and the Hint buttons in the
+     * quizzes and flashcards. Default true — the base gojūon audience is
+     * exactly who mnemonics serve; learners who have outgrown them switch
+     * off. Display-only: never affects scoring, attempts, or scheduling.
+     */
+    fun isMnemonicsEnabled(): Boolean
+
+    fun setMnemonicsEnabled(enabled: Boolean)
+
+    /**
+     * The learner's per-kana mnemonic choices: glyph -> the promoted
+     * alternate's keyword. A kana absent from the map uses its default
+     * mnemonic. Everyone's brain hooks onto different images, so the "More
+     * ways to remember" picker lets each learner promote what works for them.
+     */
+    fun getMnemonicChoices(): Map<String, String>
+
+    /** Replaces the stored choices with [choices] (the caller edits the map). */
+    fun setMnemonicChoices(choices: Map<String, String>)
+
+    /**
+     * The learner's own ("Add your own") mnemonics: glyph -> the custom entries
+     * they authored for it (title as [KanaMnemonic.keyword], description as
+     * [KanaMnemonic.story], never an overlay). Merged with the built-in
+     * candidates in the UI; a glyph absent from the map has none.
+     */
+    fun getCustomMnemonics(): Map<String, List<KanaMnemonic>>
+
+    /** Replaces the stored custom mnemonics with [customs]. */
+    fun setCustomMnemonics(customs: Map<String, List<KanaMnemonic>>)
 
     /**
      * Which character form the traced ghost shows: [CharacterForm.PRINTED]

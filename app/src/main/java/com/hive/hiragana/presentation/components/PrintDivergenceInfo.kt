@@ -240,10 +240,11 @@ private fun Specimen(label: String, content: @Composable () -> Unit) {
 /**
  * A glyph drawn from SVG stroke path strings as clean centerlines (no
  * stroke-order badges — this is a shape specimen, not a how-to-draw diagram;
- * the guide panel's preview teaches order).
+ * the guide panel's preview teaches order). Internal: MnemonicInfo's dialog
+ * specimen reuses it as the grey base under the overlay accents.
  */
 @Composable
-private fun StrokesGlyph(
+internal fun StrokesGlyph(
     strokes: List<String>,
     viewBox: Float,
     modifier: Modifier = Modifier,
