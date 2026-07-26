@@ -3,6 +3,7 @@ package com.hive.hiragana.presentation.viewmodels
 import com.hive.hiragana.domain.audio.PronunciationPlayer
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.AppMode
+import com.hive.hiragana.domain.model.AppearanceMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_STORY_MAX
 import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_TITLE_MAX
@@ -275,6 +276,65 @@ class PracticeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(true, vm.uiState.value.autoNarrateEnabled)
+    }
+
+    /** The appearance selector persists, publishes, and never clears the sheet. */
+    @Test
+    fun `setAppearance persists and updates state`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        assertEquals(AppearanceMode.LIGHT, vm.uiState.value.appearance)
+        val clearKey = vm.uiState.value.canvasClearKey
+        vm.setAppearance(AppearanceMode.DARK)
+
+        assertEquals(AppearanceMode.DARK, vm.uiState.value.appearance)
+        assertEquals(AppearanceMode.DARK, settings.getAppearance())
+        // A theme flip recolors but never moves the sheet — no clear.
+        assertEquals(clearKey, vm.uiState.value.canvasClearKey)
+    }
+
+    /** The persisted appearance must survive a scope-setter rebuild. */
+    @Test
+    fun `appearance survives a scope-setter rebuild`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.setAppearance(AppearanceMode.DARK)
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+
+        assertEquals(AppearanceMode.DARK, vm.uiState.value.appearance)
+    }
+
+    /** The dark ink persists and, like the light ink, never clears the sheet. */
+    @Test
+    fun `setBrushInkColorDark persists and does not clear the sheet`() = runTest(dispatcher) {
+        val settings = FakeSettingsRepository()
+        val vm = buildViewModel(settings = settings)
+        advanceUntilIdle()
+
+        assertEquals(0xFFEFE7DA.toInt(), vm.uiState.value.brushInkColorDark)
+        val clearKey = vm.uiState.value.canvasClearKey
+        vm.setBrushInkColorDark(0xFF112233.toInt())
+
+        assertEquals(0xFF112233.toInt(), vm.uiState.value.brushInkColorDark)
+        assertEquals(0xFF112233.toInt(), settings.getBrushInkColorDark())
+        assertEquals(clearKey, vm.uiState.value.canvasClearKey)
+    }
+
+    /** The persisted dark ink must survive a scope-setter rebuild. */
+    @Test
+    fun `brushInkColorDark survives a scope-setter rebuild`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.setBrushInkColorDark(0xFF112233.toInt())
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+
+        assertEquals(0xFF112233.toInt(), vm.uiState.value.brushInkColorDark)
     }
 
     /** The reading answer read-aloud toggle defaults ON, persists, and publishes into UI state. */
@@ -960,6 +1020,8 @@ class PracticeViewModelTest {
         // seeding tests set it explicitly.
         var seededDefaults = true
         private var brushInkColor = 0xFF20222E.toInt()
+        private var brushInkColorDark = 0xFFEFE7DA.toInt()
+        private var appearance = AppearanceMode.LIGHT
         private var brushEffect = BrushEffect.BRUSH
         private var autoNarrate = false
         private var readingAutoSpeak = true
@@ -994,6 +1056,8 @@ class PracticeViewModelTest {
         override fun setDefaultSetsSeeded() { seededDefaults = true }
         override fun getBrushInkColor(): Int = brushInkColor
         override fun setBrushInkColor(color: Int) { brushInkColor = color }
+        override fun getBrushInkColorDark(): Int = brushInkColorDark
+        override fun setBrushInkColorDark(color: Int) { brushInkColorDark = color }
         override fun getBrushEffect(): BrushEffect = brushEffect
         override fun setBrushEffect(effect: BrushEffect) { brushEffect = effect }
         override fun isAutoNarrateEnabled(): Boolean = autoNarrate
@@ -1020,6 +1084,8 @@ class PracticeViewModelTest {
         private var appModeValue: AppMode? = null
         override fun getAppMode(): AppMode? = appModeValue
         override fun setAppMode(mode: AppMode) { appModeValue = mode }
+        override fun getAppearance(): AppearanceMode = appearance
+        override fun setAppearance(mode: AppearanceMode) { appearance = mode }
         private var skippedUpdate: String? = null
         override fun getSkippedUpdateVersion(): String? = skippedUpdate
         override fun setSkippedUpdateVersion(versionName: String) { skippedUpdate = versionName }

@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.scoring.WordUnitScore
+import com.hive.hiragana.presentation.theme.LocalKanaColors
 import com.hive.hiragana.presentation.theme.scoreSpectrumColor
 
 /**
@@ -35,6 +36,7 @@ fun WordScoreChips(
     scores: List<WordUnitScore>,
     modifier: Modifier = Modifier,
 ) {
+    val darkTint = LocalKanaColors.current.isDark
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -44,7 +46,7 @@ fun WordScoreChips(
             Surface(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(10.dp),
-                color = scoreSpectrumColor(unit.score.headline),
+                color = scoreSpectrumColor(unit.score.headline, darkTint),
             ) {
                 Column(
                     modifier = Modifier
@@ -91,7 +93,7 @@ fun WordAverageCard(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
-        color = scoreSpectrumColor(average),
+        color = scoreSpectrumColor(average, LocalKanaColors.current.isDark),
     ) {
         Row(
             // Vertical padding kept slim so the pill sits shorter than the

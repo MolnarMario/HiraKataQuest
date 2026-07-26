@@ -1,6 +1,7 @@
 package com.hive.hiragana.domain.repository
 
 import com.hive.hiragana.domain.model.AppMode
+import com.hive.hiragana.domain.model.AppearanceMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.KanaMnemonic
 import com.hive.hiragana.domain.model.PracticeLayout
@@ -129,6 +130,16 @@ interface SettingsRepository {
     fun setBrushInkColor(color: Int)
 
     /**
+     * The brush ink color used while the DARK appearance is active, as a
+     * packed ARGB Int — the dark twin of [getBrushInkColor]. Kept separate
+     * because a charcoal ink chosen for the white paper vanishes on the dark
+     * sheet. Purely visual. Default is the warm chalk `InkChalk`.
+     */
+    fun getBrushInkColorDark(): Int
+
+    fun setBrushInkColorDark(color: Int)
+
+    /**
      * The artistic brush effect strokes are drawn with ([BrushEffect]). Purely
      * visual — it never affects stroke geometry as seen by the scorer (which
      * reads raw points). Default [BrushEffect.BRUSH] (the original ribbon look).
@@ -221,6 +232,16 @@ interface SettingsRepository {
     fun getAppMode(): AppMode?
 
     fun setAppMode(mode: AppMode)
+
+    /**
+     * The chosen light/dark appearance ([AppearanceMode]). Default
+     * [AppearanceMode.LIGHT] so existing installs are unchanged until the
+     * learner opts in from the Study-scope sheet. App-controlled — the
+     * platform never force-darkens (see res/values/themes.xml).
+     */
+    fun getAppearance(): AppearanceMode
+
+    fun setAppearance(mode: AppearanceMode)
 
     /**
      * The app version the user chose to skip in the in-app updater ("Skip"), or

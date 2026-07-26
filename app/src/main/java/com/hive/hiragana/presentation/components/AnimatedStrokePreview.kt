@@ -38,16 +38,13 @@ import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.drawing.canvas.COMPOSITE_BASE_SCALE
 import com.hive.hiragana.drawing.animation.PlaybackState
 import com.hive.hiragana.drawing.animation.StrokeAnimationEngine
-import com.hive.hiragana.presentation.theme.DiagramStroke
+import com.hive.hiragana.presentation.theme.LocalKanaColors
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
 /** Visual size of each control button; kept small so four fit in the 25% guide panel. */
 private val ControlButtonSize = 32.dp
-
-/** The faint full-character guide the animation draws on top of. */
-private val GuideStrokeColor = DiagramStroke.copy(alpha = 0.25f)
 
 /** Pen-tip dot radius as a fraction of the canvas edge (viewBox-independent). */
 private const val PenDotRadiusFraction = 0.05f
@@ -259,6 +256,9 @@ private fun StrokeCanvas(
         }
     }
     val penColor = MaterialTheme.colorScheme.primary
+    val diagramStroke = LocalKanaColors.current.diagramStroke
+    // The faint full-character guide the animation draws on top of.
+    val guideStrokeColor = diagramStroke.copy(alpha = 0.25f)
 
     Canvas(modifier = modifier) {
         val scale = size.minDimension / character.viewBox
@@ -281,13 +281,13 @@ private fun StrokeCanvas(
         // canvas redraw (not recompose) on every animation frame.
         withTransform({ scale(scale, scale, Offset.Zero) }) {
             guidePaths.forEach { path ->
-                drawPath(path = path, color = GuideStrokeColor, style = strokeStyle)
+                drawPath(path = path, color = guideStrokeColor, style = strokeStyle)
             }
             engine.completedPaths.forEach { path ->
-                drawPath(path = path, color = DiagramStroke, style = strokeStyle)
+                drawPath(path = path, color = diagramStroke, style = strokeStyle)
             }
             engine.activePath?.let { path ->
-                drawPath(path = path, color = DiagramStroke, style = strokeStyle)
+                drawPath(path = path, color = diagramStroke, style = strokeStyle)
             }
         }
 

@@ -30,6 +30,7 @@ import com.hive.hiragana.domain.repository.PracticeRepository
 import com.hive.hiragana.domain.repository.PracticeSetRepository
 import com.hive.hiragana.domain.repository.RecognizerStrokePoint
 import com.hive.hiragana.domain.model.AppMode
+import com.hive.hiragana.domain.model.AppearanceMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.ReadingProgress
 import com.hive.hiragana.domain.repository.ReadingProgressRepository
@@ -274,6 +275,10 @@ data class PracticeUiState(
     // Brush ink color as a packed ARGB Int (persisted; purely visual — feeds
     // TracingCanvas.inkColor, never affects geometry or scoring). Default InkBlack.
     val brushInkColor: Int = 0xFF20222E.toInt(),
+    // Brush ink color for the DARK appearance (persisted; purely visual — the
+    // dark twin of brushInkColor). PracticeScreen resolves which one is active
+    // off LocalKanaColors.current.isDark. Default InkChalk (a warm off-white).
+    val brushInkColorDark: Int = 0xFFEFE7DA.toInt(),
     // The artistic brush effect strokes are drawn with (persisted; default
     // BRUSH = the original ribbon). Purely visual — feeds TracingCanvas.brushEffect,
     // never affects the raw points the scorer reads.
@@ -286,6 +291,10 @@ data class PracticeUiState(
     // the opening screen is shown. Durable across scope rebuilds; reset to null
     // only when the learner goes back to the opening "home".
     val appMode: AppMode? = null,
+    // The chosen light/dark appearance (persisted; default LIGHT so existing
+    // installs are unchanged). Resolved to a dark boolean in MainActivity —
+    // SYSTEM follows the device. Purely visual; never touches scoring.
+    val appearance: AppearanceMode = AppearanceMode.LIGHT,
     // In-app self-update flow (GitHub Releases). Idle = no dialog shown. Transient
     // UI state, never persisted; a quiet launch check that finds nothing stays Idle.
     val updateState: UpdateState = UpdateState.Idle,
@@ -508,8 +517,10 @@ class PracticeViewModel(
             includeExtended = settingsRepository.isExtendedIncluded(),
             scoringMode = settingsRepository.getScoringMode(),
             brushInkColor = settingsRepository.getBrushInkColor(),
+            brushInkColorDark = settingsRepository.getBrushInkColorDark(),
             brushEffect = settingsRepository.getBrushEffect(),
             characterForm = settingsRepository.getCharacterForm(),
+            appearance = settingsRepository.getAppearance(),
             autoNarrateEnabled = settingsRepository.isAutoNarrateEnabled(),
             readingAutoSpeakEnabled = settingsRepository.isReadingAutoSpeakEnabled(),
             readingMeaningPractice = settingsRepository.isReadingMeaningPractice(),
@@ -952,6 +963,7 @@ class PracticeViewModel(
         librarySection = librarySection,
         setsSortKey = setsSortKey,
         brushInkColor = brushInkColor,
+        brushInkColorDark = brushInkColorDark,
         brushEffect = brushEffect,
         practiceLayout = practiceLayout,
         scoringMode = scoringMode,
@@ -963,6 +975,7 @@ class PracticeViewModel(
         includeExtended = includeExtended,
         characterForm = characterForm,
         appMode = appMode,
+        appearance = appearance,
         autoNarrateEnabled = autoNarrateEnabled,
         readingAutoSpeakEnabled = readingAutoSpeakEnabled,
         readingMeaningPractice = readingMeaningPractice,
@@ -1175,6 +1188,19 @@ class PracticeViewModel(
     }
 
     /**
+     * Dark-appearance brush ink picker (persisted ARGB Int) — the dark twin of
+     * [setBrushInkColor], edited by the same Options row while dark mode is
+     * active. Purely visual: recolors ink at draw time, no sheet clear.
+     */
+    fun setBrushInkColorDark(color: Int) {
+        _uiState.update { state ->
+            if (state.brushInkColorDark == color) return@update state
+            settingsRepository.setBrushInkColorDark(color)
+            state.copy(brushInkColorDark = color)
+        }
+    }
+
+    /**
      * Clears the writing sheet plus any pending FREE feedback that would
      * otherwise float over it — the shared tail of every setter whose change
      * invalidates committed ink or the paper card's strip layout
@@ -1216,6 +1242,19 @@ class PracticeViewModel(
         if (enabled == _uiState.value.autoNarrateEnabled) return
         settingsRepository.setAutoNarrateEnabled(enabled)
         _uiState.update { it.copy(autoNarrateEnabled = enabled) }
+    }
+
+    /**
+     * Appearance selector (Study-scope sheet, both modes): System / Light /
+     * Dark. Persisted + published; MainActivity resolves it to the theme.
+     * NO canvasClearKey bump / withClearedSheet — a theme flip recolors the
+     * sheet but never moves the strips or the grid, so committed ink stays
+     * exactly where it was drawn (it simply redraws in the active theme's ink).
+     */
+    fun setAppearance(mode: AppearanceMode) {
+        if (mode == _uiState.value.appearance) return
+        settingsRepository.setAppearance(mode)
+        _uiState.update { it.copy(appearance = mode) }
     }
 
     /**

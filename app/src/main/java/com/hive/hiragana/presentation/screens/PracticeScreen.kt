@@ -55,6 +55,7 @@ import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
 import com.hive.hiragana.presentation.components.WordAverageCard
 import com.hive.hiragana.presentation.components.WordScoreChips
+import com.hive.hiragana.presentation.theme.LocalKanaColors
 import com.hive.hiragana.presentation.viewmodels.PracticeUiState
 import com.hive.hiragana.presentation.viewmodels.PracticeViewModel
 
@@ -71,6 +72,13 @@ fun PracticeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val canvasState = remember { CanvasState() }
+
+    // The ink for the ACTIVE theme: dark mode has its own persisted ink
+    // (default chalk) because a charcoal picked for white paper vanishes
+    // on the dark sheet. Resolved here for both canvases (quiz + practice).
+    val activeInkColor = Color(
+        if (LocalKanaColors.current.isDark) uiState.brushInkColorDark else uiState.brushInkColor,
+    )
 
     // The learner's own mnemonics + add/delete sinks, bundled once for every
     // mnemonic dialog surface (footer chip, flashcards, both quizzes).
@@ -224,7 +232,7 @@ fun PracticeScreen(
                     lastScoredCharacter = uiState.lastScoredCharacter,
                     lastWordScores = uiState.lastWordScores,
                     lastWordAverage = uiState.lastWordAverage,
-                    inkColor = Color(uiState.brushInkColor),
+                    inkColor = activeInkColor,
                     brushEffect = uiState.brushEffect,
                     characterForm = CharacterForm.HANDWRITTEN,
                     glyphStrokesFor = uiState::ghostStrokesFor,
@@ -323,6 +331,8 @@ fun PracticeScreen(
                     beginnerMode = uiState.beginnerMode,
                     brushInkColor = uiState.brushInkColor,
                     onSelectBrushColor = viewModel::setBrushInkColor,
+                    brushInkColorDark = uiState.brushInkColorDark,
+                    onSelectBrushColorDark = viewModel::setBrushInkColorDark,
                     brushEffect = uiState.brushEffect,
                     onSelectBrushEffect = viewModel::setBrushEffect,
                     scoringMode = uiState.scoringMode,
@@ -333,6 +343,8 @@ fun PracticeScreen(
                     onSetReadingAutoSpeak = viewModel::setReadingAutoSpeak,
                     mnemonicsEnabled = uiState.mnemonicsEnabled,
                     onSetMnemonics = viewModel::setMnemonicsEnabled,
+                    appearance = uiState.appearance,
+                    onSetAppearance = viewModel::setAppearance,
                     practiceSets = uiState.practiceSets,
                     onSaveSet = viewModel::savePracticeSet,
                     onUpdateSetMembers = viewModel::updatePracticeSetMembers,
@@ -399,6 +411,11 @@ private fun PracticeContent(
 ) {
     val character = uiState.currentCharacter
     val activeWord = uiState.freeWord
+
+    // Ink for the active theme (dark mode keeps its own ink; see PracticeScreen).
+    val activeInkColor = Color(
+        if (LocalKanaColors.current.isDark) uiState.brushInkColorDark else uiState.brushInkColor,
+    )
 
     // The guide panel and action bar hold text that grows with the system
     // font scale, but their 25%/10% height shares were hand-tuned at scale 1
@@ -467,7 +484,7 @@ private fun PracticeContent(
                 showGrid = uiState.isGridEnabled,
                 showGhost = uiState.isGhostEnabled,
                 layout = uiState.practiceLayout,
-                inkColor = Color(uiState.brushInkColor),
+                inkColor = activeInkColor,
                 brushEffect = uiState.brushEffect,
                 // Writing always traces the handwritten (KanjiVG) ghost — the
                 // form you actually write, coherent with the demo and scorer.

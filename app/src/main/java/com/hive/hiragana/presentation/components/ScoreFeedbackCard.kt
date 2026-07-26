@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.scoring.CharacterScore
+import com.hive.hiragana.presentation.theme.LocalKanaColors
 import com.hive.hiragana.domain.scoring.ScoringMode
 
 /**
@@ -56,7 +57,7 @@ fun ScoreFeedbackCard(
     glyph: String? = null,
 ) {
     var showInfo by rememberSaveable { mutableStateOf(false) }
-    val band = qualityBand(score.headline)
+    val band = qualityBand(score.headline, LocalKanaColors.current.isDark)
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
@@ -184,13 +185,27 @@ private fun InfoSection(title: String, body: String) {
 
 private data class QualityBand(val label: String, val container: Color, val content: Color)
 
-/** Score → verdict word + color band. Green rewards legible form; low scores are gentle, not punitive. */
-private fun qualityBand(score: Int): QualityBand = when {
-    score >= 90 -> QualityBand("Excellent", Color(0xFFCDECC9), Color(0xFF1B5E20))
-    score >= 75 -> QualityBand("Great", Color(0xFFDCEFD6), Color(0xFF2E7D32))
-    score >= 60 -> QualityBand("Good", Color(0xFFFDF1C7), Color(0xFF7A5B00))
-    score >= 40 -> QualityBand("Keep practicing", Color(0xFFFBE0C6), Color(0xFF8A4B12))
-    else -> QualityBand("Try again", Color(0xFFF6D2CE), Color(0xFF9B2C22))
+/**
+ * Score → verdict word + color band. Green rewards legible form; low scores
+ * are gentle, not punitive. The dark pairs invert the value relationship —
+ * deep containers with light content — at the same five hues.
+ */
+private fun qualityBand(score: Int, dark: Boolean): QualityBand = if (dark) {
+    when {
+        score >= 90 -> QualityBand("Excellent", Color(0xFF2C5531), Color(0xFFC0EBBB))
+        score >= 75 -> QualityBand("Great", Color(0xFF344F33), Color(0xFFCBE8C0))
+        score >= 60 -> QualityBand("Good", Color(0xFF574A21), Color(0xFFF4E3A5))
+        score >= 40 -> QualityBand("Keep practicing", Color(0xFF5C4226), Color(0xFFF7D5AE))
+        else -> QualityBand("Try again", Color(0xFF5D2B25), Color(0xFFF6B8B0))
+    }
+} else {
+    when {
+        score >= 90 -> QualityBand("Excellent", Color(0xFFCDECC9), Color(0xFF1B5E20))
+        score >= 75 -> QualityBand("Great", Color(0xFFDCEFD6), Color(0xFF2E7D32))
+        score >= 60 -> QualityBand("Good", Color(0xFFFDF1C7), Color(0xFF7A5B00))
+        score >= 40 -> QualityBand("Keep practicing", Color(0xFFFBE0C6), Color(0xFF8A4B12))
+        else -> QualityBand("Try again", Color(0xFFF6D2CE), Color(0xFF9B2C22))
+    }
 }
 
 private fun dialSuffix(mode: ScoringMode): String = when (mode) {

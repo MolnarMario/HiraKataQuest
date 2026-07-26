@@ -12,6 +12,21 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-27 — Dark mode
+
+#### Added
+- **A dark mode.** New **Appearance** setting at the bottom of the Options
+  (Study-scope) sheet: **System / Light / Dark**. It stays **Light** until you
+  choose, so nothing changes on update. Dark is a warm, paper-like night theme
+  (not a harsh inversion): the writing worksheet itself darkens, with the ghost
+  glyph and grid dimmed to match, and your brush gets a **separate ink for dark
+  mode** (a light chalk by default) so strokes stay legible on the dark sheet —
+  the same brush-ink row edits whichever appearance is active. **System**
+  follows your phone's dark-mode setting. Score tints, the score-feedback card,
+  and every Library surface get dark-appropriate colors too. (Also fixes a
+  latent bug where the status-bar icons could turn invisible on phones set to
+  system dark mode.)
+
 ### 2026-07-25 — 0.2.3: Practice sets scoped to the chosen script
 
 #### Changed

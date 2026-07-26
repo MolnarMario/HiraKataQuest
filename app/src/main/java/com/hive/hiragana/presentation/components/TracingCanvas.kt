@@ -2,6 +2,7 @@ package com.hive.hiragana.presentation.components
 
 import android.graphics.Paint
 import android.view.MotionEvent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -42,11 +43,7 @@ import com.hive.hiragana.drawing.canvas.drawPracticeGrid
 import com.hive.hiragana.drawing.canvas.ghostFitScale
 import com.hive.hiragana.drawing.canvas.planSheetGrid
 import com.hive.hiragana.drawing.stroke.StrokeCapture
-import com.hive.hiragana.presentation.theme.GhostGrey
-import com.hive.hiragana.presentation.theme.GridBorder
-import com.hive.hiragana.presentation.theme.GridGuide
-import com.hive.hiragana.presentation.theme.InkBlack
-import com.hive.hiragana.presentation.theme.PaperWhite
+import com.hive.hiragana.presentation.theme.LocalKanaColors
 
 /** KanjiVG viewBox the character stroke paths live in (all deck glyphs use 109). */
 private const val KANJIVG_VIEWBOX = 109f
@@ -87,7 +84,7 @@ fun TracingCanvas(
     showGrid: Boolean = true,
     showGhost: Boolean = true,
     layout: PracticeLayout = PracticeLayout.SINGLE,
-    inkColor: Color = InkBlack,
+    inkColor: Color = LocalKanaColors.current.defaultInk,
     // The artistic brush effect the user's ink is rendered with (uniform brush,
     // calligraphy, fountain pen, marker). Purely visual — baked into new strokes
     // at input time and applied as the fill alpha at draw time; never touches the
@@ -116,11 +113,15 @@ fun TracingCanvas(
     footer: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     val strokeCapture = remember(canvasState) { StrokeCapture(canvasState) }
-    val ghostPaint = remember {
+    // The canvas ("paper") palette for the active appearance (light or dark).
+    val kanaColors = LocalKanaColors.current
+    // Keyed on the theme's ghost color so a light/dark flip rebuilds the
+    // cached paint (an unkeyed remember would keep the old theme's grey).
+    val ghostPaint = remember(kanaColors.ghost) {
         Paint().apply {
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
-            color = GhostGrey.toArgb()
+            color = kanaColors.ghost.toArgb()
         }
     }
     // Parse the handwritten-ghost stroke paths once per glyph set (not per draw
@@ -137,8 +138,11 @@ fun TracingCanvas(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        color = PaperWhite,
+        color = kanaColors.paper,
         shadowElevation = 2.dp,
+        // In dark mode the elevation shadow is invisible, so a hairline edge
+        // keeps the sheet reading as a card against the dark background.
+        border = if (kanaColors.isDark) BorderStroke(1.dp, kanaColors.gridGuide) else null,
     ) {
         // The writing cells in canvas px, refreshed each draw pass — the
         // pointer filter rejects strokes that don't START inside one, and
@@ -241,7 +245,7 @@ fun TracingCanvas(
                     inkBounds.add(cell)
                     inkClip.addRect(cell)
                     if (showGrid) {
-                        drawPracticeGrid(cell, borderColor = GridBorder, guideColor = GridGuide)
+                        drawPracticeGrid(cell, borderColor = kanaColors.gridBorder, guideColor = kanaColors.gridGuide)
                     }
                     if (showGhost) {
                         // Handwritten form draws the KanjiVG strokes (grey brush)
@@ -254,7 +258,7 @@ fun TracingCanvas(
                                 null
                             }
                         if (!handwrittenStrokes.isNullOrEmpty()) {
-                            drawGhostStrokes(handwrittenStrokes, cell, KANJIVG_VIEWBOX, GhostGrey)
+                            drawGhostStrokes(handwrittenStrokes, cell, KANJIVG_VIEWBOX, kanaColors.ghost)
                         } else {
                             characters.getOrNull(index)?.let { glyph ->
                                 drawGhostCharacter(glyph, cell, ghostPaint)

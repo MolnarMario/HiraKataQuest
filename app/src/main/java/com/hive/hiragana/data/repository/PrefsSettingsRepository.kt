@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import com.hive.hiragana.domain.model.AppMode
+import com.hive.hiragana.domain.model.AppearanceMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.KanaMnemonic
 import com.hive.hiragana.domain.model.PracticeLayout
@@ -115,6 +116,13 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putInt(KEY_BRUSH_INK_COLOR, color).apply()
     }
 
+    override fun getBrushInkColorDark(): Int =
+        prefs.getInt(KEY_BRUSH_INK_COLOR_DARK, DEFAULT_INK_DARK_ARGB)
+
+    override fun setBrushInkColorDark(color: Int) {
+        prefs.edit().putInt(KEY_BRUSH_INK_COLOR_DARK, color).apply()
+    }
+
     override fun getBrushEffect(): BrushEffect =
         BrushEffect.fromPrefValue(prefs.getString(KEY_BRUSH_EFFECT, null))
 
@@ -217,6 +225,13 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putString(KEY_APP_MODE, mode.prefValue).apply()
     }
 
+    override fun getAppearance(): AppearanceMode =
+        AppearanceMode.fromPrefValue(prefs.getString(KEY_APPEARANCE, null))
+
+    override fun setAppearance(mode: AppearanceMode) {
+        prefs.edit().putString(KEY_APPEARANCE, mode.prefValue).apply()
+    }
+
     override fun getSkippedUpdateVersion(): String? =
         prefs.getString(KEY_SKIPPED_UPDATE_VERSION, null)
 
@@ -240,6 +255,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_SETS_SORT = "sets_sort"
         const val KEY_DEFAULT_SETS_SEEDED = "default_sets_seeded"
         const val KEY_BRUSH_INK_COLOR = "brush_ink_color"
+        const val KEY_BRUSH_INK_COLOR_DARK = "brush_ink_color_dark"
         const val KEY_BRUSH_EFFECT = "brush_effect"
         const val KEY_AUTO_NARRATE = "auto_narrate_enabled"
         const val KEY_READING_AUTO_SPEAK = "reading_auto_speak_enabled"
@@ -249,10 +265,15 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_CUSTOM_MNEMONICS = "custom_mnemonics"
         const val KEY_CHARACTER_FORM = "character_form"
         const val KEY_APP_MODE = "app_mode"
+        const val KEY_APPEARANCE = "appearance"
         const val KEY_SKIPPED_UPDATE_VERSION = "skipped_update_version"
 
         // Default ARGB = presentation.theme.InkBlack (0xFF20222E); hardcoded so
         // the data layer needn't depend on a Compose Color.
         const val DEFAULT_INK_ARGB: Int = 0xFF20222E.toInt()
+
+        // Dark-appearance default ARGB = presentation.theme.InkChalk
+        // (0xFFEFE7DA); hardcoded for the same no-Compose-dep reason.
+        const val DEFAULT_INK_DARK_ARGB: Int = 0xFFEFE7DA.toInt()
     }
 }
