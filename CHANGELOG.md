@@ -12,7 +12,7 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
-### 2026-07-27 — Dark mode
+### 2026-07-27 — 0.3.0: Dark mode, memory hints, and a Practice sets tab
 
 #### Added
 - **A dark mode.** New **Appearance** setting at the bottom of the Options
@@ -26,6 +26,21 @@ listed newest-first by milestone. Detailed provenance lives in
   and every Library surface get dark-appropriate colors too. (Also fixes a
   latent bug where the status-bar icons could turn invisible on phones set to
   system dark mode.)
+- **Memory hints for the basic hiragana.** Every one of the 46 basic hiragana
+  now carries a keyword and a short story that tie its shape to its sound. A
+  **"How to remember"** chip appears in writing practice and on flashcard and
+  quiz answer reveals, and a **"Hint"** button offers the story before you
+  answer (text-only in the writing quiz, since the shape is the answer). Each
+  kana ships with alternates, so you can open **"More ways to remember"** and
+  promote whichever image sticks; the choice is saved per character. It all
+  sits behind a **Memory hints** switch in Options (on by default) and never
+  affects your scores.
+- **Practice sets now have their own tab.** The sets you curate, plus the
+  built-in starter sets, live on a dedicated **Sets** tab at the top of the
+  Library beside Characters and Words, scoped to the script you're studying. A
+  **New** button starts a Character set or Word set, and the top-bar search
+  filters sets by name. This replaces the old "Add practice set" / "See sets"
+  buttons in Options.
 
 ### 2026-07-25 — 0.2.3: Practice sets scoped to the chosen script
 
