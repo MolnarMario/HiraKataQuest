@@ -322,6 +322,10 @@ fun LibraryScreen(
     // Reading answer read-aloud: speak the answer once revealed (Reading only).
     readingAutoSpeakEnabled: Boolean = true,
     onSetReadingAutoSpeak: (Boolean) -> Unit = {},
+    // Memory hints (mnemonics): the "How to remember" chip + quiz/flashcard
+    // Hint buttons (both modes).
+    mnemonicsEnabled: Boolean = true,
+    onSetMnemonics: (Boolean) -> Unit = {},
     practiceSets: List<PracticeSet> = emptyList(),
     onSaveSet: (String, PracticeSetType, Script, List<String>) -> Unit = { _, _, _, _ -> },
     onUpdateSetMembers: (Long, List<String>) -> Unit = { _, _ -> },
@@ -722,6 +726,8 @@ fun LibraryScreen(
                     onSetAutoNarrate = onSetAutoNarrate,
                     readingAutoSpeakEnabled = readingAutoSpeakEnabled,
                     onSetReadingAutoSpeak = onSetReadingAutoSpeak,
+                    mnemonicsEnabled = mnemonicsEnabled,
+                    onSetMnemonics = onSetMnemonics,
                     brushInkColor = brushInkColor,
                     onSelectBrushColor = onSelectBrushColor,
                     brushEffect = brushEffect,
@@ -980,6 +986,8 @@ private fun ScopeSheetContent(
     onSetAutoNarrate: (Boolean) -> Unit,
     readingAutoSpeakEnabled: Boolean,
     onSetReadingAutoSpeak: (Boolean) -> Unit,
+    mnemonicsEnabled: Boolean,
+    onSetMnemonics: (Boolean) -> Unit,
     brushInkColor: Int,
     onSelectBrushColor: (Int) -> Unit,
     brushEffect: BrushEffect,
@@ -1153,30 +1161,13 @@ private fun ScopeSheetContent(
             // instant it appears (in free practice and the writing quiz), so the
             // learner hears the reading without tapping the speaker. Writing-only
             // — narrating in Reading would give the answer away.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSetAutoNarrate(!autoNarrateEnabled) },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Read aloud automatically",
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(
-                        text = "Speak each new character or word the moment it " +
-                            "shows, so you hear it without tapping the speaker.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Switch(
-                    checked = autoNarrateEnabled,
-                    onCheckedChange = onSetAutoNarrate,
-                )
-            }
+            SettingsSwitchRow(
+                title = "Read aloud automatically",
+                hint = "Speak each new character or word the moment it " +
+                    "shows, so you hear it without tapping the speaker.",
+                checked = autoNarrateEnabled,
+                onCheckedChange = onSetAutoNarrate,
+            )
         }
 
         // The Reading twin of the narration toggle above: Reading must not
@@ -1186,31 +1177,28 @@ private fun ScopeSheetContent(
         if (appMode == AppMode.READING) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSetReadingAutoSpeak(!readingAutoSpeakEnabled) },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Read aloud automatically",
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(
-                        text = "Speak the character or word after you answer, " +
-                            "so you hear the reading you just recalled.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Switch(
-                    checked = readingAutoSpeakEnabled,
-                    onCheckedChange = onSetReadingAutoSpeak,
-                )
-            }
+            SettingsSwitchRow(
+                title = "Read aloud automatically",
+                hint = "Speak the character or word after you answer, " +
+                    "so you hear the reading you just recalled.",
+                checked = readingAutoSpeakEnabled,
+                onCheckedChange = onSetReadingAutoSpeak,
+            )
         }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+        // Memory hints (mnemonics): a keyword + short story per kana, shown as
+        // the "How to remember" chip and the quiz/flashcard Hint buttons.
+        // Mode-independent (both tracks use them), so it sits outside the
+        // appMode blocks above. Display-only — never affects scores.
+        SettingsSwitchRow(
+            title = "Memory hints",
+            hint = "Show a keyword and short story that tie each kana's " +
+                "shape to its sound. Covers the 46 basic hiragana for now.",
+            checked = mnemonicsEnabled,
+            onCheckedChange = onSetMnemonics,
+        )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
@@ -1379,6 +1367,40 @@ private fun ScopeToggleRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/**
+ * A labelled settings switch row (title + hint on the left, Switch on the
+ * right) — the shared shape of the scope sheet's non-scope toggles (the two
+ * read-aloud rows and Memory hints), so their layout can't drift apart.
+ */
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    hint: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
