@@ -144,6 +144,7 @@ class PracticeViewModelTest {
         practiceRepository: FakePracticeRepository = FakePracticeRepository(),
         practiceSetRepository: FakePracticeSetRepository = FakePracticeSetRepository(),
         words: List<VocabularyWord> = emptyList(),
+        ttsPlayer: PronunciationPlayer = FakePronunciationPlayer(),
     ) = PracticeViewModel(
         characterRepository = FakeCharacterRepository(characters),
         practiceRepository = practiceRepository,
@@ -152,7 +153,7 @@ class PracticeViewModelTest {
         practiceSetRepository = practiceSetRepository,
         readingProgressRepository = FakeReadingProgressRepository(),
         handwritingRecognizer = recognizer,
-        ttsPlayer = FakePronunciationPlayer(),
+        ttsPlayer = ttsPlayer,
         appUpdater = FakeAppUpdater(),
         clock = fixedClock,
     )
@@ -209,6 +210,24 @@ class PracticeViewModelTest {
         assertEquals(BrushEffect.CALLIGRAPHY, vm.uiState.value.brushEffect)
         assertEquals(BrushEffect.CALLIGRAPHY, settings.getBrushEffect())
         assertEquals(before + 1, vm.uiState.value.canvasClearKey)
+    }
+
+    /**
+     * The TTS voice status is fed once by a status collector and never
+     * re-emits (StateFlow conflates equal values), so a scope-setter rebuild
+     * MUST carry it — otherwise audio greys out permanently after any
+     * script/opt-in change. Regression guard for the rebuilt() drop.
+     */
+    @Test
+    fun `ttsStatus survives a scope-setter rebuild`() = runTest(dispatcher) {
+        val vm = buildViewModel(ttsPlayer = FakePronunciationPlayer(VoiceStatus.READY))
+        advanceUntilIdle()
+        assertEquals(VoiceStatus.READY, vm.uiState.value.ttsStatus)
+
+        vm.setActiveScript(Script.KATAKANA)
+        advanceUntilIdle()
+
+        assertEquals(VoiceStatus.READY, vm.uiState.value.ttsStatus)
     }
 
     /** The persisted brush effect must survive a scope-setter rebuild. */
@@ -971,8 +990,10 @@ class PracticeViewModelTest {
     }
 
     /** No-op pronunciation engine — the VM only forwards calls to it. */
-    private class FakePronunciationPlayer : PronunciationPlayer {
-        override val status = MutableStateFlow(VoiceStatus.UNAVAILABLE)
+    private class FakePronunciationPlayer(
+        initial: VoiceStatus = VoiceStatus.UNAVAILABLE,
+    ) : PronunciationPlayer {
+        override val status = MutableStateFlow(initial)
         override fun play(glyph: String) {}
         override fun refresh() {}
         override fun release() {}

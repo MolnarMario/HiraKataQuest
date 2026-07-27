@@ -21,6 +21,11 @@ class AssetCharacterRepository(
     private var cache: List<HiraganaCharacter>? = null
 
     override suspend fun getCharacters(): List<HiraganaCharacter> = mutex.withLock {
-        cache ?: dataSource.loadCharacters().sortedBy { it.frequency }.also { cache = it }
+        // Only cache a non-empty load: an empty result means every asset
+        // directory failed to read, and caching it would poison the cache so
+        // the error screen's Retry (which re-reads through here) could never
+        // recover until process death.
+        cache ?: dataSource.loadCharacters().sortedBy { it.frequency }
+            .also { if (it.isNotEmpty()) cache = it }
     }
 }

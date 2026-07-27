@@ -28,11 +28,13 @@ class RoomVocabularyRepository(
     private var cachedWords: List<VocabularyWord>? = null
 
     /**
-     * Words are parsed once and cached for the process lifetime (same
-     * pattern as AssetCharacterRepository) — bundled assets cannot change
-     * under a running app, and that includes caching the empty-list
-     * fallback for a malformed file rather than re-parsing and re-logging
-     * on every call.
+     * Words are parsed once and cached for the process lifetime (same pattern
+     * as AssetCharacterRepository) — bundled assets cannot change under a
+     * running app. Only a NON-EMPTY result is cached: an empty result means the
+     * parse failed (malformed content, or a transient read during an in-place
+     * APK update), and caching it would strand every caller with no words for
+     * the rest of the process. Re-parsing an empty result on the next call is
+     * cheap and lets it recover.
      */
     override suspend fun getWords(): List<VocabularyWord> = wordsMutex.withLock {
         cachedWords ?: runCatching { dataSource.loadVocabulary() }
@@ -40,7 +42,7 @@ class RoomVocabularyRepository(
                 Log.w(TAG, "Malformed vocabulary.json; no vocabulary words available", error)
                 emptyList()
             }
-            .also { cachedWords = it }
+            .also { if (it.isNotEmpty()) cachedWords = it }
     }
 
     override suspend fun getProgress(): List<VocabularyProgress> =

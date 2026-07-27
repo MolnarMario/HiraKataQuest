@@ -63,10 +63,10 @@ class GithubAppUpdater(private val context: Context) : AppUpdater {
                 val code = conn.responseCode
                 if (code !in 200..299) throw IOException("HTTP $code downloading APK")
                 val total = conn.contentLengthLong
+                var downloaded = 0L
                 conn.inputStream.use { input ->
                     out.outputStream().use { output ->
                         val buffer = ByteArray(64 * 1024)
-                        var downloaded = 0L
                         var lastPct = -1
                         while (true) {
                             val read = input.read(buffer)
@@ -82,6 +82,14 @@ class GithubAppUpdater(private val context: Context) : AppUpdater {
                             }
                         }
                     }
+                }
+                // Integrity guard: a stream that ends early (proxy, reset mapped
+                // to EOF) would otherwise be handed to the installer as a
+                // truncated APK, which fails with an opaque parse error. Reject
+                // it here when we know the expected size.
+                if (total > 0 && downloaded != total) {
+                    out.delete()
+                    throw IOException("Truncated APK download: got $downloaded of $total bytes")
                 }
             } finally {
                 conn.disconnect()

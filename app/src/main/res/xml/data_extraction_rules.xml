@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup / device-transfer rules (API 31+). Learner progress (the Room DB +
+  SharedPreferences) is worth carrying to a new device, so the defaults (back
+  up everything) are fine EXCEPT the SQLite WAL/SHM sidecars: backing those up
+  hot, without a checkpoint, can restore a torn db/-wal pair. Excluding them
+  leaves the main .db file self-consistent (un-checkpointed transactions are the
+  only loss, which is acceptable for practice history).
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="hiragana-practice.db-wal" />
+        <exclude domain="database" path="hiragana-practice.db-shm" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="hiragana-practice.db-wal" />
+        <exclude domain="database" path="hiragana-practice.db-shm" />
+    </device-transfer>
+</data-extraction-rules>

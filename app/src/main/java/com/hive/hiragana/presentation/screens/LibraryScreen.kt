@@ -50,8 +50,8 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.TopAppBar
@@ -126,6 +126,7 @@ import com.hive.hiragana.presentation.components.BrushColorPicker
 import com.hive.hiragana.presentation.components.BrushEffectPicker
 import com.hive.hiragana.drawing.canvas.BrushEffect
 import com.hive.hiragana.presentation.components.fontScaleFraction
+import com.hive.hiragana.presentation.components.rememberEqualShareTextScale
 import com.hive.hiragana.presentation.components.rememberUniformTextScale
 import com.hive.hiragana.presentation.components.toNonScalingSp
 import com.hive.hiragana.presentation.theme.scoreSpectrumColor
@@ -602,18 +603,17 @@ fun LibraryScreen(
                 sortOptions = if (appMode == AppMode.READING) READING_SORT_OPTIONS else ITEM_SORT_OPTIONS,
             )
 
-            // A ScrollableTabRow, NOT a plain TabRow: TabRow splits the width
-            // into EQUAL thirds, so the longest label ("Characters (247)")
-            // clipped inside its third while "Sets (16)" wasted most of its own
-            // (user-caught). ScrollableTabRow sizes each tab to its CONTENT, so a
-            // longer word simply takes more room and the counts never clip; with
-            // only three short tabs it fills the width from the left without
-            // actually scrolling. edgePadding = 0 drops the default 52dp left
-            // inset so the first tab starts at the edge. The uniform shrink is a
-            // large-font safety (policy rule 3): it only drops below 1 when the
-            // three natural widths would exceed the row, keeping them one line
-            // instead of forcing a scroll. BoxWithConstraints is the PARENT of
-            // the row — safe, unlike a shrink-measuring child inside a Tab.
+            // A full-width TabRow (equal thirds spanning the whole width) — a
+            // ScrollableTabRow content-sizes its tabs and left-aligns them, so on
+            // wider screens (e.g. the Pixel 7) the three tabs bunched at the left
+            // with dead space on the right (user-caught). TabRow gives every tab
+            // an equal 1/3 share; the shrink below keeps the longest label
+            // ("Characters (113)") from clipping inside its third at 360dp. Unlike
+            // rememberUniformTextScale (which fits the SUM into the total width, a
+            // ScrollableTabRow model), rememberEqualShareTextScale fits the WIDEST
+            // label into a single equal share — the right constraint here.
+            // BoxWithConstraints is the PARENT of the row (safe, unlike a
+            // shrink-measuring child inside a Tab).
             BoxWithConstraints {
                 val tabLabels = listOf(
                     "Characters (${filteredCharacters.size})",
@@ -621,7 +621,7 @@ fun LibraryScreen(
                     "Sets (${filteredSets.size})",
                 )
                 val tabStyle = MaterialTheme.typography.titleSmall
-                val tabScale = rememberUniformTextScale(
+                val tabScale = rememberEqualShareTextScale(
                     labels = tabLabels,
                     style = tabStyle,
                     availableWidth = maxWidth,
@@ -637,10 +637,7 @@ fun LibraryScreen(
                         tabStyle.lineHeight
                     },
                 )
-                ScrollableTabRow(
-                    selectedTabIndex = selectedTab,
-                    edgePadding = 0.dp,
-                ) {
+                TabRow(selectedTabIndex = selectedTab) {
                     tabLabels.forEachIndexed { index, label ->
                         Tab(
                             selected = selectedTab == index,
@@ -651,8 +648,8 @@ fun LibraryScreen(
                                     style = tabLabelStyle,
                                     maxLines = 1,
                                     softWrap = false,
-                                    // Content-sized tabs shouldn't clip; ellipsis
-                                    // is only a last-resort guard below the floor.
+                                    // Shrunk to fit its third; ellipsis is only a
+                                    // last-resort guard below the scale floor.
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             },
@@ -2387,8 +2384,18 @@ private fun ScoreThresholdStepper(
                 value = text,
                 onValueChange = { new ->
                     if (new.length <= 2 && new.all { it.isDigit() }) {
-                        text = new
-                        new.toIntOrNull()?.let { onValueChange(clamp(it)) }
+                        val n = new.toIntOrNull()
+                        if (n == null) {
+                            text = new // allow a transient empty field
+                        } else {
+                            // Clamp on input so the box always shows the value in
+                            // effect, even when the clamp lands on the current one
+                            // (typing "0" while value is already 1) — otherwise
+                            // the LaunchedEffect never fires and the box desyncs.
+                            val clamped = clamp(n)
+                            text = clamped.toString()
+                            onValueChange(clamped)
+                        }
                     }
                 },
                 enabled = enabled,

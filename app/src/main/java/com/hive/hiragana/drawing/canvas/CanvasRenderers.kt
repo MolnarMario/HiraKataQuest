@@ -30,7 +30,9 @@ fun DrawScope.drawPracticeGrid(cell: Rect, borderColor: Color, guideColor: Color
         style = Stroke(width = 2.dp.toPx()),
     )
 
-    val dash = PathEffect.dashPathEffect(floatArrayOf(14f, 12f), 0f)
+    // Dash lengths in dp (like every other dimension here) so the guide dashes
+    // don't render denser on high-density screens.
+    val dash = PathEffect.dashPathEffect(floatArrayOf(7.dp.toPx(), 6.dp.toPx()), 0f)
     val guideWidth = 1.5.dp.toPx()
     val inset = 6.dp.toPx()
 

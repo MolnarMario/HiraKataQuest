@@ -1,5 +1,6 @@
 package com.hive.hiragana.presentation.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -521,6 +522,10 @@ private fun ReadingQuizRunning(
 ) {
     val current = quiz.current ?: return
     var showExitConfirm by rememberSaveable { mutableStateOf(false) }
+    // Hardware/gesture Back during a running quiz asks to confirm rather than
+    // discarding the quiz outright (the parent PracticeScreen's Back would call
+    // closeQuiz with no prompt). Composed after the parent, so LIFO wins here.
+    BackHandler { showExitConfirm = true }
     val needMeaning = quiz.readingTestMeaning && current.subtitle != null
 
     // Per-item answer state; resets when the index changes.
@@ -850,8 +855,10 @@ private fun QuizSourcePicker(
 /**
  * Exact-count row: a numeric text box flanked by −/+ steppers. The box is
  * pre-populated from whatever the presets (or steppers) set; typing a
- * number works the other way and clamps to 1..[deckSize] in the ViewModel
- * (the box snaps to the clamped value once it differs).
+ * number works the other way and clamps to 1..[deckSize]. The box shows the
+ * clamped value immediately (clamped on input, not just echoed from the VM) so
+ * it can't desync when the clamp lands on the value the count already had
+ * (e.g. typing "99" while the count is already the deck max).
  */
 @Composable
 private fun QuizCountEditor(
@@ -895,8 +902,17 @@ private fun QuizCountEditor(
                 value = countText,
                 onValueChange = { new ->
                     if (new.length <= 3 && new.all { it.isDigit() }) {
-                        countText = new
-                        new.toIntOrNull()?.let(onSetCount)
+                        val n = new.toIntOrNull()
+                        if (n == null) {
+                            countText = new // allow a transient empty field
+                        } else {
+                            // Clamp on input so the displayed value always
+                            // equals what the quiz will use, even when the
+                            // clamp lands on the current count (no VM change).
+                            val clamped = n.coerceIn(1, deckSize.coerceAtLeast(1))
+                            countText = clamped.toString()
+                            onSetCount(clamped)
+                        }
                     }
                 },
                 // Grows with the font scale so 2-3 digits stay visible.
@@ -942,6 +958,10 @@ private fun QuizRunning(
 ) {
     val current = quiz.current ?: return
     var showExitConfirm by rememberSaveable { mutableStateOf(false) }
+    // Hardware/gesture Back during a running quiz asks to confirm rather than
+    // discarding the quiz outright (the parent PracticeScreen's Back would call
+    // closeQuiz with no prompt). Composed after the parent, so LIFO wins here.
+    BackHandler { showExitConfirm = true }
     val isWord = current is WordQuizItem
 
     // The header and action bar hold text that grows with the system font
@@ -1228,21 +1248,23 @@ private fun QuizSummary(
                     text = "Quiz complete",
                     style = MaterialTheme.typography.headlineSmall,
                 )
-                // "written" counts items actually submitted (regardless of
+                // "answered" counts items actually submitted (regardless of
                 // whether scoring produced a headline — e.g. ScoringMode.OFF);
-                // "scored" backs the average and excludes the unscored ones.
-                val written = quiz.items.count { it.key in quiz.submittedKeys }
+                // "scored" backs the writing average and excludes the unscored.
+                val reading = quiz.kind == QuizKind.READING
+                val answered = quiz.items.count { it.key in quiz.submittedKeys }
                 val scored = quiz.items.mapNotNull { quiz.results[it.key] }
                 Text(
-                    text = if (written > 0) {
-                        val base = "Wrote $written of ${quiz.items.size}"
-                        if (scored.isNotEmpty()) {
-                            "$base · average ${scored.average().roundToInt()}"
-                        } else {
-                            base
+                    text = when {
+                        answered == 0 -> "You skipped every item"
+                        // Reading is pass/fail: a result of 100 means correct.
+                        reading -> {
+                            val correct = scored.count { it >= 100 }
+                            "Answered $answered of ${quiz.items.size} · $correct correct"
                         }
-                    } else {
-                        "You skipped every item"
+                        scored.isNotEmpty() ->
+                            "Wrote $answered of ${quiz.items.size} · average ${scored.average().roundToInt()}"
+                        else -> "Wrote $answered of ${quiz.items.size}"
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -1270,19 +1292,22 @@ private fun QuizSummary(
                             status = ttsStatus,
                             onSpeak = onSpeak,
                         )
-                        // Three-way: a numeric score; "—" for an item written
-                        // but not scored (e.g. ScoringMode.OFF); "Skipped" for a
-                        // genuinely-unwritten item.
-                        val wasWritten = item.key in quiz.submittedKeys
+                        // Reading is pass/fail (Correct/Wrong); writing shows the
+                        // numeric quality score against its bands. Either way "—"
+                        // is an item done but unscored (ScoringMode.OFF) and
+                        // "Skipped" a genuinely-unanswered one.
+                        val wasAnswered = item.key in quiz.submittedKeys
                         Text(
                             text = when {
-                                score != null -> score.toString()
-                                wasWritten -> "—"
-                                else -> "Skipped"
+                                score == null -> if (wasAnswered) "—" else "Skipped"
+                                reading -> if (score >= 100) "Correct" else "Wrong"
+                                else -> score.toString()
                             },
                             style = MaterialTheme.typography.labelLarge,
                             color = when {
                                 score == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                                reading -> if (score >= 100) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.error
                                 score >= 75 -> MaterialTheme.colorScheme.primary
                                 score >= 50 -> MaterialTheme.colorScheme.onSurfaceVariant
                                 else -> MaterialTheme.colorScheme.error

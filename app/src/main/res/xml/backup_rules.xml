@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy Auto Backup rules (API 26-30; API 31+ uses data_extraction_rules.xml).
+  Backs up everything by default except the SQLite WAL/SHM sidecars, which must
+  not be captured hot (see data_extraction_rules.xml for the rationale).
+-->
+<full-backup-content>
+    <exclude domain="database" path="hiragana-practice.db-wal" />
+    <exclude domain="database" path="hiragana-practice.db-shm" />
+</full-backup-content>

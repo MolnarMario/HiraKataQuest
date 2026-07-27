@@ -9,8 +9,10 @@ plugins {
 
 // Release signing is driven by a gitignored keystore.properties at the repo root
 // (storeFile/storePassword/keyAlias/keyPassword). When it's absent (e.g. a fresh
-// clone or CI without the secret), release builds fall back to debug signing so
-// the project still assembles — but such an APK will NOT update installed copies.
+// clone or CI without the secret), the release build still ASSEMBLES but the APK
+// is UNSIGNED (app-release-unsigned.apk) — it cannot be installed until signed,
+// and must never be published to the update channel. Only build a release on a
+// machine that has the keystore.
 val keystorePropsFile = rootProject.file("keystore.properties")
 val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
@@ -46,8 +48,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Use the release keystore when configured; otherwise leave unset
-            // (debug-signed fallback) so the build still succeeds without the secret.
+            // Use the release keystore when configured; otherwise leave unset,
+            // producing an UNSIGNED release APK (must be signed before install —
+            // see the note at the top of this file), rather than failing the build.
             signingConfig = signingConfigs.findByName("release")
         }
     }

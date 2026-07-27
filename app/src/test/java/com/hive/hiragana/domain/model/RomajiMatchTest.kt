@@ -55,6 +55,40 @@ class RomajiMatchTest {
     }
 
     @Test
+    fun `wapuro jya jyu jyo fold to the ja row`() {
+        assertTrue(RomajiMatch.matches("jya", "zya"))
+        assertTrue(RomajiMatch.matches("jyu", "zyu"))
+        assertTrue(RomajiMatch.matches("jyo", "zyo"))
+        // and the already-supported spellings still agree with it
+        assertTrue(RomajiMatch.matches("jya", "ja"))
+    }
+
+    @Test
+    fun `word-final n typed nn still matches`() {
+        // みかん reading built by KanaReading is "mi ka n"
+        assertTrue(RomajiMatch.matches("mikann", "mi ka n"))
+        assertTrue(RomajiMatch.matches("mikan", "mi ka n"))
+    }
+
+    @Test
+    fun `geminated and long-vowel readings match their natural romaji`() {
+        // The readings below are what KanaReading now produces (see KanaReadingTest).
+        assertTrue(RomajiMatch.matches("kitte", "ki tte"))
+        assertTrue(RomajiMatch.matches("gakkou", "ga kko u"))
+        assertTrue(RomajiMatch.matches("koohii", "koo hii"))
+        // the short, long-vowel-dropping spelling is (correctly) not accepted
+        assertFalse(RomajiMatch.matches("kohi", "koo hii"))
+    }
+
+    @Test
+    fun `d-row foreign sounds stay literal (di is not folded to zi)`() {
+        // ディ / ドゥ katakana keep "di"/"du" — a blanket d→z fold would break them.
+        assertTrue(RomajiMatch.matches("di", "di"))
+        assertFalse(RomajiMatch.matches("zi", "di"))
+        assertFalse(RomajiMatch.matches("zu", "du"))
+    }
+
+    @Test
     fun `wo accepts its spoken reading o, one-directional`() {
         // を is spelled "wo" in the deck but pronounced plain "o" (the
         // mnemonic copy teaches exactly that), so typing what you hear passes.

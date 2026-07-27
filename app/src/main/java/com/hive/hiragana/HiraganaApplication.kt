@@ -95,8 +95,11 @@ class AppContainer(context: Context) {
         MlKitHandwritingRecognizer()
     }
 
-    // Pronunciation via the device's built-in Japanese TTS. Released in
-    // PracticeViewModel.onCleared().
+    // Pronunciation via the device's built-in Japanese TTS. Application-scoped
+    // singleton, deliberately NEVER released in PracticeViewModel.onCleared():
+    // releasing it there kills the shared engine while the process lives on,
+    // leaving the next Activity launch with a dead engine and silent audio (see
+    // the NOTE in PracticeViewModel). The OS reclaims it on process death.
     val ttsPronunciationPlayer: PronunciationPlayer by lazy {
         TtsPronunciationPlayer(appContext)
     }

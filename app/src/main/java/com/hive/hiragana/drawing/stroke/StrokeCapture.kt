@@ -56,6 +56,13 @@ class StrokeCapture(private val canvasState: CanvasState) {
             MotionEvent.ACTION_POINTER_UP -> {
                 // Only end the stroke if the pointer drawing it was lifted.
                 if (event.getPointerId(event.actionIndex) == activePointerId) {
+                    // Capture the final sample first (as ACTION_UP does) so the
+                    // last movement segment isn't dropped from the ribbon/score
+                    // when the drawing finger lifts while a palm is still down.
+                    val pointerIndex = event.findPointerIndex(activePointerId)
+                    if (pointerIndex != -1) {
+                        canvasState.extendStroke(listOf(event.strokePointAt(pointerIndex)))
+                    }
                     canvasState.finishStroke()
                     activePointerId = MotionEvent.INVALID_POINTER_ID
                 }

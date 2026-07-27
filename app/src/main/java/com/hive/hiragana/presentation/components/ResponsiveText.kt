@@ -159,3 +159,40 @@ fun rememberUniformTextScale(
         }
     }
 }
+
+/**
+ * One shared shrink factor (1 down to [minScale]) for labels laid out in
+ * EQUAL-width columns — e.g. a full-width [androidx.compose.material3.TabRow],
+ * where every tab gets the same 1/N share of the width regardless of content.
+ * The binding constraint is the WIDEST label fitting its own share of
+ * [availableWidth] minus [reservedPerItem]; unlike [rememberUniformTextScale]
+ * (which fits the SUM of labels into the total, for content-packed rows), this
+ * fits the widest into a single share so no equal-width cell clips.
+ */
+@Composable
+fun rememberEqualShareTextScale(
+    labels: List<String>,
+    style: TextStyle,
+    availableWidth: Dp,
+    reservedPerItem: Dp = 0.dp,
+    minScale: Float = 0.7f,
+): Float {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    return remember(labels, style, availableWidth, reservedPerItem, minScale, density) {
+        with(density) {
+            if (labels.isEmpty()) return@with 1f
+            val sharePx = availableWidth.toPx() / labels.size - reservedPerItem.toPx()
+            val widestPx = labels.maxOf { label ->
+                measurer.measure(
+                    text = label,
+                    style = style,
+                    softWrap = false,
+                    maxLines = 1,
+                ).size.width
+            }.toFloat()
+            if (widestPx <= 0f || sharePx <= 0f) return@with 1f
+            (sharePx / widestPx).coerceIn(minScale, 1f)
+        }
+    }
+}
