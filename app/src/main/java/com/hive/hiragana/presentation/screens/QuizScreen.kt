@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -73,6 +74,7 @@ import com.hive.hiragana.presentation.components.MnemonicHintButton
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.fontScaleFraction
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
+import com.hive.hiragana.presentation.components.SpecialKanaBadge
 import com.hive.hiragana.presentation.components.PrintFontFamily
 import kotlin.random.Random
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
@@ -82,6 +84,7 @@ import com.hive.hiragana.presentation.components.WordScoreChips
 import com.hive.hiragana.presentation.theme.LocalKanaColors
 import kotlin.math.roundToInt
 import com.hive.hiragana.domain.model.RomajiMatch
+import com.hive.hiragana.domain.model.SpecialKana
 import com.hive.hiragana.presentation.viewmodels.QuizKind
 import com.hive.hiragana.presentation.viewmodels.QuizStage
 import com.hive.hiragana.presentation.viewmodels.QuizState
@@ -119,6 +122,7 @@ fun QuizScreen(
     onAdvance: () -> Unit,
     onBack: () -> Unit,
     onQuizAgain: () -> Unit,
+    onRetryWrong: () -> Unit = {},
     onClose: () -> Unit,
     scoringMode: ScoringMode,
     onSetScoringMode: (ScoringMode) -> Unit,
@@ -135,6 +139,7 @@ fun QuizScreen(
     // Reading-quiz callbacks (ignored by writing quizzes).
     onReadingResult: (Boolean) -> Unit = {},
     onSetAnswerStyle: (ReadingAnswerStyle) -> Unit = {},
+    onSetShowHints: (Boolean) -> Unit = {},
     onSetTestMeaning: (Boolean) -> Unit = {},
     // Deck characters for a kana string's reading units — the reading quiz's
     // reveal card uses it for the "print differs" badge (handwritten strokes).
@@ -168,6 +173,8 @@ fun QuizScreen(
                 onSetScoringMode = onSetScoringMode,
                 onSetAnswerStyle = onSetAnswerStyle,
                 onSetTestMeaning = onSetTestMeaning,
+                onSetShowHints = onSetShowHints,
+                mnemonicsEnabled = mnemonicsEnabled,
             )
             QuizStage.RUNNING -> if (quiz.kind == QuizKind.READING) {
                 ReadingQuizRunning(
@@ -213,9 +220,15 @@ fun QuizScreen(
             QuizStage.SUMMARY -> QuizSummary(
                 quiz = quiz,
                 onQuizAgain = onQuizAgain,
+                onRetryWrong = onRetryWrong,
                 onClose = onClose,
                 onSpeak = onSpeak,
                 ttsStatus = ttsStatus,
+                unitCharactersFor = unitCharactersFor,
+                mnemonicsEnabled = mnemonicsEnabled,
+                mnemonicChoices = mnemonicChoices,
+                onChooseMnemonic = onChooseMnemonic,
+                customMnemonics = customMnemonics,
             )
         }
     }
@@ -253,6 +266,8 @@ private fun QuizSetup(
     onSetScoringMode: (ScoringMode) -> Unit,
     onSetAnswerStyle: (ReadingAnswerStyle) -> Unit,
     onSetTestMeaning: (Boolean) -> Unit,
+    onSetShowHints: (Boolean) -> Unit,
+    mnemonicsEnabled: Boolean = true,
 ) {
     val selectedSet = practiceSets.firstOrNull { it.id == quiz.selectedSetId }
     val isWordSource = selectedSet?.type == PracticeSetType.WORDS
@@ -415,6 +430,28 @@ private fun QuizSetup(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        // Only meaningful when memory hints are globally on; the
+                        // pre-answer Hint button is gated on both.
+                        if (mnemonicsEnabled) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Hints during the quiz",
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        text = "Show a “Hint” button on each item to peek at " +
+                                            "its memory aid. Turn off to test yourself cold.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Switch(
+                                    checked = quiz.readingShowHints,
+                                    onCheckedChange = onSetShowHints,
+                                )
+                            }
+                        }
                         if (isWordSource) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -527,6 +564,13 @@ private fun ReadingQuizRunning(
     // closeQuiz with no prompt). Composed after the parent, so LIFO wins here.
     BackHandler { showExitConfirm = true }
     val needMeaning = quiz.readingTestMeaning && current.subtitle != null
+    // A special mark (ー, small tsu, small vowels) has no romaji to type, so it
+    // is tested by its role ("long vowel", "small tsu") and always by choice —
+    // still quizzed, just on knowing what the mark is. ん/を read normally, so
+    // markStyle is false for them and they keep the chosen answer style.
+    val readingAnswer = SpecialKana.readingLabel(current.answer) ?: current.prompt
+    val markStyle = SpecialKana.readingLabel(current.answer) != null
+    val readingStyle = if (markStyle) ReadingAnswerStyle.CHOICE else quiz.readingAnswerStyle
 
     // Per-item answer state; resets when the index changes.
     var romajiOk by remember(quiz.index) { mutableStateOf<Boolean?>(null) }
@@ -534,7 +578,14 @@ private fun ReadingQuizRunning(
     var typed by remember(quiz.index) { mutableStateOf("") }
 
     val romajiOptions = remember(quiz.index) {
-        readingOptions(current.prompt, quiz.items.map { it.prompt }, quiz.index)
+        // Correct answer + pool both use each item's readable reading (a role
+        // label for marks, romaji otherwise) so no placeholder like "xtsu" leaks
+        // into the options.
+        readingOptions(
+            readingAnswer,
+            quiz.items.map { SpecialKana.readingLabel(it.answer) ?: it.prompt },
+            quiz.index,
+        )
     }
     val meaningOptions = remember(quiz.index) {
         readingOptions(current.subtitle.orEmpty(), quiz.items.mapNotNull { it.subtitle }, quiz.index + 7)
@@ -585,21 +636,33 @@ private fun ReadingQuizRunning(
         ) {
             // The printed prompt — the real-world (gothic) form to recognize.
             // PrintFontFamily swaps さ/き/り (only) to their connected printed
-            // forms; everything else falls back to the system font.
-            Text(
+            // forms; everything else falls back to the system font. Large so a
+            // recognition prompt reads clearly; AutoShrinkText scales a long word
+            // down to fit the width instead of overflowing (a single kana stays
+            // big — it fits easily at the base size).
+            AutoShrinkText(
                 text = current.answer,
-                style = MaterialTheme.typography.displayMedium.copy(
+                style = MaterialTheme.typography.displayLarge.copy(
                     fontFamily = PrintFontFamily,
+                    fontSize = 88.sp,
                 ),
+                minFontSize = 32.sp,
                 textAlign = TextAlign.Center,
+                // No fillMaxWidth: AutoShrinkText's inner Text is start-aligned in
+                // its box, so a full-width box would pin the glyph left. Letting
+                // the box wrap the (shrink-to-fit) text lets the centered parent
+                // column centre it. The parent still bounds maxWidth, so a long
+                // word shrinks correctly.
                 modifier = Modifier.padding(top = 20.dp),
             )
 
             // Pre-answer memory hint: the glyph is the visible prompt, so the
             // dialog may show it; the keyword hints the hidden SOUND — that is
-            // the point of an opt-in, tap-to-open hint. Renders nothing when no
-            // unit has a mnemonic. Answers record normally either way.
-            if (!quiz.revealed && romajiOk == null && mnemonicsEnabled) {
+            // the point of an opt-in, tap-to-open hint. Offered only when the
+            // learner enabled "Hints during the quiz" on the setup card (so a
+            // cold test is possible). Renders nothing when no unit has a
+            // mnemonic. Answers record normally either way.
+            if (!quiz.revealed && romajiOk == null && mnemonicsEnabled && quiz.readingShowHints) {
                 MnemonicHintButton(
                     unitCharacters = unitCharactersFor(current.answer),
                     showGlyph = true,
@@ -623,11 +686,14 @@ private fun ReadingQuizRunning(
                     customMnemonics = customMnemonics,
                 )
             } else if (romajiOk == null) {
-                Text("What's the reading?", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = if (markStyle) "What is this mark?" else "What's the reading?",
+                    style = MaterialTheme.typography.titleSmall,
+                )
                 ReadingAnswerInput(
-                    style = quiz.readingAnswerStyle,
+                    style = readingStyle,
                     options = romajiOptions,
-                    expected = current.prompt,
+                    expected = readingAnswer,
                     typed = typed,
                     onTypedChange = { typed = it },
                     onAnswered = { ok ->
@@ -770,20 +836,38 @@ private fun ReadingRevealCard(
                 style = MaterialTheme.typography.titleMedium,
                 color = if (allOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Reading + audio, kept horizontally centered: the speaker adds width
+            // on the right, so a matching leading spacer balances it and the
+            // reading text sits at true centre (a silent mark has no speaker, so
+            // no spacer either). readingLabel gives a lone mark its role, not its
+            // placeholder romaji.
+            val hasAudio = !SpecialKana.isSilentMark(item.answer)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (hasAudio) Spacer(Modifier.width(38.dp))
                 Text(
-                    text = item.prompt,
+                    text = SpecialKana.readingLabel(item.answer) ?: item.prompt,
                     style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
                 )
-                PronunciationButton(
-                    glyph = item.answer,
-                    status = ttsStatus,
-                    onSpeak = onSpeak,
-                    modifier = Modifier.padding(start = 6.dp),
-                )
+                if (hasAudio) {
+                    PronunciationButton(
+                        glyph = item.answer,
+                        status = ttsStatus,
+                        onSpeak = onSpeak,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
             }
             item.subtitle?.let { meaning ->
-                Text(text = meaning, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = meaning,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                )
             }
             // The quiz prompt was the printed form — flag kana whose
             // handwritten form looks different (renders nothing otherwise).
@@ -791,8 +875,15 @@ private fun ReadingRevealCard(
                 unitCharacters = unitCharacters,
                 label = "Looks different in handwriting",
             )
+            // Note the special marks (ー, small tsu, small vowels, ん, を) that
+            // don't read like an ordinary syllable (renders nothing otherwise).
+            SpecialKanaBadge(unitCharacters = unitCharacters)
             // Memory hint for the kana just answered — re-reading the story
-            // right after a recall attempt is when it encodes best.
+            // right after a recall attempt is when it encodes best. The "How to
+            // remember" chip shows here AFTER the result regardless of the setup
+            // "hints during the quiz" choice (that choice only gates the
+            // pre-answer Hint button). Renders nothing when no unit has a
+            // mnemonic.
             if (mnemonicsEnabled) {
                 MnemonicBadge(
                     unitCharacters = unitCharacters,
@@ -1226,9 +1317,15 @@ private fun QuizRunning(
 private fun QuizSummary(
     quiz: QuizState,
     onQuizAgain: () -> Unit,
+    onRetryWrong: () -> Unit,
     onClose: () -> Unit,
     onSpeak: (String) -> Unit = {},
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
+    unitCharactersFor: (String) -> List<HiraganaCharacter> = { emptyList() },
+    mnemonicsEnabled: Boolean = true,
+    mnemonicChoices: Map<String, String> = emptyMap(),
+    onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
+    customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
 ) {
     Box(
         modifier = Modifier
@@ -1244,6 +1341,9 @@ private fun QuizSummary(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // Reading-summary group order (hoisted so rememberSaveable is
+                // called unconditionally): true = Wrong→Skipped→Correct.
+                var wrongFirst by rememberSaveable { mutableStateOf(true) }
                 Text(
                     text = "Quiz complete",
                     style = MaterialTheme.typography.headlineSmall,
@@ -1268,66 +1368,179 @@ private fun QuizSummary(
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                quiz.items.forEach { item ->
-                    val score = quiz.results[item.key]
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text(
-                            text = item.answer,
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                        Text(
-                            text = item.prompt,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        PronunciationButton(
-                            glyph = item.answer,
-                            status = ttsStatus,
-                            onSpeak = onSpeak,
-                        )
-                        // Reading is pass/fail (Correct/Wrong); writing shows the
-                        // numeric quality score against its bands. Either way "—"
-                        // is an item done but unscored (ScoringMode.OFF) and
-                        // "Skipped" a genuinely-unanswered one.
-                        val wasAnswered = item.key in quiz.submittedKeys
-                        Text(
-                            text = when {
-                                score == null -> if (wasAnswered) "—" else "Skipped"
-                                reading -> if (score >= 100) "Correct" else "Wrong"
-                                else -> score.toString()
-                            },
-                            style = MaterialTheme.typography.labelLarge,
-                            color = when {
-                                score == null -> MaterialTheme.colorScheme.onSurfaceVariant
-                                reading -> if (score >= 100) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.error
-                                score >= 75 -> MaterialTheme.colorScheme.primary
-                                score >= 50 -> MaterialTheme.colorScheme.onSurfaceVariant
-                                else -> MaterialTheme.colorScheme.error
-                            },
-                        )
+                if (reading) {
+                    // Group the results by outcome so wrong/skipped/correct
+                    // aren't scattered through the list. One tap flips the group
+                    // order between Wrong→Skipped→Correct and Correct→Skipped→
+                    // Wrong (alphabetical by outcome, Skipped always the middle).
+                    // Session-local, like the Library's list sort.
+                    val correct = quiz.items.filter { quiz.results[it.key] == 100 }
+                    val wrong = quiz.items.filter { quiz.results[it.key] == 0 }
+                    val skipped = quiz.items.filter { it.key !in quiz.results }
+                    val groups = if (wrongFirst) {
+                        listOf("Wrong" to wrong, "Skipped" to skipped, "Correct" to correct)
+                    } else {
+                        listOf("Correct" to correct, "Skipped" to skipped, "Wrong" to wrong)
+                    }
+                    TextButton(onClick = { wrongFirst = !wrongFirst }) {
+                        Text(if (wrongFirst) "Sorted: needs work first" else "Sorted: correct first")
+                    }
+                    groups.forEach { (label, items) ->
+                        if (items.isNotEmpty()) {
+                            Text(
+                                text = "$label · ${items.size}",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = when (label) {
+                                    "Correct" -> MaterialTheme.colorScheme.primary
+                                    "Wrong" -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            items.forEach { item ->
+                                ReadingSummaryRow(
+                                    item = item,
+                                    onSpeak = onSpeak,
+                                    ttsStatus = ttsStatus,
+                                    unitCharacters = unitCharactersFor(item.answer),
+                                    mnemonicsEnabled = mnemonicsEnabled,
+                                    mnemonicChoices = mnemonicChoices,
+                                    onChooseMnemonic = onChooseMnemonic,
+                                    customMnemonics = customMnemonics,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    quiz.items.forEach { item ->
+                        val score = quiz.results[item.key]
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                text = item.answer,
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                            Text(
+                                text = item.prompt,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            PronunciationButton(
+                                glyph = item.answer,
+                                status = ttsStatus,
+                                onSpeak = onSpeak,
+                            )
+                            // Writing shows the numeric quality score against its
+                            // bands. "—" is an item done but unscored
+                            // (ScoringMode.OFF); "Skipped" a genuinely-unanswered.
+                            val wasAnswered = item.key in quiz.submittedKeys
+                            Text(
+                                text = when {
+                                    score == null -> if (wasAnswered) "—" else "Skipped"
+                                    else -> score.toString()
+                                },
+                                style = MaterialTheme.typography.labelLarge,
+                                color = when {
+                                    score == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    score >= 75 -> MaterialTheme.colorScheme.primary
+                                    score >= 50 -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    else -> MaterialTheme.colorScheme.error
+                                },
+                            )
+                        }
                     }
                 }
-                Button(
+                // Drill just what wasn't answered correctly (wrong + skipped).
+                // Hidden on a perfect round and for writing quizzes.
+                if (reading) {
+                    val missed = quiz.items.count { quiz.results[it.key] != 100 }
+                    if (missed > 0) {
+                        Button(
+                            onClick = onRetryWrong,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Retake the ones I missed ($missed)")
+                        }
+                    }
+                }
+                OutlinedButton(
                     onClick = onQuizAgain,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Quiz again")
                 }
-                OutlinedButton(
+                TextButton(
                     onClick = onClose,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Done")
                 }
             }
+        }
+    }
+}
+
+/**
+ * One reading-summary row: glyph + reading, then the mnemonic-info icon and the
+ * audio button in FIXED-width trailing slots so those icons line up in a
+ * vertical column across rows — the mnemonic slot renders nothing for kana
+ * without a mnemonic and the audio slot nothing for a silent mark, but the
+ * reserved width keeps the alignment either way. The outcome (Correct/Wrong/
+ * Skipped) is stated by the section header above, so no variable-width result
+ * label is needed on the row.
+ */
+@Composable
+private fun ReadingSummaryRow(
+    item: com.hive.hiragana.presentation.viewmodels.QuizItem,
+    onSpeak: (String) -> Unit,
+    ttsStatus: VoiceStatus,
+    unitCharacters: List<HiraganaCharacter>,
+    mnemonicsEnabled: Boolean,
+    mnemonicChoices: Map<String, String>,
+    onChooseMnemonic: (String, String?) -> Unit,
+    customMnemonics: CustomMnemonicStore,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = item.answer,
+            style = MaterialTheme.typography.titleLarge.copy(fontFamily = PrintFontFamily),
+        )
+        Text(
+            text = SpecialKana.readingLabel(item.answer) ?: item.prompt,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            if (mnemonicsEnabled) {
+                MnemonicBadge(
+                    unitCharacters = unitCharacters,
+                    mnemonicChoices = mnemonicChoices,
+                    onChoose = onChooseMnemonic,
+                    customs = customMnemonics,
+                    iconOnly = true,
+                )
+            }
+        }
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            PronunciationButton(
+                glyph = item.answer,
+                status = ttsStatus,
+                onSpeak = onSpeak,
+            )
         }
     }
 }

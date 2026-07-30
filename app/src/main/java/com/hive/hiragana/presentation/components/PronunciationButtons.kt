@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.hive.hiragana.domain.audio.VoiceStatus
+import com.hive.hiragana.domain.model.SpecialKana
 
 /**
  * A single speaker button that says [glyph] aloud with the device's Japanese
@@ -41,6 +42,9 @@ fun PronunciationButton(
     onSpeak: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // A lone soundless mark (ー, small tsu) has nothing to play, so no speaker
+    // is offered for it — a word that merely contains one still gets its button.
+    if (SpecialKana.isSilentMark(glyph)) return
     val context = LocalContext.current
     IconButton(
         onClick = {

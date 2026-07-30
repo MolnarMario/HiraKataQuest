@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeLayout
+import com.hive.hiragana.domain.model.SpecialKana
 import com.hive.hiragana.domain.model.VocabularyWord
 
 /**
@@ -149,7 +150,11 @@ fun CharacterGuidePanel(
                             )
                         } else {
                             Text(
-                                text = character?.romaji.orEmpty(),
+                                // A lone mark shows its role ("long vowel",
+                                // "small tsu") instead of its placeholder romaji.
+                                text = character?.let {
+                                    SpecialKana.readingLabel(it.character) ?: it.romaji
+                                }.orEmpty(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

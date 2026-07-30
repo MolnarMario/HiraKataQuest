@@ -40,6 +40,7 @@ import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.KanaMnemonics
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.PrintDivergence
+import com.hive.hiragana.domain.model.SpecialKana
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.presentation.viewmodels.QuizKind
 import com.hive.hiragana.presentation.viewmodels.QuizStage
@@ -52,6 +53,7 @@ import com.hive.hiragana.presentation.components.FreePracticeActionBar
 import com.hive.hiragana.presentation.components.MnemonicBadge
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
+import com.hive.hiragana.presentation.components.SpecialKanaBadge
 import com.hive.hiragana.presentation.components.TracingCanvas
 import com.hive.hiragana.presentation.components.WordAverageCard
 import com.hive.hiragana.presentation.components.WordScoreChips
@@ -225,6 +227,7 @@ fun PracticeScreen(
                     onAdvance = viewModel::quizAdvance,
                     onBack = viewModel::quizBack,
                     onQuizAgain = viewModel::startQuiz,
+                    onRetryWrong = viewModel::retryWrong,
                     onClose = viewModel::closeQuiz,
                     scoringMode = uiState.scoringMode,
                     onSetScoringMode = viewModel::setScoringMode,
@@ -239,6 +242,7 @@ fun PracticeScreen(
                     onReadingResult = viewModel::readingResult,
                     onSetAnswerStyle = viewModel::setReadingAnswerStyle,
                     onSetTestMeaning = viewModel::setReadingTestMeaning,
+                    onSetShowHints = viewModel::setReadingShowHints,
                     unitCharactersFor = uiState::unitCharacters,
                     mnemonicsEnabled = uiState.mnemonicsEnabled,
                     mnemonicChoices = uiState.mnemonicChoices,
@@ -476,6 +480,11 @@ private fun PracticeContent(
             val hasMnemonic = uiState.mnemonicsEnabled && footerUnits.any {
                 KanaMnemonics.mnemonicFor(it.character) != null
             }
+            // A special-kana note (ー, small tsu, small vowels, ん, を): the
+            // "this isn't an ordinary syllable" chip.
+            val hasSpecial = footerUnits.any {
+                SpecialKana.noteFor(it.character) != null
+            }
             val scoredSheet = uiState.scoringMode != ScoringMode.OFF &&
                 uiState.practiceLayout == PracticeLayout.SINGLE
             TracingCanvas(
@@ -515,7 +524,7 @@ private fun PracticeContent(
                 // average taking precedence). Reserved structurally so the
                 // chip can never overlap the square's border (it did when it
                 // floated on whatever margin was left).
-                footerHeight = if (hasDivergence || hasMnemonic || (isWordSheet && scoredSheet)) {
+                footerHeight = if (hasDivergence || hasMnemonic || hasSpecial || (isWordSheet && scoredSheet)) {
                     44.dp
                 } else {
                     0.dp
@@ -526,11 +535,12 @@ private fun PracticeContent(
                         WordAverageCard(average = avg)
                     } else {
                         // A plain Row, NOT a FlowRow (whose overflow silently
-                        // drops children on compact screens). Both chips
-                        // co-occur only on さ/き/り sheets (and words holding
-                        // them); two full-text pills don't fit a 360dp strip,
-                        // so the mnemonic chip collapses to icon-only and the
-                        // rarer divergence warning keeps its text.
+                        // drops children on compact screens). At most one
+                        // full-text pill fits a 360dp strip, so we keep a
+                        // single anchor and collapse the rest to icon-only:
+                        // the rare divergence warning wins the text, then the
+                        // special-kana note, and the mnemonic chip is the
+                        // first to shrink whenever anything else is present.
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -538,7 +548,7 @@ private fun PracticeContent(
                             if (hasMnemonic) {
                                 MnemonicBadge(
                                     unitCharacters = footerUnits,
-                                    iconOnly = hasDivergence,
+                                    iconOnly = hasDivergence || hasSpecial,
                                     mnemonicChoices = uiState.mnemonicChoices,
                                     onChoose = viewModel::chooseMnemonic,
                                     customs = CustomMnemonicStore(
@@ -548,6 +558,10 @@ private fun PracticeContent(
                                     ),
                                 )
                             }
+                            SpecialKanaBadge(
+                                unitCharacters = footerUnits,
+                                iconOnly = hasDivergence,
+                            )
                             PrintDivergenceBadge(unitCharacters = footerUnits)
                         }
                     }

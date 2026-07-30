@@ -11,6 +11,7 @@ import com.hive.hiragana.domain.audio.PronunciationPlayer
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.DefaultPracticeSets
 import com.hive.hiragana.domain.model.Grade
+import com.hive.hiragana.domain.model.SpecialKana
 import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_STORY_MAX
 import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_TITLE_MAX
 import com.hive.hiragana.domain.model.HiraganaCharacter
@@ -186,6 +187,11 @@ data class QuizState(
     val kind: QuizKind = QuizKind.WRITING,
     val readingAnswerStyle: ReadingAnswerStyle = ReadingAnswerStyle.CHOICE,
     val readingTestMeaning: Boolean = false,
+    // Whether the pre-answer "Hint" (mnemonic) button is offered DURING a
+    // reading item — a per-quiz setup choice, so a learner can test cold. The
+    // post-answer reveal's mnemonic chip is independent of this (always shown
+    // when memory hints are on). Default true keeps the prior behaviour.
+    val readingShowHints: Boolean = true,
 ) {
     val current: QuizItem? get() = items.getOrNull(index)
 
@@ -679,7 +685,13 @@ class PracticeViewModel(
     }
 
     /** Speak [glyph] via the device's built-in Japanese TTS. */
-    fun speakTts(glyph: String) = ttsPlayer.play(glyph)
+    fun speakTts(glyph: String) {
+        // A lone soundless mark (ー, small tsu) would only make the engine
+        // stumble, so it is never spoken — including by auto-narration. A word
+        // that contains one is a normal glyph string and speaks fine.
+        if (SpecialKana.isSilentMark(glyph)) return
+        ttsPlayer.play(glyph)
+    }
 
     /**
      * Re-check the Japanese voice status — called on ON_RESUME so a voice the
@@ -1650,6 +1662,14 @@ class PracticeViewModel(
         }
     }
 
+    /** Reading-quiz setup: offer the pre-answer Hint button during each item. */
+    fun setReadingShowHints(enabled: Boolean) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            state.copy(quiz = quiz.copy(readingShowHints = enabled))
+        }
+    }
+
     /**
      * Records a READING answer for the current item: correct → 100, wrong → 0
      * in [QuizState.results] (the summary reads it), and reveals the item so the
@@ -1663,7 +1683,11 @@ class PracticeViewModel(
         // the permanent reading_progress tally for one question.
         if (quiz.stage != QuizStage.RUNNING || quiz.submitted) return
         val item = quiz.current ?: return
-        val typed = quiz.readingAnswerStyle == ReadingAnswerStyle.TYPE
+        // Special marks are always answered by choice (no romaji to type), so
+        // their result belongs in the multiple-choice tally even if TYPE is the
+        // chosen style — mirrors the forced-choice UI in ReadingQuizRunning.
+        val markStyle = SpecialKana.readingLabel(item.answer) != null
+        val typed = quiz.readingAnswerStyle == ReadingAnswerStyle.TYPE && !markStyle
         _uiState.update { state ->
             val q = state.quiz ?: return@update state
             state.copy(
@@ -1840,6 +1864,35 @@ class PracticeViewModel(
                 quiz = quiz.copy(
                     stage = QuizStage.RUNNING,
                     items = pool.take(quiz.requestedCount.coerceIn(1, pool.size)),
+                    index = 0,
+                    revealed = false,
+                    submitted = false,
+                    results = emptyMap(),
+                    submittedKeys = emptySet(),
+                ),
+                canvasClearKey = state.canvasClearKey + 1,
+            )
+        }
+    }
+
+    /**
+     * From the SUMMARY, restart the quiz with only the items the learner did not
+     * answer correctly this round — anything whose result is not a pass (100),
+     * i.e. wrong AND skipped. Reuses the existing [QuizItem] instances (their
+     * prompts are already baked in), so it needs no pool rebuild, and resets the
+     * per-item state the same way [startQuiz] does. A no-op when nothing was
+     * missed. Reading quizzes only (writing has no pass/fail results map).
+     */
+    fun retryWrong() {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            if (quiz.stage != QuizStage.SUMMARY) return@update state
+            val missed = quiz.items.filter { quiz.results[it.key] != 100 }
+            if (missed.isEmpty()) return@update state
+            state.copy(
+                quiz = quiz.copy(
+                    stage = QuizStage.RUNNING,
+                    items = missed.shuffled(),
                     index = 0,
                     revealed = false,
                     submitted = false,
