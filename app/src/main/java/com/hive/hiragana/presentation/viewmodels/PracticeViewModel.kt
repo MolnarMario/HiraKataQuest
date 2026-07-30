@@ -17,6 +17,7 @@ import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.KanaMnemonic
 import com.hive.hiragana.domain.model.PracticeAttempt
 import com.hive.hiragana.domain.model.PracticeLayout
+import com.hive.hiragana.domain.model.KanaReading
 import com.hive.hiragana.domain.model.KanaUnits
 import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
@@ -99,6 +100,11 @@ data class ReadingFlashcardState(
     val cards: List<ReadingCard>,
     val index: Int = 0,
     val revealed: Boolean = false,
+    // Monotonic counter bumped on every advance. The screen keys its per-card
+    // answer state on THIS, not [index]: a 1-card deck's index wraps 0→0 on
+    // Next, so an index-keyed remember would never reset and the card would
+    // re-reveal forever off its stale answer. The serial always changes.
+    val serial: Int = 0,
     // Launched from a saved set (vs a single browse item): closing should
     // reopen the Library on the Sets tab rather than the browse page, mirroring
     // the quiz-from-set round-trip (see closeReadingFlashcards / closeQuiz).
@@ -440,9 +446,7 @@ data class PracticeUiState(
      * "kyo"); a unit with no deck entry falls back to the glyph(s) themselves.
      */
     fun pronunciationOf(word: VocabularyWord): String =
-        KanaUnits.split(word.kana).joinToString(" ") { unit ->
-            characterByGlyph[unit]?.romaji ?: unit
-        }
+        KanaReading.spacedRomaji(word.kana) { unit -> characterByGlyph[unit]?.romaji }
 
     /**
      * The deck [HiraganaCharacter] for each reading unit of [word], in order —
@@ -540,6 +544,15 @@ class PracticeViewModel(
      * object, so identity comparison exactly detects that race.
      */
     private var lastGradedSession: DrawingSession? = null
+
+    /**
+     * Monotonic id bumped on every scored attempt. The async recognition
+     * refinement captures the id at submit and only applies its result if this
+     * is still the latest attempt — so a slow recognition from attempt N-1 can't
+     * clobber attempt N's score on the Submit→Again→resubmit flow (same glyph,
+     * so a glyph-only guard would wrongly pass). Written only on the main thread.
+     */
+    private var scoreAttemptSeq = 0
 
     /**
      * The guide cell captured from the canvas at the moment of the current
@@ -756,12 +769,22 @@ class PracticeViewModel(
         words: List<VocabularyWord>,
     ) {
         if (settingsRepository.hasSeededDefaultSets()) return
+        // Skip any default already present (e.g. a previous seed that failed
+        // partway then retried this launch) so a retry can't duplicate the sets
+        // that did land.
+        val existingNames = _uiState.value.practiceSets.map { it.name }.toSet()
         runCatching {
-            DefaultPracticeSets.build(deck, words).forEach { spec ->
-                practiceSetRepository.createSet(spec.name, spec.type, spec.script, spec.members)
-            }
+            DefaultPracticeSets.build(deck, words)
+                .filterNot { it.name in existingNames }
+                .forEach { spec ->
+                    practiceSetRepository.createSet(spec.name, spec.type, spec.script, spec.members)
+                }
+        }.onSuccess {
+            // Only latch on success: if seeding threw (disk full, transient Room
+            // error), leave the flag unset so the next launch tries again rather
+            // than permanently stranding the user with zero/partial defaults.
+            settingsRepository.setDefaultSetsSeeded()
         }.onFailure { Log.w(TAG, "Failed to seed default practice sets", it) }
-        settingsRepository.setDefaultSetsSeeded()
     }
 
     /**
@@ -938,10 +961,16 @@ class PracticeViewModel(
      * A fresh [PracticeUiState] for a rebuild after a scope change: every
      * DURABLE field — the loaded deck, all persisted settings (grid/ghost/
      * layout/ink color/library view/section, script + the three opt-ins, AND
-     * scoringMode/scoreStats) — is carried over from the current state, the
-     * transient practice fields reset to defaults, and [canvasClearKey] bumped.
-     * Callers override only what differs. Every rebuild path funnels through
-     * here so no path can silently drop a durable field.
+     * scoringMode/scoreStats) plus the long-lived collector-fed fields
+     * ([ttsStatus]) and the in-flight [updateState] — is carried over from the
+     * current state, the transient practice fields reset to defaults, and
+     * [canvasClearKey] bumped. Callers override only what differs. Every rebuild
+     * path funnels through here so no path can silently drop a carried field.
+     *
+     * NOTE: [ttsStatus] MUST be carried. It is fed once by the TTS status
+     * collector and never re-emits (a StateFlow conflates equal values), so a
+     * rebuild that dropped it would reset every install to UNAVAILABLE — greying
+     * out all pronunciation/auto-narration for the rest of the process.
      */
     private fun PracticeUiState.rebuilt(
         isLoading: Boolean,
@@ -982,6 +1011,8 @@ class PracticeViewModel(
         mnemonicsEnabled = mnemonicsEnabled,
         mnemonicChoices = mnemonicChoices,
         customMnemonics = customMnemonics,
+        ttsStatus = ttsStatus,
+        updateState = updateState,
         canvasClearKey = canvasClearKey + 1,
     )
 
@@ -1323,7 +1354,11 @@ class PracticeViewModel(
      * the glyph is replaced rather than duplicated. No-ops on blank input.
      */
     fun addCustomMnemonic(glyph: String, title: String, description: String) {
-        val cleanTitle = title.trim().uppercase().take(CUSTOM_MNEMONIC_TITLE_MAX)
+        // Collapse ALL whitespace (incl. newlines) in the title: it becomes the
+        // promoted mnemonic choice, stored one-per-line as "glyph=TITLE", so an
+        // embedded newline (e.g. pasted text — singleLine only blocks the Enter
+        // key, not paste) would corrupt that line format.
+        val cleanTitle = title.trim().replace(Regex("\\s+"), " ").uppercase().take(CUSTOM_MNEMONIC_TITLE_MAX)
         val cleanStory = description.trim().take(CUSTOM_MNEMONIC_STORY_MAX)
         if (cleanTitle.isBlank() || cleanStory.isBlank()) return
         val entry = KanaMnemonic(keyword = cleanTitle, story = cleanStory)
@@ -1623,6 +1658,10 @@ class PracticeViewModel(
      */
     fun readingResult(correct: Boolean) {
         val quiz = _uiState.value.quiz ?: return
+        // Re-entry guard, mirroring quizSubmit: without it two near-simultaneous
+        // taps (two fingers on adjacent MC options) both persist, double-counting
+        // the permanent reading_progress tally for one question.
+        if (quiz.stage != QuizStage.RUNNING || quiz.submitted) return
         val item = quiz.current ?: return
         val typed = quiz.readingAnswerStyle == ReadingAnswerStyle.TYPE
         _uiState.update { state ->
@@ -1713,7 +1752,7 @@ class PracticeViewModel(
         _uiState.update { s ->
             val fc = s.readingFlashcard ?: return@update s
             val next = if (fc.cards.isEmpty()) 0 else (fc.index + 1) % fc.cards.size
-            s.copy(readingFlashcard = fc.copy(index = next, revealed = false))
+            s.copy(readingFlashcard = fc.copy(index = next, revealed = false, serial = fc.serial + 1))
         }
     }
 
@@ -2089,13 +2128,16 @@ class PracticeViewModel(
      * Records one single-character practice attempt. **When grading is off
      * (`ScoringMode.OFF`) nothing is recorded** — it's pure practice with no
      * score to store. Otherwise it persists the attempt and computes its
-     * handwriting-quality score. Geometry is computed
-     * synchronously (instant, so [PracticeUiState.lastScore] updates
-     * immediately for advisory feedback); recognition is awaited in a
-     * fire-and-forget coroutine, after which the score is finalised and the
-     * row is inserted with all three sub-scores. Everything is snapshotted
-     * synchronously from the caller before the canvas clears; the Room insert
-     * never blocks the session (failures logged).
+     * handwriting-quality score. Geometry is computed synchronously (instant, so
+     * [PracticeUiState.lastScore] updates immediately for advisory feedback) and
+     * the row is persisted right away with the form/fit dials — persistence is
+     * NEVER gated on recognition, which may be slow or (offline) never resolve.
+     * ML Kit recognition then runs fire-and-forget and refines only the
+     * on-screen headline for the latest attempt; it is NOT written back to the
+     * row, so the `recognition_score` column stays null (see
+     * [com.hive.hiragana.data.local.PracticeAttemptEntity]). Everything is
+     * snapshotted synchronously from the caller before the canvas clears; the
+     * Room insert never blocks the session (failures logged).
      *
      * Scoring never touches scheduling (advisory only) — the caller's SRS
      * logic runs independently on the same grade.
@@ -2199,18 +2241,20 @@ class PracticeViewModel(
             .map { stroke -> stroke.points.map { RecognizerStrokePoint(it.x, it.y, it.timestamp) } }
             .filter { it.isNotEmpty() }
         val target = character.character
+        val attemptId = ++scoreAttemptSeq
         viewModelScope.launch {
             val recognition = runCatching { handwritingRecognizer.recognize(recognizerStrokes, target) }
                 .getOrElse {
                     Log.w(TAG, "Recognition failed for $target", it)
                     RecognitionResult.UNAVAILABLE
                 }
-            // Only refine the headline if the glyph we scored is STILL the one
-            // on screen — a stale recognition from a previous character must not
-            // clobber the current score (nor flash onto the phase under a just-
-            // closed quiz, which clears lastScoredCharacter).
+            // Only refine the headline if this is STILL the latest scored attempt
+            // (not just the same glyph — Submit→Again→resubmit reuses the glyph)
+            // and its score is the one on screen. A stale recognition from an
+            // earlier attempt must not clobber the current one, nor flash onto
+            // the phase under a just-closed quiz (which clears lastScoredCharacter).
             _uiState.update { s ->
-                if (s.lastScoredCharacter == target) {
+                if (attemptId == scoreAttemptSeq && s.lastScoredCharacter == target) {
                     s.copy(lastScore = CharacterScore.combine(geometry, recognition, mode))
                 } else {
                     s

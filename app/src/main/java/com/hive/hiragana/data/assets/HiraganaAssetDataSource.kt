@@ -27,10 +27,12 @@ import org.json.JSONObject
  * vocabulary.json is a separate, independent per-directory asset (schema:
  * docs/PHASE3-DESIGN.md §3).
  *
- * Loading is resilient **per directory**: each script's read is wrapped so a
- * missing or unreadable directory (e.g. no `assets/katakana/` yet) is skipped
- * with a warning and contributes nothing, rather than taking down the other
- * script. The result is always the union of whatever loaded successfully.
+ * Loading is resilient **per directory AND per file**: each script's read is
+ * wrapped so a missing or unreadable directory (e.g. no `assets/katakana/` yet)
+ * is skipped with a warning and contributes nothing, and within a directory a
+ * single malformed character JSON is skipped rather than dropping every
+ * character of that script. The result is always the union of whatever loaded
+ * successfully.
  */
 class HiraganaAssetDataSource(private val assetManager: AssetManager) {
 
@@ -45,13 +47,17 @@ class HiraganaAssetDataSource(private val assetManager: AssetManager) {
             buildList {
                 for (i in 0 until files.length()) {
                     val name = files.getString(i)
-                    add(
+                    // Resilient per FILE too: one malformed character JSON skips
+                    // only itself, not the whole script (dropping all 100+
+                    // characters over one bad file was the old behaviour).
+                    runCatching {
                         parseCharacter(
                             JSONObject(readAsset("${script.key}/$name.json")),
                             id = name,
                             script = script,
                         )
-                    )
+                    }.onSuccess { add(it) }
+                        .onFailure { Log.w(TAG, "Skipping malformed character '$name' in '${script.key}'", it) }
                 }
             }
         }.getOrElse { error ->

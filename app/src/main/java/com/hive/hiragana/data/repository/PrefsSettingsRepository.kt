@@ -183,19 +183,23 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
     // new dependency). Shape: { "<glyph>": [ {"t": title, "d": description}, … ] }
     override fun getCustomMnemonics(): Map<String, List<KanaMnemonic>> {
         val raw = prefs.getString(KEY_CUSTOM_MNEMONICS, null) ?: return emptyMap()
-        return runCatching {
-            val root = JSONObject(raw)
-            buildMap {
-                for (glyph in root.keys()) {
-                    val arr = root.getJSONArray(glyph)
-                    val list = (0 until arr.length()).map { i ->
+        val root = runCatching { JSONObject(raw) }.getOrNull() ?: return emptyMap()
+        // Parse tolerantly PER ENTRY: skip a corrupt glyph/entry but keep the
+        // rest. A single bad entry must not blank the whole map, because the
+        // next add/delete rewrites the pref FROM this map — so returning empty
+        // on one bad entry would permanently destroy every other custom.
+        return buildMap {
+            for (glyph in root.keys()) {
+                val arr = runCatching { root.getJSONArray(glyph) }.getOrNull() ?: continue
+                val list = (0 until arr.length()).mapNotNull { i ->
+                    runCatching {
                         val o = arr.getJSONObject(i)
                         KanaMnemonic(keyword = o.getString("t"), story = o.getString("d"))
-                    }
-                    if (list.isNotEmpty()) put(glyph, list)
+                    }.getOrNull()
                 }
+                if (list.isNotEmpty()) put(glyph, list)
             }
-        }.getOrDefault(emptyMap())
+        }
     }
 
     override fun setCustomMnemonics(customs: Map<String, List<KanaMnemonic>>) {

@@ -13,12 +13,15 @@ import java.text.Normalizer
  * - everything but letters dropped (so spaces, the deck's space-joined
  *   syllables "ka sa", hyphens and apostrophes don't matter),
  * - Hepburn digraphs folded to a single kunrei-style spelling, so shi=si,
- *   chi=ti, tsu=tu, fu=hu, ji=zi (and their yōon sha/sya, cha/tya, ja/zya …).
+ *   chi=ti, tsu=tu, fu=hu, ji=zi (and their yōon sha/sya, cha/tya, ja/zya …),
+ *   plus the d-row homophones du=zu, di=zi and the wāpuro jya/jyu/jyo, and a
+ *   final ん typed "nn" folded to a single n.
  *
  * Long-vowel spelling (ou vs oo vs ō) is intentionally NOT reconciled beyond
- * macron stripping — the deck stores plain vowels ("ko u" → "kou"), and the
- * default answer style is multiple-choice, so typed mode only needs to be
- * forgiving of system differences, not a full romaji parser.
+ * macron stripping — the reading is now built by [KanaReading], which spells a
+ * long vowel out (コーヒー → "koohii"), so the learner's straight romaji matches
+ * and typed mode only needs to be forgiving of romanization-system differences,
+ * not a full romaji parser.
  */
 object RomajiMatch {
 
@@ -46,7 +49,8 @@ object RomajiMatch {
         return t
     }
 
-    // Longer keys first so e.g. "sha" is folded before a bare "sh" could form.
+    // Longer keys first so e.g. "sha" is folded before a bare "sh" could form,
+    // and the yōon jya/jyu/jyo before the plain ja/ju/jo.
     private val DIGRAPHS: List<Pair<String, String>> = listOf(
         "shi" to "si",
         "sha" to "sya", "shu" to "syu", "sho" to "syo",
@@ -54,7 +58,12 @@ object RomajiMatch {
         "cha" to "tya", "chu" to "tyu", "cho" to "tyo",
         "tsu" to "tu",
         "fu" to "hu",
+        "jya" to "zya", "jyu" to "zyu", "jyo" to "zyo",
         "ja" to "zya", "ju" to "zyu", "jo" to "zyo",
         "ji" to "zi",
+        // A word-final ん is habitually typed "nn" (every IME requires it).
+        // (づ/ぢ are deliberately NOT folded to ず/じ: the same "du"/"di" spells
+        // the distinct katakana foreign sounds ディ/ドゥ, which must stay literal.)
+        "nn" to "n",
     )
 }
