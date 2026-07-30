@@ -67,11 +67,13 @@ import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.MeaningMatch
 import com.hive.hiragana.domain.model.PrintDivergence
 import com.hive.hiragana.domain.model.RomajiMatch
+import com.hive.hiragana.domain.model.SpecialKana
 import com.hive.hiragana.presentation.components.CustomMnemonicStore
 import com.hive.hiragana.presentation.components.MnemonicBadge
 import com.hive.hiragana.presentation.components.MnemonicHintButton
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.PronunciationButton
+import com.hive.hiragana.presentation.components.SpecialKanaBadge
 import com.hive.hiragana.presentation.viewmodels.ReadingFlashcardState
 import kotlin.random.Random
 
@@ -158,7 +160,14 @@ fun ReadingFlashcardScreen(
     modifier: Modifier = Modifier,
 ) {
     val card = state.current ?: return
+    // Special marks (ー, small tsu, small vowels) are answered by their role
+    // ("long vowel", "small tsu") and always by choice, since there is no romaji
+    // to type. ん/を read normally, so markCard is false and they type as usual.
+    val readingAnswer = SpecialKana.readingLabel(card.glyph) ?: card.romaji
+    val markCard = SpecialKana.readingLabel(card.glyph) != null
     var typingMode by rememberSaveable { mutableStateOf(false) }
+    // Typing is suppressed on a mark card even when the toggle is on.
+    val effectiveTyping = typingMode && !markCard
     // Reading answer + result (shared by both answer styles). Keyed on
     // state.serial, NOT state.index: a 1-card deck wraps index 0→0 on Next, so
     // an index key would never reset and the card would re-reveal forever off
@@ -177,7 +186,13 @@ fun ReadingFlashcardScreen(
     // Option sets (correct + up to 3 deck distractors, fixed per card): reading
     // draws from the readings, meaning from the other meanings (distinct seed).
     val readingOptions = remember(state.index, state.cards) {
-        readingChoiceOptions(card.romaji, state.cards.map { it.romaji }, state.index)
+        // Correct answer + pool both use each card's readable reading (a role
+        // label for marks, romaji otherwise) so no placeholder like "xtsu" shows.
+        readingChoiceOptions(
+            readingAnswer,
+            state.cards.map { SpecialKana.readingLabel(it.glyph) ?: it.romaji },
+            state.index,
+        )
     }
     val meaningOptions = remember(state.index, state.cards) {
         readingChoiceOptions(card.meaning.orEmpty(), state.cards.mapNotNull { it.meaning }, state.index + 7)
@@ -192,6 +207,12 @@ fun ReadingFlashcardScreen(
     val hasDivergence = remember(cardUnits) {
         cardUnits.any { PrintDivergence.noteFor(it.character) != null }
     }
+    // A special-kana note (ー, small tsu, small vowels, ん, を). Present with a
+    // mnemonic only on ん/を, so it takes text precedence over the mnemonic chip
+    // (which goes icon-only) but yields to the rarer divergence warning.
+    val hasSpecial = remember(cardUnits) {
+        cardUnits.any { SpecialKana.noteFor(it.character) != null }
+    }
 
     // Reading answered but the meaning still owed — the intermediate step
     // before the card reveals.
@@ -205,8 +226,8 @@ fun ReadingFlashcardScreen(
     // Keyboard follows the toggle: opens when typing is turned on, closes when
     // it's turned off. Focus is never cleared on Next, so it stays open across
     // cards for a continuous flow.
-    LaunchedEffect(typingMode) {
-        if (typingMode) {
+    LaunchedEffect(effectiveTyping) {
+        if (effectiveTyping) {
             runCatching { focusRequester.requestFocus() }
         } else {
             focusManager.clearFocus()
@@ -436,7 +457,10 @@ fun ReadingFlashcardScreen(
                                     ) {
                                         if (needMeaning) ResultMark(readingOk == true)
                                         Text(
-                                            text = card.romaji,
+                                            // A lone mark reveals its role, not
+                                            // its placeholder romaji.
+                                            text = SpecialKana.readingLabel(card.glyph)
+                                                ?: card.romaji,
                                             style = MaterialTheme.typography.headlineSmall,
                                         )
                                         PronunciationButton(
@@ -485,10 +509,14 @@ fun ReadingFlashcardScreen(
                                         unitCharacters = cardUnits,
                                         label = "Looks different in handwriting",
                                     )
+                                    SpecialKanaBadge(
+                                        unitCharacters = cardUnits,
+                                        iconOnly = hasDivergence,
+                                    )
                                     if (mnemonicsEnabled) {
                                         MnemonicBadge(
                                             unitCharacters = cardUnits,
-                                            iconOnly = hasDivergence,
+                                            iconOnly = hasDivergence || hasSpecial,
                                             mnemonicChoices = mnemonicChoices,
                                             onChoose = onChooseMnemonic,
                                             customs = customMnemonics,
@@ -541,7 +569,7 @@ fun ReadingFlashcardScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (typingMode) {
+                if (effectiveTyping) {
                     // Field + action share ONE row (~2/3 field, 1/3 button) — a
                     // guess is short, so the field needn't span the row. The
                     // keyboard stays open the WHOLE run: the field is never
@@ -633,7 +661,7 @@ fun ReadingFlashcardScreen(
                         else ->
                             readingOptions.forEach { option ->
                                 OutlinedButton(
-                                    onClick = { answerReading(option == card.romaji) },
+                                    onClick = { answerReading(option == readingAnswer) },
                                     modifier = Modifier.fillMaxWidth().height(OptionSlotHeight),
                                 ) {
                                     Text(option)

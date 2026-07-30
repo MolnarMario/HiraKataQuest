@@ -669,6 +669,53 @@ class PracticeViewModelTest {
         assertEquals(false, vm.uiState.value.pendingOpenSetsManager)
     }
 
+    /**
+     * From the reading-quiz summary, [PracticeViewModel.retryWrong] restarts the
+     * quiz with only the items not answered correctly this round — the wrong AND
+     * the skipped ones — and resets the per-item state. The correctly-answered
+     * item is dropped.
+     */
+    @Test
+    fun `retryWrong restarts with only the wrong and skipped items`() = runTest(dispatcher) {
+        val vm = buildViewModel(
+            characters = listOf(
+                character("a", "あ", frequency = 1),
+                character("i", "い", frequency = 2),
+                character("u", "う", frequency = 3),
+                character("e", "え", frequency = 4),
+            ),
+        )
+        advanceUntilIdle()
+
+        vm.openQuiz(kind = QuizKind.READING)
+        vm.startQuiz()
+        advanceUntilIdle()
+        // A full 4-item reading quiz: one correct, one wrong, two skipped.
+        assertEquals(4, vm.uiState.value.quiz!!.items.size)
+
+        val correctKey = vm.uiState.value.quiz!!.current!!.key
+        vm.readingResult(correct = true)
+        vm.quizAdvance()
+        vm.readingResult(correct = false)
+        vm.quizAdvance()
+        vm.quizAdvance() // skip
+        vm.quizAdvance() // skip -> SUMMARY
+        advanceUntilIdle()
+        assertEquals(QuizStage.SUMMARY, vm.uiState.value.quiz!!.stage)
+
+        vm.retryWrong()
+        advanceUntilIdle()
+
+        val quiz = vm.uiState.value.quiz!!
+        assertEquals(QuizStage.RUNNING, quiz.stage)
+        assertEquals(3, quiz.items.size) // 1 wrong + 2 skipped
+        assertTrue(quiz.items.none { it.key == correctKey })
+        assertEquals(0, quiz.index)
+        assertTrue(quiz.results.isEmpty())
+        assertTrue(quiz.submittedKeys.isEmpty())
+        assertFalse(quiz.revealed)
+    }
+
     // ---- default practice sets ------------------------------------------
 
     /**
