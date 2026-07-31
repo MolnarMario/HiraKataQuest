@@ -82,6 +82,7 @@ import com.hive.hiragana.presentation.components.TracingCanvas
 import com.hive.hiragana.presentation.components.WordAverageCard
 import com.hive.hiragana.presentation.components.WordScoreChips
 import com.hive.hiragana.presentation.theme.LocalKanaColors
+import com.hive.hiragana.presentation.theme.correctColor
 import kotlin.math.roundToInt
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.domain.model.SpecialKana
@@ -447,7 +448,7 @@ private fun QuizSetup(
                                     )
                                 }
                                 Switch(
-                                    checked = quiz.readingShowHints,
+                                    checked = quiz.showHints,
                                     onCheckedChange = onSetShowHints,
                                 )
                             }
@@ -472,6 +473,28 @@ private fun QuizSetup(
                             }
                         }
                     } else {
+                        // Same per-run pre-answer hints toggle as the reading
+                        // quiz, gated on the global memory-hints setting.
+                        if (mnemonicsEnabled) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Hints during the quiz",
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        text = "Show a “Hint” button on each item to peek at " +
+                                            "its memory aid. Turn off to test yourself cold.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Switch(
+                                    checked = quiz.showHints,
+                                    onCheckedChange = onSetShowHints,
+                                )
+                            }
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -662,7 +685,7 @@ private fun ReadingQuizRunning(
             // learner enabled "Hints during the quiz" on the setup card (so a
             // cold test is possible). Renders nothing when no unit has a
             // mnemonic. Answers record normally either way.
-            if (!quiz.revealed && romajiOk == null && mnemonicsEnabled && quiz.readingShowHints) {
+            if (!quiz.revealed && romajiOk == null && mnemonicsEnabled && quiz.showHints) {
                 MnemonicHintButton(
                     unitCharacters = unitCharactersFor(current.answer),
                     showGlyph = true,
@@ -677,6 +700,7 @@ private fun ReadingQuizRunning(
                     item = current,
                     romajiOk = romajiOk == true,
                     meaningOk = if (needMeaning) meaningOk == true else null,
+                    streakMessage = quiz.streakMessage,
                     onSpeak = onSpeak,
                     ttsStatus = ttsStatus,
                     unitCharacters = unitCharactersFor(current.answer),
@@ -709,7 +733,7 @@ private fun ReadingQuizRunning(
                     text = "Reading: ${current.prompt}  ${if (romajiOk == true) "✓" else "✗"}",
                     style = MaterialTheme.typography.titleSmall,
                     color = if (romajiOk == true) {
-                        MaterialTheme.colorScheme.primary
+                        correctColor(LocalKanaColors.current.isDark)
                     } else {
                         MaterialTheme.colorScheme.error
                     },
@@ -816,6 +840,7 @@ private fun ReadingRevealCard(
     item: com.hive.hiragana.presentation.viewmodels.QuizItem,
     romajiOk: Boolean,
     meaningOk: Boolean?,
+    streakMessage: String? = null,
     onSpeak: (String) -> Unit,
     ttsStatus: VoiceStatus,
     unitCharacters: List<HiraganaCharacter> = emptyList(),
@@ -831,10 +856,13 @@ private fun ReadingRevealCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // The streak encouragement IS the headline (a green tier line for a
+            // correct answer, a gentle red streak-broken line for a wrong one),
+            // falling back to the plain verdict if there is no streak message.
             Text(
-                text = if (allOk) "Correct!" else "Not quite",
+                text = streakMessage ?: if (allOk) "Correct!" else "Not quite",
                 style = MaterialTheme.typography.titleMedium,
-                color = if (allOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                color = if (allOk) correctColor(LocalKanaColors.current.isDark) else MaterialTheme.colorScheme.error,
             )
             // Reading + audio, kept horizontally centered: the speaker adds width
             // on the right, so a matching leading spacer balances it and the
@@ -1114,7 +1142,7 @@ private fun QuizRunning(
                         status = ttsStatus,
                         onSpeak = onSpeak,
                     )
-                    if (!quiz.submitted && mnemonicsEnabled) {
+                    if (!quiz.submitted && mnemonicsEnabled && quiz.showHints) {
                         MnemonicHintButton(
                             unitCharacters = unitCharactersFor(current.answer),
                             showGlyph = false,
@@ -1391,7 +1419,7 @@ private fun QuizSummary(
                                 text = "$label · ${items.size}",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = when (label) {
-                                    "Correct" -> MaterialTheme.colorScheme.primary
+                                    "Correct" -> correctColor(LocalKanaColors.current.isDark)
                                     "Wrong" -> MaterialTheme.colorScheme.error
                                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                                 },

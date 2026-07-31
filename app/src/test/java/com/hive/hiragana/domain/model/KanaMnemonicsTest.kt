@@ -9,12 +9,13 @@ import org.junit.Test
 /**
  * Unit tests for [KanaMnemonics] — the editorial keyword+story lookup behind
  * the "How to remember" chip, the quiz Hint buttons, and the reveal cards.
- * Pins the EXACT-glyph semantics (derived kana return null until real
- * derivation rules land — inheriting a base keyword would anchor the wrong
- * sound), the default-first alternates contract behind the in-app "More ways
- * to remember" picker, and the copy rules every shipped entry must obey
- * (length cap, no em/en dashes, sound anchor present, globally unique
- * keywords, valid overlay paths).
+ *
+ * As of 2026-07-31 the whole kana inventory is covered: the 46 base hiragana,
+ * the 66 non-base hiragana ([KanaMnemonics.HIRAGANA_EXTRA]... consulted via
+ * [KanaMnemonics.candidatesFor]) and all 134 katakana, plus a separate
+ * always-shown technical definition per special glyph ([KanaMnemonics.compositionFor]).
+ * Only the suppressed silent marks (long-vowel bar, small tsu) and the
+ * standalone small kana that are not deck characters stay empty.
  */
 class KanaMnemonicsTest {
 
@@ -35,25 +36,26 @@ class KanaMnemonicsTest {
         "わ" to "wa", "を" to "wo", "ん" to "n",
     )
 
-    /** Every shipped entry as (glyph, romaji, mnemonic), defaults and alternates. */
-    private val allEntries: List<Triple<String, String, KanaMnemonic>>
+    /** Base-46 entries with romaji, for the sound-anchor + coverage tests. */
+    private val gojuonEntries: List<Triple<String, String, KanaMnemonic>>
         get() = gojuon.flatMap { (glyph, romaji) ->
             KanaMnemonics.candidatesFor(glyph).map { Triple(glyph, romaji, it) }
         }
 
+    /** EVERY shipped entry across base + extra + katakana. */
+    private val allEntries: List<Pair<String, KanaMnemonic>>
+        get() = KanaMnemonics.allEntriesForTest()
+
     @Test
     fun `all 46 base gojuon kana carry a mnemonic`() {
         gojuon.forEach { (glyph, _) ->
-            assertTrue(
-                "$glyph should have candidates",
-                KanaMnemonics.candidatesFor(glyph).isNotEmpty(),
-            )
+            assertTrue("$glyph should have candidates", KanaMnemonics.candidatesFor(glyph).isNotEmpty())
             assertNotNull("$glyph should resolve a default", KanaMnemonics.mnemonicFor(glyph))
         }
     }
 
     @Test
-    fun `every kana offers at least one alternate for the picker`() {
+    fun `every base kana offers at least one alternate for the picker`() {
         gojuon.forEach { (glyph, _) ->
             assertTrue(
                 "$glyph should ship alternates alongside its default",
@@ -79,52 +81,80 @@ class KanaMnemonicsTest {
         assertTrue("expected >= 10 overlays, found $overlays", overlays >= 10)
     }
 
+    // ---- derived kana now resolve (baked from the owner's picks 2026-07-31) ----
+
     @Test
-    fun `voiced variants return null — exact match only, no NFD inheritance`() {
-        // Unlike PrintDivergence: inheriting き's "ki" keyword onto ぎ (gi)
-        // would anchor the wrong sound. Derived kana wait for derive().
-        listOf("ぎ", "ざ", "だ", "ば", "ぱ", "ず", "ぶ").forEach {
-            assertNull("$it should have no mnemonic yet", KanaMnemonics.mnemonicFor(it))
-            assertTrue(KanaMnemonics.candidatesFor(it).isEmpty())
+    fun `voiced and handakuten kana resolve, default is the owner pick`() {
+        assertEquals("GARGOYLE", KanaMnemonics.mnemonicFor("が")!!.keyword)
+        assertEquals("PARASOL", KanaMnemonics.mnemonicFor("ぱ")!!.keyword)
+        listOf("ぎ", "ざ", "だ", "ば", "ぴ", "ず", "ぶ", "ガ", "ザ", "バ", "パ")
+            .forEach { assertNotNull("$it should have a mnemonic", KanaMnemonics.mnemonicFor(it)) }
+    }
+
+    @Test
+    fun `yoon composites resolve`() {
+        assertEquals("KAYAK", KanaMnemonics.mnemonicFor("きゃ")!!.keyword)
+        listOf("しゅ", "ちょ", "ぎょ", "ぴゃ", "キャ", "ファ")
+            .forEach { assertNotNull("$it should have a mnemonic", KanaMnemonics.mnemonicFor(it)) }
+    }
+
+    @Test
+    fun `katakana resolves, including base, small, vu and archaic`() {
+        assertEquals("KATANA", KanaMnemonics.mnemonicFor("カ")!!.keyword)
+        listOf("ア", "シ", "ン", "ヲ", "ァ", "ヴ", "ヰ", "ヱ")
+            .forEach { assertNotNull("$it should have a mnemonic", KanaMnemonics.mnemonicFor(it)) }
+    }
+
+    @Test
+    fun `hiragana small vowels vu and archaic resolve`() {
+        listOf("ぁ", "ぃ", "ぅ", "ぇ", "ぉ", "ゔ", "ゐ", "ゑ")
+            .forEach { assertNotNull("$it should have a mnemonic", KanaMnemonics.mnemonicFor(it)) }
+    }
+
+    @Test
+    fun `suppressed silent marks and non-deck small kana stay empty`() {
+        listOf("ー", "っ", "ッ", "ゃ", "ゅ", "ょ").forEach {
+            assertNull("$it should have no mnemonic", KanaMnemonics.mnemonicFor(it))
+            assertTrue("$it should have no candidates", KanaMnemonics.candidatesFor(it).isEmpty())
+        }
+    }
+
+    // ---- technical definition (always-shown Structure line) ----
+
+    @Test
+    fun `special glyphs carry a technical definition, base kana do not`() {
+        listOf("が", "ポ", "きゅ", "ファ", "ぁ", "ゔ", "ゐ", "ヴ").forEach {
+            assertNotNull("$it needs a composition", KanaMnemonics.compositionFor(it))
+        }
+        listOf("あ", "ん", "カ", "キ", "サ", "ン").forEach {
+            assertNull("$it is a base kana and needs no composition", KanaMnemonics.compositionFor(it))
         }
     }
 
     @Test
-    fun `yoon composites return null`() {
-        listOf("きゃ", "しゅ", "ちょ", "ぎょ", "ぴゃ").forEach {
-            assertNull("$it should have no mnemonic yet", KanaMnemonics.mnemonicFor(it))
+    fun `every technical definition avoids kana glyphs and dashes`() {
+        val kana = Regex("[\\u3040-\\u30FF]")
+        KanaMnemonics.KANA_COMPOSITION.forEach { (glyph, def) ->
+            assertTrue("$glyph definition is blank", def.isNotBlank())
+            assertTrue("$glyph definition contains a kana glyph", !kana.containsMatchIn(def))
+            assertTrue("$glyph definition contains an em/en dash", '—' !in def && '–' !in def)
         }
     }
 
-    @Test
-    fun `katakana returns null`() {
-        listOf("ア", "カ", "シ", "ン", "キャ", "ファ").forEach {
-            assertNull("$it should have no mnemonic yet", KanaMnemonics.mnemonicFor(it))
-        }
-    }
-
-    @Test
-    fun `small and extended kana return null`() {
-        listOf("っ", "ゃ", "ぁ", "ゔ", "ゐ", "ゑ").forEach {
-            assertNull("$it should have no mnemonic yet", KanaMnemonics.mnemonicFor(it))
-        }
-    }
+    // ---- copy invariants over the FULL shipped set ----
 
     @Test
     fun `keywords are non-blank uppercase and stories non-blank`() {
-        allEntries.forEach { (glyph, _, m) ->
+        allEntries.forEach { (glyph, m) ->
             assertTrue("$glyph: blank keyword", m.keyword.isNotBlank())
-            assertEquals(
-                "$glyph: keyword must be stored uppercase",
-                m.keyword.uppercase(), m.keyword,
-            )
+            assertEquals("$glyph: keyword must be uppercase", m.keyword.uppercase(), m.keyword)
             assertTrue("$glyph: blank story", m.story.isNotBlank())
         }
     }
 
     @Test
     fun `stories respect the 160-character cap`() {
-        allEntries.forEach { (glyph, _, m) ->
+        allEntries.forEach { (glyph, m) ->
             assertTrue(
                 "$glyph ${m.keyword}: story is ${m.story.length} chars (cap 160)",
                 m.story.length <= 160,
@@ -134,7 +164,7 @@ class KanaMnemonicsTest {
 
     @Test
     fun `no em or en dashes and no semicolons in any copy`() {
-        allEntries.forEach { (glyph, _, m) ->
+        allEntries.forEach { (glyph, m) ->
             val text = m.keyword + m.story
             assertTrue("$glyph ${m.keyword}: em/en dash in copy", '—' !in text && '–' !in text)
             assertTrue("$glyph ${m.keyword}: semicolon in story", ';' !in m.story)
@@ -142,13 +172,28 @@ class KanaMnemonicsTest {
     }
 
     @Test
-    fun `every story spells out its sound anchor as a standalone word`() {
-        allEntries.forEach { (glyph, romaji, m) ->
-            // を anchors the sound "o" (its reading), not the spelling "wo".
-            // Word-bounded so "ka" inside "kana" or "no" inside "knot" can't
-            // satisfy the rule by accident (single-vowel anchors stay weakly
-            // testable — "a" the article matches — but all 40 multi-letter
-            // anchors are pinned for real).
+    fun `stories and keywords never contain kana glyphs`() {
+        val kana = Regex("[\\u3040-\\u30FF]")
+        allEntries.forEach { (glyph, m) ->
+            assertTrue(
+                "$glyph ${m.keyword}: copy contains a kana glyph",
+                !kana.containsMatchIn(m.keyword + m.story),
+            )
+        }
+    }
+
+    @Test
+    fun `keywords are unique across every shipped entry`() {
+        val keywords = allEntries.map { (_, m) -> m.keyword.uppercase() }
+        assertEquals(
+            "duplicate keywords: ${keywords.groupBy { it }.filterValues { it.size > 1 }.keys}",
+            keywords.distinct().size, keywords.size,
+        )
+    }
+
+    @Test
+    fun `every base story spells out its sound anchor as a standalone word`() {
+        gojuonEntries.forEach { (glyph, romaji, m) ->
             val anchor = if (glyph == "を") "o" else romaji
             val bounded = Regex("(?<![a-z])${Regex.escape(anchor)}(?![a-z])")
             assertTrue(
@@ -159,35 +204,8 @@ class KanaMnemonicsTest {
     }
 
     @Test
-    fun `stories and keywords never contain kana glyphs`() {
-        // The writing quiz's pre-answer hint promises "no kana, no specimen"
-        // (the shape IS the hidden answer), and the dialog renders stories
-        // verbatim — so the copy itself must reference other kana by romaji
-        // ("its twin ro"), never by glyph. Caught by review: ん's story
-        // originally displayed ん itself in the hint.
-        val kana = Regex("[\\u3040-\\u30FF]")
-        allEntries.forEach { (glyph, _, m) ->
-            assertTrue(
-                "$glyph ${m.keyword}: copy contains a kana glyph",
-                !kana.containsMatchIn(m.keyword + m.story),
-            )
-        }
-    }
-
-    @Test
-    fun `keywords are unique across every shipped entry`() {
-        // Globally, not just per kana: the same keyword on two kana would
-        // anchor one word to two different sounds.
-        val keywords = allEntries.map { (_, _, m) -> m.keyword.uppercase() }
-        assertEquals(
-            "duplicate keywords: ${keywords.groupBy { it }.filterValues { it.size > 1 }.keys}",
-            keywords.distinct().size, keywords.size,
-        )
-    }
-
-    @Test
     fun `overlay path strings are syntactically valid`() {
-        allEntries.forEach { (glyph, _, m) ->
+        allEntries.forEach { (glyph, m) ->
             val overlay = m.overlay ?: return@forEach
             assertTrue("$glyph: overlay with no paths", overlay.paths.isNotEmpty())
             assertTrue("$glyph: more than 6 overlay paths", overlay.paths.size <= 6)
@@ -201,13 +219,6 @@ class KanaMnemonicsTest {
 
     private val arity = mapOf('M' to 2, 'L' to 2, 'C' to 6, 'Q' to 4, 'Z' to 0)
 
-    /**
-     * Enforces the [OverlayPath] contract: absolute M/L/C/Q/Z only, one
-     * command letter per segment with exact arity, finite coordinates within
-     * the 109 viewBox (2-unit tolerance). The tokenizer mirrors
-     * tools/render_mnemonic_overlays.py's TOKEN_RE exactly, so the two
-     * validators can't drift on what counts as a token.
-     */
     private val pathToken = Regex("[A-Za-z]|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?")
 
     private fun assertValidOverlayPath(context: String, d: String) {

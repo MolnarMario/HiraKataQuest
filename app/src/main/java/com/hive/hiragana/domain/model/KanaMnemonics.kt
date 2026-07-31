@@ -1228,12 +1228,927 @@ object KanaMnemonics {
         ),
     )
 
+    private val KATAKANA: Map<String, List<KanaMnemonic>> = mapOf(
+        "ア" to listOf(
+            KanaMnemonic(keyword = "AXE", story = "An axe: a flat handle top and a blade swinging down and out to the left. Axe starts with a."),
+            KanaMnemonic(keyword = "ARM", story = "A flexed arm: the flat shoulder line on top and the forearm swinging down and out to the left. Arm starts with a."),
+        ),
+        "イ" to listOf(
+            KanaMnemonic(keyword = "IVY", story = "A sprig of ivy: one short leaf flicking off the top and a long stem trailing straight down. Ivy starts with i."),
+            KanaMnemonic(keyword = "INCHWORM", story = "An inchworm: a little raised hump up top and a long body stretching straight down. Inchworm starts with i."),
+        ),
+        "ウ" to listOf(
+            KanaMnemonic(keyword = "UFO", story = "A UFO hovering: a small dome on top of a wide saucer that curves down on both sides. Ufo starts with u."),
+            KanaMnemonic(keyword = "URCHIN", story = "A sea urchin: a small spike on top of a round shell curving down each side. Urchin starts with u."),
+        ),
+        "エ" to listOf(
+            KanaMnemonic(keyword = "ELEVATOR", story = "Stacked girders of an elevator shaft: a top rail, a middle post, and a bottom rail. Elevator starts with e."),
+            KanaMnemonic(keyword = "ENGINEER", story = "An I-beam girder: a top flange, a central web, and a bottom flange, stamped by an engineer. Engineer starts with e."),
+        ),
+        "オ" to listOf(
+            KanaMnemonic(keyword = "OARS", story = "Crossed oars leaning over a hooked rudder post at the stern. Oar sounds like o."),
+            KanaMnemonic(keyword = "OLIVE", story = "An olive tree: crossed branches up top and a trunk that drops and hooks left into a gnarled root. Olive starts with o."),
+        ),
+        "カ" to listOf(
+            KanaMnemonic(keyword = "KATANA", story = "A katana mid-slash: the blade sweeps right then hooks down, and a short guard cuts across it. Katana starts with ka."),
+            KanaMnemonic(keyword = "KAYAKER", story = "A kayaker leaning hard: the paddle sweeps across and the hull hooks down. Kayaker starts with ka."),
+        ),
+        "キ" to listOf(
+            KanaMnemonic(keyword = "KILT", story = "A kilt on a rail: two flat pleats crossed by a long pin dropping down. Kilt starts with ki."),
+            KanaMnemonic(keyword = "KINDLING", story = "Kindling twigs: two short sticks crossed by a longer one that dips at the end. Kindling starts with ki."),
+        ),
+        "ク" to listOf(
+            KanaMnemonic(keyword = "CROISSANT", story = "A croissant: a short flaky tip and a long crescent curving down to the left. Croissant sounds like ku."),
+            KanaMnemonic(keyword = "KOOKABURRA", story = "A kookaburra's beak: a short brow and a long bill curving down to the left. Kookaburra starts with ku."),
+        ),
+        "ケ" to listOf(
+            KanaMnemonic(keyword = "KENNEL", story = "A kennel: a short eave, a slanted roof, and a post dropping straight down. Kennel starts with ke."),
+            KanaMnemonic(keyword = "KETCH", story = "A ketch boat: a short jib, a slanted mainsail, and a mast dropping straight down. Ketch starts with ke."),
+        ),
+        "コ" to listOf(
+            KanaMnemonic(keyword = "CORNER", story = "Two walls meeting square: the top and the right side of a box corner drawn in one turn. Corner starts with ko."),
+            KanaMnemonic(keyword = "KOTATSU", story = "A kotatsu table seen from the side: a flat top and a sturdy leg turning down. Kotatsu starts with ko."),
+        ),
+        "サ" to listOf(
+            KanaMnemonic(keyword = "SAPLING", story = "A sapling: two crossed twigs and a stem curving up out of the soil to the right. Sapling starts with sa."),
+            KanaMnemonic(keyword = "SATELLITE", story = "A satellite: crossed antennae and a mast curving up to catch a signal. Satellite starts with sa."),
+        ),
+        "シ" to listOf(
+            KanaMnemonic(keyword = "SHINE", story = "Two glints and a long upward swoosh, like a sparkle catching light. Shine starts with the sound shi."),
+            KanaMnemonic(keyword = "SHIATSU", story = "Two thumb presses up top and a long stroke sweeping up, a shiatsu massage. Shiatsu starts with shi."),
+        ),
+        "ス" to listOf(
+            KanaMnemonic(keyword = "STORK", story = "A stork on one leg: a flat back and a single leg trailing out low behind it. Stork sounds like su."),
+            KanaMnemonic(keyword = "SLIDE", story = "A playground slide: a flat top platform and a long ramp swooping down to the left. Slide sounds like su."),
+        ),
+        "セ" to listOf(
+            KanaMnemonic(keyword = "SEED", story = "A seed sprouting: an upright sprout crossed low, with a leaf curling off to the right. Seed starts with se."),
+            KanaMnemonic(keyword = "SEESAW", story = "A seesaw: a plank crossed on a pivot, one end curling up off the ground. Seesaw starts with se."),
+        ),
+        "ソ" to listOf(
+            KanaMnemonic(keyword = "SOAR", story = "A gull soaring: a short wingtip up top and a long wing angling down to the left. Soar starts with so."),
+            KanaMnemonic(keyword = "SOWER", story = "A sower flicking one seed up top and a long arm sweeping down to scatter more. Sower starts with so."),
+        ),
+        "タ" to listOf(
+            KanaMnemonic(keyword = "TALON", story = "A hawk's talon: a curved claw tucked over a long toe sweeping down to the left. Talon starts with ta."),
+            KanaMnemonic(keyword = "TARANTULA", story = "A tarantula: a curled front leg tucked over a long leg sweeping down to the left. Tarantula starts with ta."),
+        ),
+        "チ" to listOf(
+            KanaMnemonic(keyword = "CHIMNEY", story = "A chimney stack: a slanted cap, a ledge, and a flue dropping with a small kink. Chimney starts with the sound chi."),
+            KanaMnemonic(keyword = "CHAIR", story = "A chair in profile: a slanted back, a flat seat, and a leg dropping with a small hook. Chair starts with the sound chi."),
+        ),
+        "ツ" to listOf(
+            KanaMnemonic(keyword = "TSAR", story = "A tsar's two medals and a sash sweeping down across the chest from the top right. Tsar starts with tsu."),
+            KanaMnemonic(keyword = "TWINKLE", story = "Two sparkles up top and a swoosh curling down from the top right, stardust falling. Twinkle sounds like tsu."),
+        ),
+        "テ" to listOf(
+            KanaMnemonic(keyword = "TENT", story = "A tent: a ridge line on top, a wider brim below, and a pole dropping through the middle. Tent starts with te."),
+        ),
+        "ト" to listOf(
+            KanaMnemonic(keyword = "TOMAHAWK", story = "A tomahawk: a long handle with a single blade jutting out to the right near the top. Tomahawk starts with to."),
+            KanaMnemonic(keyword = "TOTEM", story = "A totem pole: a tall post with one carved wing jutting out to the right near the top. Totem starts with to."),
+        ),
+        "ナ" to listOf(
+            KanaMnemonic(keyword = "NARWHAL", story = "A narwhal: a flat back crossed by one long tusk bending as it juts forward. Narwhal starts with na."),
+            KanaMnemonic(keyword = "NAP", story = "A cot to nap on: a flat frame crossed by one leg that bends under the weight. Nap starts with na."),
+        ),
+        "ニ" to listOf(
+            KanaMnemonic(keyword = "NIGIRI", story = "Two flat slabs stacked in parallel, like two pieces of nigiri side by side. Nigiri starts with ni."),
+            KanaMnemonic(keyword = "NEEDLES", story = "Two knitting needles laid flat and parallel, one above the other. Needle starts with the sound ni."),
+        ),
+        "ヌ" to listOf(
+            KanaMnemonic(keyword = "NUNCHUCK", story = "Two nunchuck sticks: one laid across and the other swinging down through it. Nunchuck starts with the sound nu."),
+            KanaMnemonic(keyword = "NOODLE", story = "A twist of noodle: one strand laid across and another looping down through it. Noodle starts with the sound nu."),
+        ),
+        "ネ" to listOf(
+            KanaMnemonic(keyword = "NECKTIE", story = "A necktie on a hook: a knot, a crossbar, and the tie dangling in loose folds below. Necktie starts with ne."),
+            KanaMnemonic(keyword = "NEWEL", story = "A newel post at the stairfoot: a knob, a rail joint, and tassels hanging below. Newel starts with ne."),
+        ),
+        "ノ" to listOf(
+            KanaMnemonic(keyword = "NOSEDIVE", story = "One clean diagonal streak: a plane in a nosedive from the top right to the bottom left. Nosedive starts with no."),
+            KanaMnemonic(keyword = "NOMAD", story = "A single slanted trail across the sand, a nomad's path from top right to lower left. Nomad starts with no."),
+        ),
+        "ハ" to listOf(
+            KanaMnemonic(keyword = "HARE", story = "A hare's two ears, or two legs, splayed apart and leaning outward. Hare starts with ha."),
+            KanaMnemonic(keyword = "HAKAMA", story = "Hakama trousers: two wide legs splaying apart as the wearer stands. Hakama starts with ha."),
+        ),
+        "ヒ" to listOf(
+            KanaMnemonic(keyword = "HIP", story = "A seated figure: the back upright and one hip swung out flat along the ground. Hip starts with hi."),
+            KanaMnemonic(keyword = "HIBACHI", story = "A hibachi grill in profile: an upright back and a wide base jutting out to cook on. Hibachi starts with hi."),
+        ),
+        "フ" to listOf(
+            KanaMnemonic(keyword = "FANG", story = "A single curved fang: one smooth stroke hooking down from the top to a sharp point. Fang starts with the sound fu."),
+            KanaMnemonic(keyword = "FEATHER", story = "A single feather: one smooth curve bending down to a fine tip. Feather sounds like fu."),
+        ),
+        "ヘ" to listOf(
+            KanaMnemonic(keyword = "HENHOUSE", story = "A henhouse roof: a gentle rise and a longer slope down the back. Henhouse starts with he."),
+            KanaMnemonic(keyword = "HEDGE", story = "A low hedge: a gentle slope up and a longer slope down, drawn as one gliding line. Hedge starts with he."),
+        ),
+        "ホ" to listOf(
+            KanaMnemonic(keyword = "HOLLY", story = "A holly bush: crossed sprigs up top and two little leaves flicking out at the foot. Holly starts with ho."),
+            KanaMnemonic(keyword = "HAWTHORN", story = "A hawthorn twig: crossed branches and two little thorns kicking out at the base. Hawthorn starts with the sound ho."),
+        ),
+        "マ" to listOf(
+            KanaMnemonic(keyword = "MANTA", story = "A manta ray gliding: one wide wing sweeping down and curling into a tail. Manta starts with ma."),
+            KanaMnemonic(keyword = "MAGNET", story = "A horseshoe magnet: one arm sweeping down and curling back toward the other. Magnet starts with ma."),
+        ),
+        "ミ" to listOf(
+            KanaMnemonic(keyword = "MINCE", story = "Three quick knife strokes slanting down, mincing something fine. Mince starts with mi."),
+            KanaMnemonic(keyword = "MINNOWS", story = "Three little minnows darting in a row, all slanting downstream. Minnow starts with mi."),
+        ),
+        "ム" to listOf(
+            KanaMnemonic(keyword = "MUG", story = "A tilted mug: one side angling down and a little foot kicking out so it sits flat. Mug starts with mu."),
+        ),
+        "メ" to listOf(
+            KanaMnemonic(keyword = "MELEE", story = "Two swords clashing in an X, the first blow of a melee. Melee starts with me."),
+            KanaMnemonic(keyword = "MESH", story = "Two threads crossing in an X, the first knot of a woven mesh. Mesh starts with me."),
+        ),
+        "モ" to listOf(
+            KanaMnemonic(keyword = "MOOSE", story = "A moose: two antler tines crossing a snout and a long neck curling at the base. Moose starts with mo."),
+            KanaMnemonic(keyword = "MOTH", story = "A moth on a stem: two feelers crossing an antenna and a body curling at the tip. Moth starts with mo."),
+        ),
+        "ヤ" to listOf(
+            KanaMnemonic(keyword = "YAK", story = "A yak: one horn hooking up and a shaggy body slashing down across it. Yak starts with ya."),
+        ),
+        "ユ" to listOf(
+            KanaMnemonic(keyword = "YURT", story = "A yurt seen from the side: a short peak dropping onto a long flat floor. Yurt starts with the sound yu."),
+            KanaMnemonic(keyword = "UTURN", story = "A boxy U-turn arrow: a short stub dropping into a long flat base. U-turn starts with the sound yu."),
+        ),
+        "ヨ" to listOf(
+            KanaMnemonic(keyword = "YOYO", story = "A yoyo's frame: a spine on the left and three winds of string jutting out right. Yoyo starts with yo."),
+            KanaMnemonic(keyword = "YOKE", story = "A yoke: a spine on the left with three rungs jutting out to the right, like a comb. Yoke starts with yo."),
+        ),
+        "ラ" to listOf(
+            KanaMnemonic(keyword = "RACK", story = "A coat rack: a top shelf and a hooked arm curving down to hang a coat. Rack starts with ra."),
+            KanaMnemonic(keyword = "RADAR", story = "A radar dish on a mast: a flat scanner up top and a hooked support curving down. Radar starts with ra."),
+        ),
+        "リ" to listOf(
+            KanaMnemonic(keyword = "RIGGING", story = "Two rigging lines on a mast, the right one longer and curling at the bottom. Rigging starts with ri."),
+            KanaMnemonic(keyword = "REEDS", story = "Two riverside reeds, the right one taller and curling at the tip. Reed sounds like ri."),
+        ),
+        "ル" to listOf(
+            KanaMnemonic(keyword = "RUNNER", story = "A sprinter: a short trailing arm and a long leg curling up in full stride. Runner starts with ru."),
+            KanaMnemonic(keyword = "RUINS", story = "Two broken pillars of old ruins, the right one taller and curling up at its tip. Ruins starts with ru."),
+        ),
+        "レ" to listOf(
+            KanaMnemonic(keyword = "RECLINE", story = "A single reclining line: it drops steeply, then kicks back up to the right. Recline starts with re."),
+            KanaMnemonic(keyword = "REEF", story = "A single reef slope: dropping steep, then kicking up to the surface. Reef sounds like re."),
+        ),
+        "ロ" to listOf(
+            KanaMnemonic(keyword = "ROADBLOCK", story = "A square roadblock seen head-on: four barred sides closing off a box. Roadblock starts with ro."),
+            KanaMnemonic(keyword = "RICEBOX", story = "A square rice box seen head-on: four wooden sides closing a cube. Ricebox sounds like ro."),
+        ),
+        "ワ" to listOf(
+            KanaMnemonic(keyword = "WALRUS", story = "A walrus head: a flat brow and a jaw swinging down and in, tusks hidden. Walrus starts with wa."),
+            KanaMnemonic(keyword = "WAIL", story = "A wide-open mouth mid-wail: the upper lip flat and the jaw swinging down and in. Wail starts with wa."),
+        ),
+        "ヲ" to listOf(
+            KanaMnemonic(keyword = "OBELISK", story = "An old marker: two crossbars on a hooking post. This rare katakana still sounds like o."),
+        ),
+        "ン" to listOf(
+            KanaMnemonic(keyword = "HORN", story = "A short nick up top and a long stroke swooping up from the bottom left, like a blaring horn. Horn ends with n."),
+            KanaMnemonic(keyword = "YEN", story = "A short tick and a long stroke swooping up from the lower left, the tail of a scrawled yen sign. Yen ends with n."),
+        ),
+        "ガ" to listOf(
+            KanaMnemonic(keyword = "GALAXY", story = "A spiral galaxy sweeps across the void, two bright stars flaring at its outer arm. Galaxy starts with ga."),
+            KanaMnemonic(keyword = "GAVEL", story = "A judge's gavel mid-swing striking a block, two shockwaves pinging off at the top. Gavel starts with ga."),
+        ),
+        "ギ" to listOf(
+            KanaMnemonic(keyword = "GIRDER", story = "A steel girder frame, cross-braced, with two rivets bolted at the top corner. Girder starts with gi."),
+            KanaMnemonic(keyword = "GIGGLE", story = "A grinning face with a toothy line, two laugh-tears squeezing out at the corner. Giggle starts with gi."),
+        ),
+        "グ" to listOf(
+            KanaMnemonic(keyword = "GUITAR", story = "A guitar's angular headstock hooks down, two tuning pegs jutting off at the top. Guitar starts with gu."),
+            KanaMnemonic(keyword = "GUAVA", story = "A guava dangles bitten open, its stem curving down, two seeds flicked out at the corner. Guava starts with gu."),
+        ),
+        "ゲ" to listOf(
+            KanaMnemonic(keyword = "GEODE", story = "A geode cracked open on a stand, two crystals glinting at its rim. Geode starts with ge."),
+            KanaMnemonic(keyword = "GEAR", story = "A gear meshes on a bracket, teeth angling out, two bolts pinned at the top corner. Gear starts with ge."),
+        ),
+        "ゴ" to listOf(
+            KanaMnemonic(keyword = "GONG", story = "A gong hangs square in its frame, two mallets crossed and ready at the top. Gong starts with go."),
+            KanaMnemonic(keyword = "GONDOLA", story = "A gondola boxed against the dock, two mooring posts capped at the corner. Gondola starts with go."),
+        ),
+        "ザ" to listOf(
+            KanaMnemonic(keyword = "ZAMBONI", story = "A zamboni scrapes the rink in crossing passes, two ice chips spraying at the corner. Zamboni starts with za."),
+            KanaMnemonic(keyword = "ZIGZAG", story = "A zigzag bolt of lightning cuts the sky, two sparks splitting off at the top. Zigzag starts with za."),
+        ),
+        "ジ" to listOf(
+            KanaMnemonic(keyword = "JINGLEBELL", story = "Two ticks of a jingle bell and a long ribbon swoosh, two chimes ringing at the top. Jingle starts with ji."),
+            KanaMnemonic(keyword = "JITTERBUG", story = "A jitterbug dancer kicks two heels up top and swings one long arm down. Jitterbug starts with ji."),
+        ),
+        "ズ" to listOf(
+            KanaMnemonic(keyword = "ZIPLINE", story = "A rider zips down a long zipline cable, two sparks flying off the pulley at the top. Zipline starts with zu."),
+            KanaMnemonic(keyword = "ZULU", story = "A Zulu shield stands flat-topped with one long spear beside it, two beads strung at the corner. Zulu starts with zu."),
+        ),
+        "ゼ" to listOf(
+            KanaMnemonic(keyword = "ZERO", story = "A scoreboard reset: a bar, a post, a curved base, two zeros blinking at the corner. Zero starts with ze."),
+            KanaMnemonic(keyword = "ZEBU", story = "A zebu ox with a humped shoulder and a long dewlap, two horns tipped at the top corner. Zebu starts with ze."),
+        ),
+        "ゾ" to listOf(
+            KanaMnemonic(keyword = "ZOMBIE", story = "A zombie lurches, one arm short and stiff, a long leg dragging, two flies buzzing at its head. Zombie starts with zo."),
+            KanaMnemonic(keyword = "ZORI", story = "A zori sandal from the side: one thong up top and a long sole, two straps pinned at the corner. Zori starts with zo."),
+        ),
+        "ダ" to listOf(
+            KanaMnemonic(keyword = "DACHSHUND", story = "A dachshund: a short front paw tucked over a long low body, two ears flopping at its head. Dachshund starts with da."),
+            KanaMnemonic(keyword = "DAISY", story = "A daisy droops on its stem, one leaf tucked up top, two petals fallen at the corner. Daisy starts with da."),
+        ),
+        "ヂ" to listOf(
+            KanaMnemonic(keyword = "DIADEM", story = "A slanted diadem crown on a level band, a jewel hanging, two gems set at the corner. Diadem starts with di."),
+            KanaMnemonic(keyword = "DINGO", story = "A dingo lifts a slanted ear over a level muzzle and a long leg, two paw-prints at the corner. Dingo starts with di."),
+        ),
+        "ヅ" to listOf(
+            KanaMnemonic(keyword = "DEWDROP", story = "Two ticks of dew over a long leaf-blade sweeping down, two more drops beading at the tip. Dew starts with du."),
+            KanaMnemonic(keyword = "DUOMO", story = "A duomo's twin spires above a sweeping nave roof, two bells hung at the top. Duomo starts with du."),
+        ),
+        "デ" to listOf(
+            KanaMnemonic(keyword = "DECK", story = "A ship's deck: two rails and a mast hooking a sail, two flags snapping at the top. Deck starts with de."),
+            KanaMnemonic(keyword = "DELI", story = "A deli counter: two shelf lines and a hook, two salamis dangling at the corner. Deli starts with de."),
+        ),
+        "ド" to listOf(
+            KanaMnemonic(keyword = "DONKEY", story = "A donkey stands stiff, one ear flicked right off the tall head, two flies at its crown. Donkey starts with do."),
+            KanaMnemonic(keyword = "DONUT", story = "A donut skewered on a post, two sprinkles flicked off at the top corner. Donut starts with do."),
+        ),
+        "バ" to listOf(
+            KanaMnemonic(keyword = "BAMBOO", story = "Two bamboo stalks lean apart from one clump, two leaves fluttering at the top. Bamboo starts with ba."),
+            KanaMnemonic(keyword = "BAOBAB", story = "A baobab trunk splits into two thick branches, two birds perched at the top corner. Baobab starts with ba."),
+        ),
+        "ビ" to listOf(
+            KanaMnemonic(keyword = "BINOCULARS", story = "Binoculars tip up in a curved case, two eyecups poking out at the top. Binocular starts with bi."),
+            KanaMnemonic(keyword = "BISCUIT", story = "A biscuit bends soft in a curve, two crumbs flaking off at the top corner. Biscuit starts with bi."),
+        ),
+        "ブ" to listOf(
+            KanaMnemonic(keyword = "BUOY", story = "A buoy bobs in one round curve, two warning flags flapping at its top. Buoy starts with bu."),
+            KanaMnemonic(keyword = "BUGLE", story = "A bugle curves in one long loop, two puffs of sound blasting from the bell at the top. Bugle starts with bu."),
+        ),
+        "ベ" to listOf(
+            KanaMnemonic(keyword = "BERET", story = "A beret sits at a jaunty slope, two pompom threads dangling at the peak. Beret starts with be."),
+            KanaMnemonic(keyword = "BEAVER", story = "A beaver's flat tail slaps in a shallow curve, two teeth showing at the corner. Beaver starts with be."),
+        ),
+        "ボ" to listOf(
+            KanaMnemonic(keyword = "BOBSLED", story = "A bobsled frame cross-braced on runners, two helmets bobbing at the top corner. Bobsled starts with bo."),
+            KanaMnemonic(keyword = "BOBBIN", story = "A bobbin of thread on a spindle, crossed winds, two loose ends flicking at the top. Bobbin starts with bo."),
+        ),
+        "パ" to listOf(
+            KanaMnemonic(keyword = "PAGODA", story = "A pagoda's tiered eaves splay apart, one round lantern hung as a circle at the top. Pagoda starts with pa."),
+            KanaMnemonic(keyword = "PARROT", story = "A parrot spreads two wings apart, one round eye ringed at the top corner. Parrot starts with pa."),
+        ),
+        "ピ" to listOf(
+            KanaMnemonic(keyword = "PICKAXE", story = "A pickaxe leans upright with a curved head, one round boulder circled at the top. Pickaxe starts with pi."),
+            KanaMnemonic(keyword = "PIPER", story = "A piper's flute curves up, one round note circled just above it. Piper starts with pi."),
+        ),
+        "プ" to listOf(
+            KanaMnemonic(keyword = "PUFFIN", story = "A puffin dives in a curved swoop, one round fish circled at its beak. Puffin starts with pu."),
+            KanaMnemonic(keyword = "PUMA", story = "A puma coils to pounce, its back one loose curve, one round moon circled above. Puma starts with pu."),
+        ),
+        "ペ" to listOf(
+            KanaMnemonic(keyword = "PELICAN", story = "A pelican skims low in a long curve, one round fish circled in its pouch. Pelican starts with pe."),
+            KanaMnemonic(keyword = "PETAL", story = "A single petal curves off a stem, one round dewdrop circled at its tip. Petal starts with pe."),
+        ),
+        "ポ" to listOf(
+            KanaMnemonic(keyword = "POGO", story = "A pogo stick with crossed footpegs and a long spring, one round bounce-puff circled at the top. Pogo starts with po."),
+            KanaMnemonic(keyword = "PORTAL", story = "A shrine portal of crossed beams, one round paper lantern circled at the top. Portal starts with po."),
+        ),
+        "キャ" to listOf(
+            KanaMnemonic(keyword = "CAYENNE", story = "A big pepper plant with a small cayenne pod at its lower right. Cayenne sounds like kya."),
+        ),
+        "キュ" to listOf(
+            KanaMnemonic(keyword = "CUBE", story = "A big rack with a small ice cube stacked at its lower corner. Cube sounds like kyu."),
+            KanaMnemonic(keyword = "QUEUE", story = "A big counter with a small queue of people at its lower right. Queue sounds like kyu."),
+        ),
+        "キョ" to listOf(
+            KanaMnemonic(keyword = "KYOTO", story = "A big temple gate with a small stone lantern at its lower right, old Kyoto. Kyoto starts with kyo."),
+        ),
+        "シャ" to listOf(
+            KanaMnemonic(keyword = "SHAMPOO", story = "A big bottle with a small shampoo bubble at its lower right. Shampoo starts with sha."),
+            KanaMnemonic(keyword = "SHAWL", story = "A big coat with a small shawl draped at its lower corner. Shawl sounds like sha."),
+        ),
+        "シュ" to listOf(
+            KanaMnemonic(keyword = "SHURIKEN", story = "A big ninja with a small shuriken star ready at its lower right. Shuriken starts with shu."),
+            KanaMnemonic(keyword = "SUGAR", story = "A big bowl with a small sugar cube at its lower corner. Sugar holds the sound shu."),
+        ),
+        "ショ" to listOf(
+            KanaMnemonic(keyword = "SHOWROOM", story = "A big garage with a small showroom car at its lower corner. Showroom starts with sho."),
+            KanaMnemonic(keyword = "SHORTS", story = "A big hanger with a small pair of shorts hung at its lower right. Shorts start with sho."),
+        ),
+        "チャ" to listOf(
+            KanaMnemonic(keyword = "CHAMPION", story = "A big podium with a small champion trophy at its lower right. Champion starts with cha."),
+            KanaMnemonic(keyword = "CHALLAH", story = "A big oven with a small challah loaf at its lower corner. Challah sounds like cha."),
+        ),
+        "チュ" to listOf(
+            KanaMnemonic(keyword = "CHUNK", story = "A big log with a small chunk split off at its lower corner. Chunk starts with chu."),
+            KanaMnemonic(keyword = "CHURRO", story = "A big fryer with a small churro twist at its lower right. Churro starts with chu."),
+        ),
+        "チョ" to listOf(
+            KanaMnemonic(keyword = "CHOWDER", story = "A big pot with a small chowder bowl ladled at its lower right. Chowder starts with cho."),
+            KanaMnemonic(keyword = "CHORUS", story = "A big stage with a small chorus line at its lower corner. Chorus starts with cho."),
+        ),
+        "ニャ" to listOf(
+            KanaMnemonic(keyword = "LASAGNA", story = "A big tray with a small lasagna square cut at its lower right. Lasagna holds the sound nya."),
+        ),
+        "ニュ" to listOf(
+            KanaMnemonic(keyword = "NEURON", story = "A big brain with a small neuron sparking at its lower corner. Neuron sounds like nyu."),
+        ),
+        "ニョ" to listOf(
+            KanaMnemonic(keyword = "MIGNON", story = "A big plate with a small filet mignon at its lower right. Mignon holds the sound nyo."),
+        ),
+        "ヒャ" to listOf(
+            KanaMnemonic(keyword = "HYBRID", story = "A big engine with a small hybrid battery at its lower corner. Hybrid starts with hya."),
+        ),
+        "ヒュ" to listOf(
+            KanaMnemonic(keyword = "HUMANOID", story = "A big robot with a small humanoid drone at its lower right. Humanoid sounds like hyu."),
+        ),
+        "ヒョ" to listOf(
+            KanaMnemonic(keyword = "LEOPARD", story = "A big tree with a small spotted leopard resting at its lower right. In Japanese the leopard is a hyo."),
+        ),
+        "ミャ" to listOf(
+            KanaMnemonic(keyword = "MYALGIA", story = "A big muscle with a small ache flaring at its lower corner, myalgia. Myalgia starts with mya."),
+        ),
+        "ミュ" to listOf(
+            KanaMnemonic(keyword = "MEWL", story = "A big cat with a small kitten mewling at its lower right. Mewl sounds like myu."),
+        ),
+        "ミョ" to listOf(
+            KanaMnemonic(keyword = "MYOGA", story = "A big garden with a small myoga ginger shoot at its lower right. Myoga starts with myo."),
+        ),
+        "リャ" to listOf(
+            KanaMnemonic(keyword = "RIYAL", story = "A big vault with a small riyal coin at its lower corner. Riyal sounds like rya."),
+        ),
+        "リュ" to listOf(
+            KanaMnemonic(keyword = "RUBLE", story = "A big till with a small ruble note at its lower corner. Ruble sounds like ryu."),
+        ),
+        "リョ" to listOf(
+            KanaMnemonic(keyword = "RIOJA", story = "A big cellar with a small Rioja bottle at its lower right. Rioja sounds like ryo."),
+        ),
+        "ギャ" to listOf(
+            KanaMnemonic(keyword = "GALLERY", story = "A big wall with a small gallery frame hung at its lower corner. Gallery sounds like gya."),
+        ),
+        "ギュ" to listOf(
+            KanaMnemonic(keyword = "GUINEA", story = "A big cage with a small guinea pig at its lower right. Guinea sounds like gyu."),
+        ),
+        "ギョ" to listOf(
+            KanaMnemonic(keyword = "GYRO", story = "A big pita wraps with a small gyro slice at its lower corner. Gyro sounds like gyo."),
+        ),
+        "ジャ" to listOf(
+            KanaMnemonic(keyword = "JAB", story = "A big glove with a small jab-spark flicking at its lower corner. Jab starts with ja."),
+            KanaMnemonic(keyword = "JASMINE", story = "A big trellis with a small jasmine flower at its lower right. Jasmine starts with ja."),
+        ),
+        "ジュ" to listOf(
+            KanaMnemonic(keyword = "JUNGLE", story = "A big canopy with a small jungle vine dropping at its lower corner. Jungle starts with ju."),
+            KanaMnemonic(keyword = "JUJUBE", story = "A big branch with a small jujube berry at its lower right. Jujube starts with ju."),
+        ),
+        "ジョ" to listOf(
+            KanaMnemonic(keyword = "JOURNAL", story = "A big desk with a small journal open at its lower corner. Journal starts with jo."),
+        ),
+        "ビャ" to listOf(
+            KanaMnemonic(keyword = "BAYONET", story = "A big rifle with a small bayonet fixed at its lower right. Bayonet sounds like bya."),
+        ),
+        "ビュ" to listOf(
+            KanaMnemonic(keyword = "BEAUTY", story = "A big salon with a small beauty compact at its lower corner. Beauty sounds like byu."),
+        ),
+        "ビョ" to listOf(
+            KanaMnemonic(keyword = "BIOME", story = "A big terrarium with a small biome dome at its lower right. Biome sounds like byo."),
+        ),
+        "ピャ" to listOf(
+            KanaMnemonic(keyword = "PIANO", story = "A big grand piano with a small pianola roll at its lower corner. Piano sounds like pya."),
+        ),
+        "ピュ" to listOf(
+            KanaMnemonic(keyword = "PUREE", story = "A big blender with a small puree cup at its lower right. Puree sounds like pyu."),
+        ),
+        "ピョ" to listOf(
+            KanaMnemonic(keyword = "PYONGYANG", story = "A big map with a small Pyongyang pin at its lower right. Pyongyang starts with pyo."),
+        ),
+        "ァ" to listOf(
+            KanaMnemonic(keyword = "APPLESEED", story = "A single appleseed, tiny beside the whole apple. Appleseed starts with a."),
+        ),
+        "ィ" to listOf(
+            KanaMnemonic(keyword = "INCH", story = "One small inch marked at the corner of a ruler. Inch starts with i."),
+        ),
+        "ゥ" to listOf(
+            KanaMnemonic(keyword = "UPTICK", story = "A small uptick, one tiny notch rising in the corner. Uptick starts with u."),
+        ),
+        "ェ" to listOf(
+            KanaMnemonic(keyword = "EMBER", story = "One small ember glowing in the corner of the hearth. Ember starts with e."),
+        ),
+        "ォ" to listOf(
+            KanaMnemonic(keyword = "OPAL", story = "A tiny opal chip glinting in the corner. Opal sounds like o."),
+        ),
+        "ヰ" to listOf(
+            KanaMnemonic(keyword = "WINCH", story = "A rusty winch on an old dock, once read wi. Winch starts with wi."),
+        ),
+        "ヱ" to listOf(
+            KanaMnemonic(keyword = "WEDGE", story = "An old wooden wedge left in a doorframe, once read we. Wedge starts with we."),
+        ),
+        "ヴ" to listOf(
+            KanaMnemonic(keyword = "VOLT", story = "A small volt of current sparking in the corner. Volt sounds like vu."),
+        ),
+        "ウィ" to listOf(
+            KanaMnemonic(keyword = "WINK", story = "A big eye with a small wink-line flicking at its lower corner. Wink starts with wi."),
+            KanaMnemonic(keyword = "WIFI", story = "A big router with a small wifi signal blinking at its lower right. Wifi starts with wi."),
+        ),
+        "ウェ" to listOf(
+            KanaMnemonic(keyword = "WEDDING", story = "A big cake with a small wedding topper at its lower corner. Wedding starts with we."),
+            KanaMnemonic(keyword = "WEBSITE", story = "A big screen with a small website tab open at its lower right. Website starts with we."),
+        ),
+        "ウォ" to listOf(
+            KanaMnemonic(keyword = "WALKMAN", story = "A big belt clip with a small Walkman hooked at its lower right. Walkman starts with wo."),
+            KanaMnemonic(keyword = "WATT", story = "A big bulb with a small watt-spark glowing at its lower corner. Watt sounds like wo."),
+        ),
+        "ヴァ" to listOf(
+            KanaMnemonic(keyword = "VAMPIRE", story = "A big cape with a small vampire fang at its lower corner. Vampire starts with va."),
+            KanaMnemonic(keyword = "VACUUM", story = "A big carpet with a small vacuum nozzle at its lower right. Vacuum starts with va."),
+        ),
+        "ヴィ" to listOf(
+            KanaMnemonic(keyword = "VIOLIN", story = "A big bow with a small violin scroll at its lower right. Violin starts with vi."),
+            KanaMnemonic(keyword = "VISA", story = "A big passport with a small visa stamp at its lower corner. Visa starts with vi."),
+        ),
+        "ヴェ" to listOf(
+            KanaMnemonic(keyword = "VEST", story = "A big coat with a small vest pocket at its lower corner. Vest starts with ve."),
+            KanaMnemonic(keyword = "VELVET", story = "A big drape with a small velvet swatch at its lower right. Velvet starts with ve."),
+        ),
+        "ヴォ" to listOf(
+            KanaMnemonic(keyword = "VOLCANO", story = "A big mountain with a small volcano vent smoking at its lower right. Volcano starts with vo."),
+            KanaMnemonic(keyword = "VOTE", story = "A big box with a small vote slip dropped at its lower corner. Vote sounds like vo."),
+        ),
+        "シェ" to listOf(
+            KanaMnemonic(keyword = "SHELL", story = "A big beach with a small seashell at its lower corner. Shell sounds like she."),
+            KanaMnemonic(keyword = "CHEF", story = "A big kitchen with a small chef hat at its lower right. Chef sounds like she."),
+        ),
+        "ジェ" to listOf(
+            KanaMnemonic(keyword = "JET", story = "A big runway with a small jet taking off at its lower right. Jet starts with je."),
+            KanaMnemonic(keyword = "JELLY", story = "A big jar with a small jelly blob wobbling at its lower corner. Jelly starts with je."),
+        ),
+        "チェ" to listOf(
+            KanaMnemonic(keyword = "CHESS", story = "A big board with a small chess pawn at its lower right. Chess starts with che."),
+            KanaMnemonic(keyword = "CHERRY", story = "A big cake with a small cherry on its lower corner. Cherry starts with che."),
+        ),
+        "ティ" to listOf(
+            KanaMnemonic(keyword = "TEA", story = "A big pot with a small tea bag steeping at its lower corner. Tea sounds like ti."),
+            KanaMnemonic(keyword = "PARTY", story = "A big banner with a small party hat at its lower right, the ti you hear in party. Ti."),
+        ),
+        "ディ" to listOf(
+            KanaMnemonic(keyword = "DISCO", story = "A big floor with a small disco ball spinning at its lower right. Disco starts with di."),
+            KanaMnemonic(keyword = "DIGITAL", story = "A big clock with a small digital readout at its lower corner. Digital starts with di."),
+        ),
+        "トゥ" to listOf(
+            KanaMnemonic(keyword = "TOUR", story = "A big bus with a small tour flag at its lower right. Tour starts with the sound tu."),
+            KanaMnemonic(keyword = "TOOTH", story = "A big jaw with a small tooth poking at its lower corner. Tooth sounds like tu."),
+        ),
+        "ドゥ" to listOf(
+            KanaMnemonic(keyword = "DOODLE", story = "A big pad with a small doodle scribbled in its lower corner. Doodle starts with du."),
+            KanaMnemonic(keyword = "DUET", story = "A big stage with a small duet mic at its lower right. Duet starts with du."),
+        ),
+        "ファ" to listOf(
+            KanaMnemonic(keyword = "FAMILY", story = "A big house with a small family photo at its lower corner. Family starts with fa."),
+            KanaMnemonic(keyword = "FAN", story = "A big stadium with a small fan waving at its lower right. Fan starts with fa."),
+        ),
+        "フィ" to listOf(
+            KanaMnemonic(keyword = "FILM", story = "A big reel with a small strip of film at its lower right. Film starts with fi."),
+            KanaMnemonic(keyword = "FIGURE", story = "A big shelf with a small figure toy at its lower corner. Figure starts with fi."),
+        ),
+        "フェ" to listOf(
+            KanaMnemonic(keyword = "FERRY", story = "A big harbor with a small ferry pulling in at its lower right. Ferry starts with fe."),
+            KanaMnemonic(keyword = "FESTIVAL", story = "A big stage with a small festival lantern at its lower corner. Festival starts with fe."),
+        ),
+        "フォ" to listOf(
+            KanaMnemonic(keyword = "FORK", story = "A big plate with a small fork at its lower right. Fork starts with fo."),
+            KanaMnemonic(keyword = "PHOTO", story = "A big album with a small photo tucked in its lower corner. Photo sounds like fo."),
+        ),
+        "ツァ" to listOf(
+            KanaMnemonic(keyword = "PIZZA", story = "A big oven with a small pizza slice at its lower right, the tsa you hear in pizza. Tsa."),
+            KanaMnemonic(keyword = "MOZZARELLA", story = "A big pie with a small mozzarella blob melting at its lower corner. Mozzarella holds the sound tsa."),
+        ),
+        "ツィ" to listOf(
+            KanaMnemonic(keyword = "TZIMMES", story = "A big pot with a small tzimmes stew at its lower right. Tzimmes starts with the sound tsi."),
+        ),
+        "ツェ" to listOf(
+            KanaMnemonic(keyword = "PRETZEL", story = "A big cart with a small pretzel twist hung at its lower right. Pretzel holds the sound tse."),
+        ),
+        "ツォ" to listOf(
+            KanaMnemonic(keyword = "MATZO", story = "A big plate with a small matzo cracker at its lower right. Matzo holds the sound tso."),
+        ),
+    )
+
+    private val HIRAGANA_EXTRA: Map<String, List<KanaMnemonic>> = mapOf(
+        "が" to listOf(
+            KanaMnemonic(keyword = "GARGOYLE", story = "A gargoyle crouches on a ledge, wings tucked, two beady eyes glaring from the top corner. Its growl is ga."),
+            KanaMnemonic(keyword = "GARLIC", story = "A garlic bulb on its stalk, two papery cloves flaked off at the upper corner. Garlic starts with ga."),
+        ),
+        "ぎ" to listOf(
+            KanaMnemonic(keyword = "GILLS", story = "A fish stood on its tail, two gill-slits flaring high at the corner as it breathes. Gills start with gi."),
+            KanaMnemonic(keyword = "GIFT", story = "A wrapped gift: ribbon crossing the box and a bow with two loops sticking out at the top corner. Gift starts with gi."),
+        ),
+        "ぐ" to listOf(
+            KanaMnemonic(keyword = "GULL", story = "A gull's hooked beak gaping wide, two crumbs it just tossed hanging at the corner. Gull starts with gu."),
+            KanaMnemonic(keyword = "GOOSE", story = "A goose folds its neck into a tight bend, two loose down feathers drifting off the top. Goose starts with the sound gu."),
+        ),
+        "げ" to listOf(
+            KanaMnemonic(keyword = "GEYSER", story = "A geyser shoots up between two rocks, and two droplets fly off at the very top. Geyser starts with ge."),
+            KanaMnemonic(keyword = "GECKO", story = "A gecko clings upside down, legs splayed, two sticky toe-pads gripping the top corner. Gecko starts with ge."),
+        ),
+        "ご" to listOf(
+            KanaMnemonic(keyword = "GOBLET", story = "A goblet's bowl and stem in two neat strokes, two wine drops beaded at the rim. Goblet starts with go."),
+            KanaMnemonic(keyword = "GOGGLES", story = "A pair of goggles: two lenses stacked, with two strap-buckles clipped at the corner. Goggles start with go."),
+        ),
+        "ざ" to listOf(
+            KanaMnemonic(keyword = "ZEBRA", story = "A zebra bows its striped neck, the mane sweeping down and hooking, two flies flicking at its shoulder. Zebra starts with za."),
+            KanaMnemonic(keyword = "ZAP", story = "A live wire hooks down hard and two electric sparks jump off it at the top. Zap starts with za."),
+        ),
+        "じ" to listOf(
+            KanaMnemonic(keyword = "JIGSAW", story = "A jigsaw blade drops straight and hooks up at the end, two cut chips flying off at the top. Jigsaw starts with ji."),
+            KanaMnemonic(keyword = "JELLYFISH", story = "A jellyfish trails one long tentacle that curls up at the tip, two stingers dangling from its bell. Jelly starts with ji."),
+        ),
+        "ず" to listOf(
+            KanaMnemonic(keyword = "ZUCCHINI", story = "A zucchini dangles from a curling vine, two little blossoms still clinging near the stem. Zucchini starts with zu."),
+            KanaMnemonic(keyword = "ZOOM", story = "A race car loops the track leaving a long tail, two speed-lines trailing off the top. Zoom starts with zu."),
+        ),
+        "ぜ" to listOf(
+            KanaMnemonic(keyword = "ZEN GARDEN", story = "A raked zen garden: an upright rake, a line drawn low, and two pebbles set apart at the corner. Zen starts with ze."),
+            KanaMnemonic(keyword = "ZEPHYR", story = "A weathervane on a post, its arm swung by two puffs of a zephyr breeze at the top. Zephyr starts with ze."),
+        ),
+        "ぞ" to listOf(
+            KanaMnemonic(keyword = "ZORRO", story = "Zorro slashes a curling mark, then adds two rapier nicks in the corner as his signature. Zorro starts with zo."),
+            KanaMnemonic(keyword = "ZODIAC", story = "A shooting-star trail curves across the zodiac, two little stars sparking off the top. Zodiac starts with zo."),
+        ),
+        "だ" to listOf(
+            KanaMnemonic(keyword = "DARTS", story = "A dartboard stand: a cross-brace and a curved leg, two darts stuck in the top corner. Darts start with da."),
+            KanaMnemonic(keyword = "DAGGER", story = "A dagger crossed over a curved sheath, two drops of ink running off the blade at the hilt. Dagger starts with da."),
+        ),
+        "ぢ" to listOf(
+            KanaMnemonic(keyword = "DIVER", story = "A diver arcs off the board and hooks into the water, two bubbles rising at the top. Diver starts with di."),
+            KanaMnemonic(keyword = "DINGHY", story = "A dinghy tips on a wave, its keel hooking up, two oars splashing at the stern corner. Dinghy starts with di."),
+        ),
+        "づ" to listOf(
+            KanaMnemonic(keyword = "DUNE", story = "A wind-carved dune curling like a wave, two tumbleweeds bouncing off its crest. Dune starts with du."),
+            KanaMnemonic(keyword = "DUGOUT", story = "A canoe hollowed from a log, curving low, two paddles resting across the top corner. Dugout starts with du."),
+        ),
+        "で" to listOf(
+            KanaMnemonic(keyword = "DELTA", story = "A river delta curves out to sea, and two little islands sit in its mouth at the top. Delta starts with de."),
+            KanaMnemonic(keyword = "DERBY", story = "A bowler derby hat, its brim curling under, with two feathers tucked at the band. Derby starts with de."),
+        ),
+        "ど" to listOf(
+            KanaMnemonic(keyword = "DOMINO", story = "A domino standing on end, and two pips dotted at its top corner. Domino starts with do."),
+            KanaMnemonic(keyword = "DODO", story = "A dodo stands stiff and tall, a stubby wing out to one side, two feathers at its crown. Dodo starts with do."),
+        ),
+        "ば" to listOf(
+            KanaMnemonic(keyword = "BANJO", story = "A banjo: the long neck and round body, two tuning pegs sticking out at the top. Banjo starts with ba."),
+            KanaMnemonic(keyword = "BAT", story = "A bat hangs from a beam by one folded wing, two little ears poking up at the corner. Bat starts with ba."),
+        ),
+        "び" to listOf(
+            KanaMnemonic(keyword = "BISON", story = "A bison lowers its humped back in a big curve, two horns curling up at the top corner. Bison starts with bi."),
+            KanaMnemonic(keyword = "BEEHIVE", story = "A domed beehive curving to the ground, two bees hovering at the entrance corner. Beehive starts with bi."),
+        ),
+        "ぶ" to listOf(
+            KanaMnemonic(keyword = "BUBBLE", story = "A wand blows one big looping bubble, two tiny bubbles pinching off at the corner. Bubble starts with bu."),
+            KanaMnemonic(keyword = "BUTTERFLY", story = "A butterfly with dappled wings mid-flutter, two antennae curling off at the top. Butterfly starts with bu."),
+        ),
+        "べ" to listOf(
+            KanaMnemonic(keyword = "BELL", story = "A hand bell swings in a smooth arc, two clangs ringing off at the top corner. Bell starts with be."),
+            KanaMnemonic(keyword = "BEAK", story = "A pelican's beak dips in a long shallow curve, two fish flipping at the tip. Beak starts with be."),
+        ),
+        "ぼ" to listOf(
+            KanaMnemonic(keyword = "BONSAI", story = "A bonsai tree: crossed branches over a pot, two clipped leaves resting at the top corner. Bonsai starts with bo."),
+            KanaMnemonic(keyword = "BONGO", story = "Two bongo drums lashed to a stand, two drumsticks crossed above them. Bongo starts with bo."),
+        ),
+        "ぱ" to listOf(
+            KanaMnemonic(keyword = "PARASOL", story = "A parasol on a pole, its round canopy balanced as one bright circle at the top. Parasol starts with pa."),
+            KanaMnemonic(keyword = "PANDA", story = "A panda sits munching bamboo, one round ear circled at the top corner. Panda starts with pa."),
+        ),
+        "ぴ" to listOf(
+            KanaMnemonic(keyword = "PIG", story = "A pig's curved back and snout, one round curly tail circled at the top corner. Pig starts with pi."),
+            KanaMnemonic(keyword = "PIN", story = "A safety pin bent in a long curve, its round clasp circled at the top. Pin starts with pi."),
+        ),
+        "ぷ" to listOf(
+            KanaMnemonic(keyword = "PUFFERFISH", story = "A pufferfish balloons up round, fins flicking, one bubble circled at the top corner. Puffer starts with pu."),
+            KanaMnemonic(keyword = "PUDDLE", story = "A splash kicks up feathery drops, one round raindrop circled just above it. Puddle starts with pu."),
+        ),
+        "ぺ" to listOf(
+            KanaMnemonic(keyword = "PEBBLE", story = "A pebble skips across a flat arc of water, one round ripple circled at the top. Pebble starts with pe."),
+            KanaMnemonic(keyword = "PEAK", story = "A mountain peak in one clean slope, one round sun circled at its shoulder. Peak starts with pe."),
+        ),
+        "ぽ" to listOf(
+            KanaMnemonic(keyword = "POPCORN", story = "A popcorn plant of crossed stalks, one round kernel popped and circled at the top. Popcorn starts with po."),
+            KanaMnemonic(keyword = "POODLE", story = "A poodle sits with crossed legs and a curly coat, one round pompom circled at its tail. Poodle starts with po."),
+        ),
+        "きゃ" to listOf(
+            KanaMnemonic(keyword = "KAYAK", story = "A big paddler leans back and a small kayak tucks at their heel, slicing away. Kayak sounds like kya."),
+        ),
+        "きゅ" to listOf(
+            KanaMnemonic(keyword = "CUPID", story = "A big bow bends and a small cupid perches at its lower tip, taking aim. Cupid sounds like kyu."),
+            KanaMnemonic(keyword = "CUCUMBER", story = "A big vine curls with a small cucumber hanging at its lower right. Cucumber sounds like kyu."),
+        ),
+        "きょ" to listOf(
+            KanaMnemonic(keyword = "KIOSK", story = "A big signboard stands with a small kiosk booth tucked at its lower corner. Kiosk sounds like kyo."),
+            KanaMnemonic(keyword = "CURIO", story = "A big cabinet with a small curio figurine on its lower shelf. Curio sounds like kyo."),
+        ),
+        "しゃ" to listOf(
+            KanaMnemonic(keyword = "SHARK", story = "A big fin cuts the water with a small shark tail flicking at its lower right. Shark sounds like sha."),
+            KanaMnemonic(keyword = "SHACK", story = "A big roof leans with a small lean-to shack at its lower corner. Shack sounds like sha."),
+        ),
+        "しゅ" to listOf(
+            KanaMnemonic(keyword = "SHOE", story = "A big lace loops down with a small shoe tucked at its lower right. Shoe sounds like shu."),
+            KanaMnemonic(keyword = "SHUTTLE", story = "A big loom with a small shuttle darting across its lower edge. Shuttle starts with shu."),
+        ),
+        "しょ" to listOf(
+            KanaMnemonic(keyword = "SHOWER", story = "A big pipe bends and a small showerhead sprays at its lower corner. Shower starts with sho."),
+            KanaMnemonic(keyword = "SHOGUN", story = "A big banner rises with a small shogun helmet set at its lower right. Shogun starts with sho."),
+        ),
+        "ちゃ" to listOf(
+            KanaMnemonic(keyword = "CHAI", story = "A big teapot pours with a small chai cup catching at its lower right. Chai sounds like cha."),
+            KanaMnemonic(keyword = "CHARM", story = "A big bracelet loops with a small charm dangling at its lower corner. Charm starts with cha."),
+        ),
+        "ちゅ" to listOf(
+            KanaMnemonic(keyword = "CHOO", story = "A big engine puffs with a small caboose at its lower right, going choo. Choo sounds like chu."),
+            KanaMnemonic(keyword = "CHUTE", story = "A big slide bends into a small parachute chute at its lower corner. Chute starts with chu."),
+        ),
+        "ちょ" to listOf(
+            KanaMnemonic(keyword = "CHOPSTICKS", story = "A big bowl with two small chopsticks resting at its lower corner. Chopstick starts with cho."),
+            KanaMnemonic(keyword = "CHOCOLATE", story = "A big bar snaps with a small chocolate square breaking off at its lower right. Chocolate starts with cho."),
+        ),
+        "にゃ" to listOf(
+            KanaMnemonic(keyword = "KITTEN", story = "A big cat arches its back with a small kitten curled at its lower right, both mewing. A cat mews nya."),
+            KanaMnemonic(keyword = "NYALA", story = "A big antelope with a small nyala calf at its lower corner. Nyala starts with nya."),
+        ),
+        "にゅ" to listOf(
+            KanaMnemonic(keyword = "NEWT", story = "A big log with a small newt crawling off at its lower right. Newt sounds like nyu."),
+        ),
+        "にょ" to listOf(
+            KanaMnemonic(keyword = "CANYON", story = "A big cliff with a small canyon notch cut at its lower corner. Canyon holds the sound nyo."),
+            KanaMnemonic(keyword = "GNOCCHI", story = "A big pot with a small gnocchi dumpling bobbing at its lower right. Gnocchi sounds like nyo."),
+        ),
+        "ひゃ" to listOf(
+            KanaMnemonic(keyword = "HYENA", story = "A big grin with a small hyena cackling at its lower corner. Hyena starts with hya."),
+            KanaMnemonic(keyword = "HYACINTH", story = "A big stalk with a small hyacinth bloom opening at its lower right. Hyacinth starts with hya."),
+        ),
+        "ひゅ" to listOf(
+            KanaMnemonic(keyword = "HUE", story = "A big palette with a small swatch of hue dabbed at its lower right. Hue sounds like hyu."),
+        ),
+        "ひょ" to listOf(
+            KanaMnemonic(keyword = "HYPHEN", story = "A big word breaks with a small hyphen hooked at its lower right. Hyphen starts with the sound hyo."),
+            KanaMnemonic(keyword = "HYOTAN", story = "A big vine with a small gourd hanging at its lower corner, a hyotan. Hyotan starts with hyo."),
+        ),
+        "みゃ" to listOf(
+            KanaMnemonic(keyword = "MYANMAR", story = "A big map with a small flag of Myanmar pinned at its lower right. Myanmar starts with mya."),
+        ),
+        "みゅ" to listOf(
+            KanaMnemonic(keyword = "MUSEUM", story = "A big hall with a small museum placard at its lower corner. Museum sounds like myu."),
+        ),
+        "みょ" to listOf(
+            KanaMnemonic(keyword = "MYOPIA", story = "A big eye chart with a small blurred letter at its lower right, from myopia. Myopia starts with myo."),
+        ),
+        "りゃ" to listOf(
+            KanaMnemonic(keyword = "RYEGRASS", story = "A big field with a small tuft of ryegrass at its lower right. Ryegrass sounds like rya."),
+        ),
+        "りゅ" to listOf(
+            KanaMnemonic(keyword = "REUNION", story = "A big banner with a small crowd gathering at its lower corner, a reunion. Reunion sounds like ryu."),
+            KanaMnemonic(keyword = "DRAGON", story = "A big cloud with a small dragon coiling at its lower right, a ryu. Ryu names the dragon."),
+        ),
+        "りょ" to listOf(
+            KanaMnemonic(keyword = "RYOKAN", story = "A big inn with a small hot-spring bath at its lower right, a ryokan. Ryokan starts with ryo."),
+        ),
+        "ぎゃ" to listOf(
+            KanaMnemonic(keyword = "GYARU", story = "A big mirror with a small gyaru fashion doll posing at its lower corner. Gyaru starts with gya."),
+        ),
+        "ぎゅ" to listOf(
+            KanaMnemonic(keyword = "GYUDON", story = "A big rice bowl with a small strip of beef curling at its lower right, a gyudon. Gyudon starts with gyu."),
+        ),
+        "ぎょ" to listOf(
+            KanaMnemonic(keyword = "GYOZA", story = "A big dumpling wrapper folds with a small pleat at its lower right, a gyoza. Gyoza starts with gyo."),
+        ),
+        "じゃ" to listOf(
+            KanaMnemonic(keyword = "JAZZ", story = "A big trumpet flares with a small jazz note curling at its lower corner. Jazz starts with ja."),
+            KanaMnemonic(keyword = "JAGUAR", story = "A big paw swipes with a small jaguar cub crouched at its lower right. Jaguar starts with ja."),
+        ),
+        "じゅ" to listOf(
+            KanaMnemonic(keyword = "JUICE", story = "A big glass tips with a small juice drop falling at its lower right. Juice starts with ju."),
+            KanaMnemonic(keyword = "JUDO", story = "A big belt knots with a small judo thrower flipping at its lower corner. Judo starts with ju."),
+        ),
+        "じょ" to listOf(
+            KanaMnemonic(keyword = "JOGGER", story = "A big track curves with a small jogger rounding its lower corner. Jogger starts with jo."),
+            KanaMnemonic(keyword = "JOKER", story = "A big deck fans out with a small joker card poking from its lower right. Joker starts with jo."),
+        ),
+        "びゃ" to listOf(
+            KanaMnemonic(keyword = "BAYOU", story = "A big swamp with a small bayou channel winding off at its lower right. Bayou sounds like bya."),
+        ),
+        "びゅ" to listOf(
+            KanaMnemonic(keyword = "BUREAU", story = "A big office with a small bureau desk set in its lower corner. Bureau sounds like byu."),
+        ),
+        "びょ" to listOf(
+            KanaMnemonic(keyword = "BYOIN", story = "A big cross-sign with a small clinic at its lower right, a byoin hospital. Byoin starts with byo."),
+        ),
+        "ぴゃ" to listOf(
+            KanaMnemonic(keyword = "PYRAMID", story = "A big desert with a small pyramid rising at its lower right. Pyramid sounds like pya."),
+        ),
+        "ぴゅ" to listOf(
+            KanaMnemonic(keyword = "PEWTER", story = "A big shelf with a small pewter mug set at its lower corner. Pewter sounds like pyu."),
+        ),
+        "ぴょ" to listOf(
+            KanaMnemonic(keyword = "PYLON", story = "A big wire with a small pylon tower holding it at the lower right. Pylon sounds like pyo."),
+            KanaMnemonic(keyword = "FROGHOP", story = "A big frog springs with a small hop-puff at its lower right, pyon pyon. The hop is pyo."),
+        ),
+        "ぁ" to listOf(
+            KanaMnemonic(keyword = "ATOM", story = "A tiny atom spinning in the corner, too small to see. Atom starts with a."),
+        ),
+        "ぃ" to listOf(
+            KanaMnemonic(keyword = "IOTA", story = "A single iota, the tiniest speck of ink in the margin. Iota starts with i."),
+        ),
+        "ぅ" to listOf(
+            KanaMnemonic(keyword = "UPDRAFT", story = "A small updraft lifting one leaf in the corner. Updraft starts with u."),
+        ),
+        "ぇ" to listOf(
+            KanaMnemonic(keyword = "EDDY", story = "A little eddy swirling at the river's edge. Eddy starts with e."),
+        ),
+        "ぉ" to listOf(
+            KanaMnemonic(keyword = "OUNCE", story = "Just an ounce, a tiny weight tipping the corner of a scale. Ounce sounds like o."),
+        ),
+        "ゐ" to listOf(
+            KanaMnemonic(keyword = "WISP", story = "A faint wisp of an old letter, once read wi, curling away. Wisp starts with wi."),
+        ),
+        "ゑ" to listOf(
+            KanaMnemonic(keyword = "WEB", story = "A dusty old web strung in an attic corner, once read we. Web starts with we."),
+        ),
+        "ゔ" to listOf(
+            KanaMnemonic(keyword = "VODKA", story = "A small shot of vodka poured in the corner. Vodka sounds like vu."),
+        ),
+    )
+
+    val KANA_COMPOSITION: Map<String, String> = mapOf(
+        "が" to "The ka shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ga.",
+        "ぎ" to "The ki shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to gi.",
+        "ぐ" to "The ku shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to gu.",
+        "げ" to "The ke shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ge.",
+        "ご" to "The ko shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to go.",
+        "ざ" to "The sa shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to za.",
+        "じ" to "The shi shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ji.",
+        "ず" to "The su shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to zu.",
+        "ぜ" to "The se shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ze.",
+        "ぞ" to "The so shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to zo.",
+        "だ" to "The ta shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to da.",
+        "ぢ" to "The chi shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to di.",
+        "づ" to "The tsu shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to du.",
+        "で" to "The te shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to de.",
+        "ど" to "The to shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to do.",
+        "ば" to "The ha shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ba.",
+        "び" to "The hi shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to bi.",
+        "ぶ" to "The fu shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to bu.",
+        "べ" to "The he shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to be.",
+        "ぼ" to "The ho shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to bo.",
+        "ぱ" to "The ha shape with a small circle (the handakuten) at the upper right, turning it into pa.",
+        "ぴ" to "The hi shape with a small circle (the handakuten) at the upper right, turning it into pi.",
+        "ぷ" to "The fu shape with a small circle (the handakuten) at the upper right, turning it into pu.",
+        "ぺ" to "The he shape with a small circle (the handakuten) at the upper right, turning it into pe.",
+        "ぽ" to "The ho shape with a small circle (the handakuten) at the upper right, turning it into po.",
+        "きゃ" to "The full ki shape with a small ya beside it at the lower right, blending to kya.",
+        "きゅ" to "The full ki shape with a small yu beside it at the lower right, blending to kyu.",
+        "きょ" to "The full ki shape with a small yo beside it at the lower right, blending to kyo.",
+        "しゃ" to "The full shi shape with a small ya beside it at the lower right, blending to sha.",
+        "しゅ" to "The full shi shape with a small yu beside it at the lower right, blending to shu.",
+        "しょ" to "The full shi shape with a small yo beside it at the lower right, blending to sho.",
+        "ちゃ" to "The full chi shape with a small ya beside it at the lower right, blending to cha.",
+        "ちゅ" to "The full chi shape with a small yu beside it at the lower right, blending to chu.",
+        "ちょ" to "The full chi shape with a small yo beside it at the lower right, blending to cho.",
+        "にゃ" to "The full ni shape with a small ya beside it at the lower right, blending to nya.",
+        "にゅ" to "The full ni shape with a small yu beside it at the lower right, blending to nyu.",
+        "にょ" to "The full ni shape with a small yo beside it at the lower right, blending to nyo.",
+        "ひゃ" to "The full hi shape with a small ya beside it at the lower right, blending to hya.",
+        "ひゅ" to "The full hi shape with a small yu beside it at the lower right, blending to hyu.",
+        "ひょ" to "The full hi shape with a small yo beside it at the lower right, blending to hyo.",
+        "みゃ" to "The full mi shape with a small ya beside it at the lower right, blending to mya.",
+        "みゅ" to "The full mi shape with a small yu beside it at the lower right, blending to myu.",
+        "みょ" to "The full mi shape with a small yo beside it at the lower right, blending to myo.",
+        "りゃ" to "The full ri shape with a small ya beside it at the lower right, blending to rya.",
+        "りゅ" to "The full ri shape with a small yu beside it at the lower right, blending to ryu.",
+        "りょ" to "The full ri shape with a small yo beside it at the lower right, blending to ryo.",
+        "ぎゃ" to "The full gi shape with a small ya beside it at the lower right, blending to gya.",
+        "ぎゅ" to "The full gi shape with a small yu beside it at the lower right, blending to gyu.",
+        "ぎょ" to "The full gi shape with a small yo beside it at the lower right, blending to gyo.",
+        "じゃ" to "The full ji shape with a small ya beside it at the lower right, blending to ja.",
+        "じゅ" to "The full ji shape with a small yu beside it at the lower right, blending to ju.",
+        "じょ" to "The full ji shape with a small yo beside it at the lower right, blending to jo.",
+        "びゃ" to "The full bi shape with a small ya beside it at the lower right, blending to bya.",
+        "びゅ" to "The full bi shape with a small yu beside it at the lower right, blending to byu.",
+        "びょ" to "The full bi shape with a small yo beside it at the lower right, blending to byo.",
+        "ぴゃ" to "The full pi shape with a small ya beside it at the lower right, blending to pya.",
+        "ぴゅ" to "The full pi shape with a small yu beside it at the lower right, blending to pyu.",
+        "ぴょ" to "The full pi shape with a small yo beside it at the lower right, blending to pyo.",
+        "ぁ" to "A small version of the a kana, written little so it rides beside a bigger sound.",
+        "ぃ" to "A small version of the i kana, written little so it rides beside a bigger sound.",
+        "ぅ" to "A small version of the u kana, written little so it rides beside a bigger sound.",
+        "ぇ" to "A small version of the e kana, written little so it rides beside a bigger sound.",
+        "ぉ" to "A small version of the o kana, written little so it rides beside a bigger sound.",
+        "ゐ" to "An old, retired kana once read wi, now seen only in a few old names and signs.",
+        "ゑ" to "An old, retired kana once read we, now seen only in a few old names and signs.",
+        "ゔ" to "The u shape with two short diagonal strokes (the dakuten) at the upper right, borrowed to make the foreign sound vu.",
+        "ガ" to "The ka shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ga.",
+        "ギ" to "The ki shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to gi.",
+        "グ" to "The ku shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to gu.",
+        "ゲ" to "The ke shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ge.",
+        "ゴ" to "The ko shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to go.",
+        "ザ" to "The sa shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to za.",
+        "ジ" to "The shi shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ji.",
+        "ズ" to "The su shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to zu.",
+        "ゼ" to "The se shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ze.",
+        "ゾ" to "The so shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to zo.",
+        "ダ" to "The ta shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to da.",
+        "ヂ" to "The chi shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to di.",
+        "ヅ" to "The tsu shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to du.",
+        "デ" to "The te shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to de.",
+        "ド" to "The to shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to do.",
+        "バ" to "The ha shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to ba.",
+        "ビ" to "The hi shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to bi.",
+        "ブ" to "The fu shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to bu.",
+        "ベ" to "The he shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to be.",
+        "ボ" to "The ho shape with two short diagonal strokes (the dakuten) at the upper right, voicing it to bo.",
+        "パ" to "The ha shape with a small circle (the handakuten) at the upper right, turning it into pa.",
+        "ピ" to "The hi shape with a small circle (the handakuten) at the upper right, turning it into pi.",
+        "プ" to "The fu shape with a small circle (the handakuten) at the upper right, turning it into pu.",
+        "ペ" to "The he shape with a small circle (the handakuten) at the upper right, turning it into pe.",
+        "ポ" to "The ho shape with a small circle (the handakuten) at the upper right, turning it into po.",
+        "キャ" to "The full ki shape with a small ya beside it at the lower right, blending to kya.",
+        "キュ" to "The full ki shape with a small yu beside it at the lower right, blending to kyu.",
+        "キョ" to "The full ki shape with a small yo beside it at the lower right, blending to kyo.",
+        "シャ" to "The full shi shape with a small ya beside it at the lower right, blending to sha.",
+        "シュ" to "The full shi shape with a small yu beside it at the lower right, blending to shu.",
+        "ショ" to "The full shi shape with a small yo beside it at the lower right, blending to sho.",
+        "チャ" to "The full chi shape with a small ya beside it at the lower right, blending to cha.",
+        "チュ" to "The full chi shape with a small yu beside it at the lower right, blending to chu.",
+        "チョ" to "The full chi shape with a small yo beside it at the lower right, blending to cho.",
+        "ニャ" to "The full ni shape with a small ya beside it at the lower right, blending to nya.",
+        "ニュ" to "The full ni shape with a small yu beside it at the lower right, blending to nyu.",
+        "ニョ" to "The full ni shape with a small yo beside it at the lower right, blending to nyo.",
+        "ヒャ" to "The full hi shape with a small ya beside it at the lower right, blending to hya.",
+        "ヒュ" to "The full hi shape with a small yu beside it at the lower right, blending to hyu.",
+        "ヒョ" to "The full hi shape with a small yo beside it at the lower right, blending to hyo.",
+        "ミャ" to "The full mi shape with a small ya beside it at the lower right, blending to mya.",
+        "ミュ" to "The full mi shape with a small yu beside it at the lower right, blending to myu.",
+        "ミョ" to "The full mi shape with a small yo beside it at the lower right, blending to myo.",
+        "リャ" to "The full ri shape with a small ya beside it at the lower right, blending to rya.",
+        "リュ" to "The full ri shape with a small yu beside it at the lower right, blending to ryu.",
+        "リョ" to "The full ri shape with a small yo beside it at the lower right, blending to ryo.",
+        "ギャ" to "The full gi shape with a small ya beside it at the lower right, blending to gya.",
+        "ギュ" to "The full gi shape with a small yu beside it at the lower right, blending to gyu.",
+        "ギョ" to "The full gi shape with a small yo beside it at the lower right, blending to gyo.",
+        "ジャ" to "The full ji shape with a small ya beside it at the lower right, blending to ja.",
+        "ジュ" to "The full ji shape with a small yu beside it at the lower right, blending to ju.",
+        "ジョ" to "The full ji shape with a small yo beside it at the lower right, blending to jo.",
+        "ビャ" to "The full bi shape with a small ya beside it at the lower right, blending to bya.",
+        "ビュ" to "The full bi shape with a small yu beside it at the lower right, blending to byu.",
+        "ビョ" to "The full bi shape with a small yo beside it at the lower right, blending to byo.",
+        "ピャ" to "The full pi shape with a small ya beside it at the lower right, blending to pya.",
+        "ピュ" to "The full pi shape with a small yu beside it at the lower right, blending to pyu.",
+        "ピョ" to "The full pi shape with a small yo beside it at the lower right, blending to pyo.",
+        "ァ" to "A small version of the a kana, written little so it rides beside a bigger sound.",
+        "ィ" to "A small version of the i kana, written little so it rides beside a bigger sound.",
+        "ゥ" to "A small version of the u kana, written little so it rides beside a bigger sound.",
+        "ェ" to "A small version of the e kana, written little so it rides beside a bigger sound.",
+        "ォ" to "A small version of the o kana, written little so it rides beside a bigger sound.",
+        "ヰ" to "An old, retired kana once read wi, now seen only in a few old names and signs.",
+        "ヱ" to "An old, retired kana once read we, now seen only in a few old names and signs.",
+        "ヴ" to "The u shape with two short diagonal strokes (the dakuten) at the upper right, borrowed to make the foreign sound vu.",
+        "ウィ" to "The full u shape with a small i beside it at the lower right, borrowed to make wi.",
+        "ウェ" to "The full u shape with a small e beside it at the lower right, borrowed to make we.",
+        "ウォ" to "The full u shape with a small o beside it at the lower right, borrowed to make wo.",
+        "ヴァ" to "The full vu shape with a small a beside it at the lower right, borrowed to make va.",
+        "ヴィ" to "The full vu shape with a small i beside it at the lower right, borrowed to make vi.",
+        "ヴェ" to "The full vu shape with a small e beside it at the lower right, borrowed to make ve.",
+        "ヴォ" to "The full vu shape with a small o beside it at the lower right, borrowed to make vo.",
+        "シェ" to "The full shi shape with a small e beside it at the lower right, borrowed to make she.",
+        "ジェ" to "The full ji shape with a small e beside it at the lower right, borrowed to make je.",
+        "チェ" to "The full chi shape with a small e beside it at the lower right, borrowed to make che.",
+        "ティ" to "The full te shape with a small i beside it at the lower right, borrowed to make ti.",
+        "ディ" to "The full de shape with a small i beside it at the lower right, borrowed to make di.",
+        "トゥ" to "The full to shape with a small u beside it at the lower right, borrowed to make tu.",
+        "ドゥ" to "The full do shape with a small u beside it at the lower right, borrowed to make du.",
+        "ファ" to "The full fu shape with a small a beside it at the lower right, borrowed to make fa.",
+        "フィ" to "The full fu shape with a small i beside it at the lower right, borrowed to make fi.",
+        "フェ" to "The full fu shape with a small e beside it at the lower right, borrowed to make fe.",
+        "フォ" to "The full fu shape with a small o beside it at the lower right, borrowed to make fo.",
+        "ツァ" to "The full tsu shape with a small a beside it at the lower right, borrowed to make tsa.",
+        "ツィ" to "The full tsu shape with a small i beside it at the lower right, borrowed to make tsi.",
+        "ツェ" to "The full tsu shape with a small e beside it at the lower right, borrowed to make tse.",
+        "ツォ" to "The full tsu shape with a small o beside it at the lower right, borrowed to make tso.",
+    )
+
     /**
      * Every shipped mnemonic for [glyph]'s exact glyph, default first.
-     * Empty for kana without mnemonics yet (derived kana, katakana).
+     * Consulted across the base hiragana, the non-base hiragana extras, and
+     * katakana; empty only for the suppressed silent marks. Exact-glyph, no NFD
+     * inheritance: a keyword anchors one exact sound.
      */
     fun candidatesFor(glyph: String): List<KanaMnemonic> =
-        BASE_HIRAGANA[glyph].orEmpty()
+        BASE_HIRAGANA[glyph] ?: HIRAGANA_EXTRA[glyph] ?: KATAKANA[glyph] ?: emptyList()
+
+    /**
+     * The always-shown technical definition of how a special (derived) glyph is
+     * built ("the ka shape with two short diagonal strokes (the dakuten),
+     * voicing it to ga"), or null for a base kana. Display-only, never a
+     * pickable mnemonic (owner decision 2026-07-31).
+     */
+    fun compositionFor(glyph: String): String? = KANA_COMPOSITION[glyph]
+
+    /** Every shipped mnemonic across all three maps, for test coverage. */
+    internal fun allEntriesForTest(): List<Pair<String, KanaMnemonic>> =
+        (BASE_HIRAGANA + HIRAGANA_EXTRA + KATAKANA)
+            .flatMap { (glyph, list) -> list.map { glyph to it } }
 
     /**
      * The mnemonic shown for one reading unit's [glyph], or null. When the

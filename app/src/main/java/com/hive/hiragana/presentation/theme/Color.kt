@@ -55,3 +55,19 @@ val GradeHardContent = Color(0xFF8E1616)
 // read as a worst-to-best ramp: Again -> Hard -> Good -> Easy.
 val GradeAgainContainer = Color(0xFFF6B4B4)
 val GradeAgainContent = Color(0xFF5C0A0A)
+
+// Answer-feedback semantics (see FeedbackColors.kt). "Correct!" is green (not
+// the vermilion primary, which read like a mistake); a miss is a SOFT AMBER in
+// low-stakes practice (the graded quiz keeps error-red). Each has a dark twin
+// so the light-on-dark card grounds stay legible.
+val FeedbackGreen = Color(0xFF2E7D32)
+val FeedbackGreenDark = Color(0xFF7FD48A)
+val FeedbackAmber = Color(0xFFB26A00)
+val FeedbackAmberDark = Color(0xFFF0B357)
+
+// The "How to remember" reveal chip: a calm teal (help/info), replacing the
+// vermilion primaryContainer so a correct reveal no longer looks like an error.
+val HintTealContainer = Color(0xFFCFE8E9)
+val OnHintTealContainer = Color(0xFF13494B)
+val HintTealContainerDark = Color(0xFF204A4C)
+val OnHintTealContainerDark = Color(0xFFA7DADC)

@@ -77,6 +77,7 @@ import com.hive.hiragana.domain.model.KanaMnemonic
 import com.hive.hiragana.domain.model.KanaMnemonics
 import com.hive.hiragana.domain.model.MnemonicOverlay
 import com.hive.hiragana.presentation.theme.LocalKanaColors
+import com.hive.hiragana.presentation.theme.hintChipColors
 import kotlinx.coroutines.launch
 
 /**
@@ -158,13 +159,14 @@ fun MnemonicBadge(
         mutableStateOf(false)
     }
 
+    val hintColors = hintChipColors(LocalKanaColors.current.isDark)
     Surface(
         onClick = { showDialog = true },
         shape = RoundedCornerShape(percent = 50),
-        // primaryContainer (vermilion family): visually distinct from the
-        // divergence chip's secondaryContainer when the two sit side by side.
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        // Calm teal (not the vermilion primary): a revealed hint is help, not a
+        // mistake. Still distinct from the divergence chip's secondaryContainer.
+        color = hintColors.container,
+        contentColor = hintColors.content,
         modifier = modifier,
     ) {
         if (iconOnly) {
@@ -429,6 +431,30 @@ private fun MnemonicSection(
         }
         // "あ is APPLE" — or, when the glyph is the hidden quiz answer,
         // "a is APPLE" (the romaji is already the visible prompt).
+        // The always-shown technical definition of a special (derived) glyph,
+        // above the memory hint and never a pickable option. Hidden when
+        // showGlyph is false (the writing-quiz pre-answer hint), where naming
+        // the construction would reveal the answer (owner decision 2026-07-31).
+        val composition = remember(glyph) { KanaMnemonics.compositionFor(glyph) }
+        if (showGlyph && composition != null) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = "Structure",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(text = composition, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
         Text(
             text = buildAnnotatedString {
                 append(if (showGlyph) glyph else character.romaji)

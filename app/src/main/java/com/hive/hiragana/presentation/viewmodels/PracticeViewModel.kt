@@ -12,6 +12,7 @@ import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.DefaultPracticeSets
 import com.hive.hiragana.domain.model.Grade
 import com.hive.hiragana.domain.model.SpecialKana
+import com.hive.hiragana.domain.model.StreakEncouragement
 import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_STORY_MAX
 import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_TITLE_MAX
 import com.hive.hiragana.domain.model.HiraganaCharacter
@@ -110,6 +111,11 @@ data class ReadingFlashcardState(
     // reopen the Library on the Sets tab rather than the browse page, mirroring
     // the quiz-from-set round-trip (see closeReadingFlashcards / closeQuiz).
     val fromSet: Boolean = false,
+    // Correct-answer streak + the encouragement line for the latest answer (null
+    // before the first answer). Study is not recorded, but a good run is still
+    // rewarded. See [StreakEncouragement].
+    val streak: Int = 0,
+    val streakMessage: String? = null,
 ) {
     val current: ReadingCard? get() = cards.getOrNull(index)
 }
@@ -187,11 +193,15 @@ data class QuizState(
     val kind: QuizKind = QuizKind.WRITING,
     val readingAnswerStyle: ReadingAnswerStyle = ReadingAnswerStyle.CHOICE,
     val readingTestMeaning: Boolean = false,
-    // Whether the pre-answer "Hint" (mnemonic) button is offered DURING a
-    // reading item — a per-quiz setup choice, so a learner can test cold. The
-    // post-answer reveal's mnemonic chip is independent of this (always shown
-    // when memory hints are on). Default true keeps the prior behaviour.
-    val readingShowHints: Boolean = true,
+    // Whether the pre-answer "Hint" (mnemonic) button is offered DURING an item
+    // (reading OR writing quiz) — a per-quiz setup choice, so a learner can test
+    // cold. The post-answer reveal's mnemonic chip is independent of this
+    // (always shown when memory hints are on). Default true keeps prior behaviour.
+    val showHints: Boolean = true,
+    // Reading-quiz correct-answer streak + the encouragement line for the latest
+    // answer (null before the first answer). See [StreakEncouragement].
+    val streak: Int = 0,
+    val streakMessage: String? = null,
 ) {
     val current: QuizItem? get() = items.getOrNull(index)
 
@@ -1662,11 +1672,11 @@ class PracticeViewModel(
         }
     }
 
-    /** Reading-quiz setup: offer the pre-answer Hint button during each item. */
-    fun setReadingShowHints(enabled: Boolean) {
+    /** Quiz setup (reading + writing): offer the pre-answer Hint button per run. */
+    fun setShowHints(enabled: Boolean) {
         _uiState.update { state ->
             val quiz = state.quiz ?: return@update state
-            state.copy(quiz = quiz.copy(readingShowHints = enabled))
+            state.copy(quiz = quiz.copy(showHints = enabled))
         }
     }
 
@@ -1690,12 +1700,16 @@ class PracticeViewModel(
         val typed = quiz.readingAnswerStyle == ReadingAnswerStyle.TYPE && !markStyle
         _uiState.update { state ->
             val q = state.quiz ?: return@update state
+            val newStreak = if (correct) q.streak + 1 else 0
+            val message = StreakEncouragement.messageFor(newStreak, correct, q.streakMessage)
             state.copy(
                 quiz = q.copy(
                     revealed = true,
                     submitted = true,
                     results = q.results + (item.key to if (correct) 100 else 0),
                     submittedKeys = q.submittedKeys + item.key,
+                    streak = newStreak,
+                    streakMessage = message,
                 ),
             )
         }
@@ -1760,11 +1774,18 @@ class PracticeViewModel(
         _uiState.update { it.copy(readingFlashcard = ReadingFlashcardState(cards, fromSet = true)) }
     }
 
-    /** Flips the current flashcard to reveal its reading + meaning. */
-    fun flashcardReveal() {
+    /**
+     * Flips the current flashcard to reveal its reading + meaning, and advances
+     * the study streak ([correct] is the card's self-check result). Guarded
+     * against a double reveal so one answer counts once.
+     */
+    fun flashcardReveal(correct: Boolean) {
         _uiState.update { s ->
             val fc = s.readingFlashcard ?: return@update s
-            s.copy(readingFlashcard = fc.copy(revealed = true))
+            if (fc.revealed) return@update s
+            val newStreak = if (correct) fc.streak + 1 else 0
+            val message = StreakEncouragement.messageFor(newStreak, correct, fc.streakMessage)
+            s.copy(readingFlashcard = fc.copy(revealed = true, streak = newStreak, streakMessage = message))
         }
     }
 

@@ -242,7 +242,7 @@ fun PracticeScreen(
                     onReadingResult = viewModel::readingResult,
                     onSetAnswerStyle = viewModel::setReadingAnswerStyle,
                     onSetTestMeaning = viewModel::setReadingTestMeaning,
-                    onSetShowHints = viewModel::setReadingShowHints,
+                    onSetShowHints = viewModel::setShowHints,
                     unitCharactersFor = uiState::unitCharacters,
                     mnemonicsEnabled = uiState.mnemonicsEnabled,
                     mnemonicChoices = uiState.mnemonicChoices,
