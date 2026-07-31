@@ -159,7 +159,7 @@ object GeometryScorer {
             when {
                 form >= 90 -> tags.add("Great shape")
                 worstStroke >= 0 && worstScore < 0.6f -> tags.add("Work on stroke ${worstStroke + 1}")
-                form >= 70 -> tags.add("Good — keep it up")
+                form >= 70 -> tags.add("Good, keep it up")
             }
         }
 

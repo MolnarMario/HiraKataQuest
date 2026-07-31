@@ -319,7 +319,17 @@ app/src/main/java/com/hive/hiragana/
                                            an item opens the reading flashcards, not FREE practice)
   presentation/screens/QuizScreen.kt       write-from-memory quiz overlay above the library:
                                            SETUP (5/10/20/All presets + exact-count box w/ +/−
-                                           stepper + quiz-local grid switch) → RUNNING (romaji
+                                           stepper + quiz-local grid switch + an optional
+                                           "Timer" toggle — a total stopwatch, both quiz kinds,
+                                           default OFF: QuizState.timerEnabled/startedAtMillis
+                                           captured at RUNNING via the injected clock, elapsedMillis
+                                           frozen in quizAdvance on the last item; QuizTimerChip
+                                           ⏱ m:ss ticks in the running header, Total time shows on
+                                           the summary; retryWrong/retryBelowScore restart it) +
+                                           a "Stroke animation" toggle (writing only,
+                                           QuizState.showStrokeDemo, default ON) that gates the
+                                           post-Submit stroke-order demo shown in the reveal's
+                                           top-right corner → RUNNING (romaji
                                            prompt, ghost off until Show answer reveals it on the
                                            canvas, Back/Next(=Finish on last) skip w/o grading)
                                            → SUMMARY (grades by char id, Skipped when ungraded;

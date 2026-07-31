@@ -98,6 +98,7 @@ import com.hive.hiragana.presentation.viewmodels.QuizStage
 import com.hive.hiragana.presentation.viewmodels.QuizState
 import com.hive.hiragana.presentation.viewmodels.ReadingAnswerStyle
 import com.hive.hiragana.presentation.viewmodels.WordQuizItem
+import kotlinx.coroutines.delay
 
 /**
  * Full-screen "Quiz me!" overlay, launched from the library: the learner
@@ -150,6 +151,8 @@ fun QuizScreen(
     onReadingResult: (Boolean) -> Unit = {},
     onSetAnswerStyle: (ReadingAnswerStyle) -> Unit = {},
     onSetShowHints: (Boolean) -> Unit = {},
+    onSetShowStrokeDemo: (Boolean) -> Unit = {},
+    onSetTimerEnabled: (Boolean) -> Unit = {},
     onSetTestMeaning: (Boolean) -> Unit = {},
     // Deck characters for a kana string's reading units — the reading quiz's
     // reveal card uses it for the "print differs" badge (handwritten strokes).
@@ -184,6 +187,8 @@ fun QuizScreen(
                 onSetAnswerStyle = onSetAnswerStyle,
                 onSetTestMeaning = onSetTestMeaning,
                 onSetShowHints = onSetShowHints,
+                onSetShowStrokeDemo = onSetShowStrokeDemo,
+                onSetTimerEnabled = onSetTimerEnabled,
                 mnemonicsEnabled = mnemonicsEnabled,
             )
             QuizStage.RUNNING -> if (quiz.kind == QuizKind.READING) {
@@ -262,6 +267,47 @@ private val SCORING_CHOICES = listOf(
 private fun quizCountOptions(deckSize: Int): List<Int> =
     (listOf(5, 10, 20).filter { it < deckSize } + deckSize).distinct()
 
+/** Formats a stopwatch duration as m:ss (minutes not zero-padded). */
+private fun formatQuizTime(millis: Long): String {
+    val totalSec = (millis / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(totalSec / 60, totalSec % 60)
+}
+
+/**
+ * A running-quiz stopwatch pill. Renders nothing unless the timer was enabled at
+ * setup. While the quiz is RUNNING ([QuizState.elapsedMillis] still null) it
+ * ticks once a second off the wall clock ([QuizState.startedAtMillis] is set
+ * from the same [java.time.Clock] default zone, so the two agree); once the quiz
+ * finishes it shows the frozen total the view model captured.
+ */
+@Composable
+private fun QuizTimerChip(quiz: QuizState, modifier: Modifier = Modifier) {
+    if (!quiz.timerEnabled) return
+    val start = quiz.startedAtMillis ?: return
+    val running = quiz.elapsedMillis == null
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(running, start) {
+        while (running) {
+            now = System.currentTimeMillis()
+            delay(1000)
+        }
+    }
+    val elapsed = quiz.elapsedMillis ?: (now - start)
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Text(
+            text = "⏱ ${formatQuizTime(elapsed)}",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
+    }
+}
+
 @Composable
 private fun QuizSetup(
     quiz: QuizState,
@@ -277,6 +323,8 @@ private fun QuizSetup(
     onSetAnswerStyle: (ReadingAnswerStyle) -> Unit,
     onSetTestMeaning: (Boolean) -> Unit,
     onSetShowHints: (Boolean) -> Unit,
+    onSetShowStrokeDemo: (Boolean) -> Unit = {},
+    onSetTimerEnabled: (Boolean) -> Unit = {},
     mnemonicsEnabled: Boolean = true,
 ) {
     val selectedSet = practiceSets.firstOrNull { it.id == quiz.selectedSetId }
@@ -322,9 +370,9 @@ private fun QuizSetup(
                     Text(
                         text = if (reading) {
                             "See the printed character or word and recall its " +
-                                "reading — by choosing or typing the romaji."
+                                "reading. Choose or type the romaji."
                         } else {
-                            "Each item is prompted by its sound only — no ghost " +
+                            "Each item is prompted by its sound only, with no ghost " +
                                 "guide to trace. Write it, check the answer, see your " +
                                 "score."
                         },
@@ -378,6 +426,27 @@ private fun QuizSetup(
                         deckSize = deckSize,
                         onSetCount = onSetCount,
                     )
+                    // Optional stopwatch — shared by both quiz kinds. Counts up
+                    // for the whole run and shows the total on the summary; no
+                    // per-question pressure.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Timer",
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                text = "Show a stopwatch while you go and your total " +
+                                    "time on the summary.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = quiz.timerEnabled,
+                            onCheckedChange = onSetTimerEnabled,
+                        )
+                    }
                     if (reading) {
                         Text(
                             text = "How would you like to answer?",
@@ -521,6 +590,24 @@ private fun QuizSetup(
                                 onCheckedChange = { onToggleGrid() },
                             )
                         }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Stroke animation",
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Text(
+                                    text = "After you submit, play the answer's stroke " +
+                                        "order in the corner. Turn off to just compare shapes.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = quiz.showStrokeDemo,
+                                onCheckedChange = onSetShowStrokeDemo,
+                            )
+                        }
                         Text(
                             text = "Score my writing",
                             style = MaterialTheme.typography.titleSmall,
@@ -655,6 +742,8 @@ private fun ReadingQuizRunning(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(start = 4.dp),
             )
+            Spacer(modifier = Modifier.weight(1f))
+            QuizTimerChip(quiz)
         }
 
         Column(
@@ -1096,16 +1185,18 @@ private fun QuizRunning(
     // can claim extra height for it, and so a mark with no timed data quietly
     // falls back to just the glyph + hint.
     val answerUnits = if (quiz.revealed) unitCharactersFor(current.answer) else emptyList()
-    val hasStrokeDemo = answerUnits.any { it.strokeAnimations.isNotEmpty() }
+    val hasStrokeDemo = quiz.showStrokeDemo && answerUnits.any { it.strokeAnimations.isNotEmpty() }
 
     // The header and action bar hold text that grows with the system font
     // scale, but their height shares were hand-tuned at scale 1 — grow both
     // (weights are relative, so the canvas shrinks to absorb it) instead of
     // letting the stacked header texts clip.
     val fontGrow = fontScaleFraction(1.4f)
-    // Give the header a bigger share once the stroke demo is on screen so it
-    // renders at a useful size; the canvas (a width-bound square) absorbs it.
-    val headerWeight = if (hasStrokeDemo) 0.32f else 0.22f
+    // Fixed header share whether or not the stroke demo is showing, so the
+    // canvas below never moves when the learner submits. The demo instead
+    // fits into the header's constant leftover height (right column, weight
+    // 1f) — as large as it can be without perturbing the layout.
+    val headerWeight = 0.22f
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -1115,11 +1206,15 @@ private fun QuizRunning(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Quiz ${quiz.index + 1}/${quiz.items.size}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Quiz ${quiz.index + 1}/${quiz.items.size}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    QuizTimerChip(quiz)
+                }
                 // The prompt is the item under test, so it shrinks (floor
                 // 20sp) rather than ellipsizing — a long word's romaji must
                 // stay fully readable at any font scale.
@@ -1139,21 +1234,14 @@ private fun QuizRunning(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(
-                    text = if (quiz.submitted) {
-                        "Compare with the guide, then Next"
-                    } else {
-                        "Write it from memory"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 // Hear the reading — the same sound the romaji prompt already
-                // gives, so it never reveals the glyph shape being tested. The
-                // Hint shares this row (no new vertical cost in the 0.22
-                // header): its dialog is TEXT-ONLY here (showGlyph = false) —
-                // the shape IS the hidden answer, so no kana, no specimen; the
-                // story's words are the hint (per the owner's decision).
+                // gives, so it never reveals the glyph shape being tested.
+                // Before Submit the Hint shares this row (TEXT-ONLY here,
+                // showGlyph = false — the shape IS the hidden answer). After
+                // Submit the answer's typed (printed) form appears right here,
+                // in the hint's place, with the "how to remember" pill beside
+                // it — so the reveal lands next to the prompt instead of a tall
+                // block that pushes the header content down.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PronunciationButton(
                         glyph = current.answer,
@@ -1169,30 +1257,18 @@ private fun QuizRunning(
                             customs = customMnemonics,
                         )
                     }
-                }
-            }
-            // fillMaxHeight only while the stroke demo is shown, so its
-            // weight(1f) can claim the header's leftover height (below the glyph
-            // row, above the Grid switch) instead of overflowing. When there is
-            // no demo the column wraps its content and stays vertically centered
-            // by the parent Row, exactly as before.
-            Column(
-                modifier = if (hasStrokeDemo) Modifier.fillMaxHeight() else Modifier,
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                // The kana answer appears only after Submit (revealed), so the
-                // learner commits from memory first. The icon-only memory-hint
-                // pill shares the answer's ROW (never its own row: the header
-                // column is height-bounded and the Grid switch below must stay
-                // visible on short screens) — a failed recall is exactly when
-                // re-reading the story helps, and the full-glyph dialog is fine
-                // now that the answer is on screen.
-                if (quiz.revealed) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
+                    if (quiz.revealed) {
+                        AutoShrinkText(
+                            text = current.answer,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontFamily = PrintFontFamily,
+                            ),
+                            minFontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .padding(start = 8.dp),
+                        )
                         if (mnemonicsEnabled) {
                             MnemonicBadge(
                                 unitCharacters = answerUnits,
@@ -1202,36 +1278,45 @@ private fun QuizRunning(
                                 customs = customMnemonics,
                             )
                         }
-                        Text(
-                            text = current.answer,
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            maxLines = 1,
+                    }
+                }
+            }
+            // Always fills the header height so the Grid switch pins to the
+            // BOTTOM — right above the canvas's top-right corner. The
+            // stroke-order demo (shown only after Submit) sits at the TOP and
+            // claims the leftover height via weight(1f); before Submit an empty
+            // spacer holds that space so the switch stays put. The revealed
+            // answer glyph no longer lives here — it moved into the prompt's
+            // hint row on the left, so the reveal doesn't push this column
+            // taller.
+            Column(
+                modifier = Modifier.fillMaxHeight(),
+                horizontalAlignment = Alignment.End,
+            ) {
+                // The stroke-order demo: shows HOW the answer is written
+                // (order + direction), not just the finished shape, so a
+                // missed attempt teaches the fix. One kana → the single-
+                // character demo; a word → a per-kana strip. Auto-plays on
+                // reveal and can be replayed/slowed with its own controls.
+                if (quiz.revealed && hasStrokeDemo) {
+                    if (answerUnits.size == 1) {
+                        AnimatedStrokePreview(
+                            character = answerUnits[0],
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(top = 2.dp),
+                        )
+                    } else {
+                        WordStrokePreview(
+                            characters = answerUnits,
+                            modifier = Modifier
+                                .weight(1f)
+                                .width(132.dp)
+                                .padding(top = 2.dp),
                         )
                     }
-                    // The stroke-order demo: shows HOW the answer is written
-                    // (order + direction), not just the finished shape, so a
-                    // missed attempt teaches the fix. One kana → the single-
-                    // character demo; a word → a per-kana strip. Auto-plays on
-                    // reveal and can be replayed/slowed with its own controls.
-                    if (hasStrokeDemo) {
-                        if (answerUnits.size == 1) {
-                            AnimatedStrokePreview(
-                                character = answerUnits[0],
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(top = 2.dp),
-                            )
-                        } else {
-                            WordStrokePreview(
-                                characters = answerUnits,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .width(132.dp)
-                                    .padding(top = 2.dp),
-                            )
-                        }
-                    }
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -1453,6 +1538,13 @@ private fun QuizSummary(
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                if (quiz.timerEnabled && quiz.elapsedMillis != null) {
+                    Text(
+                        text = "Total time ${formatQuizTime(quiz.elapsedMillis)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (reading) {
                     // Group the results by outcome so wrong/skipped/correct
                     // aren't scattered through the list. One tap flips the group
@@ -1546,12 +1638,12 @@ private fun QuizSummary(
                                 onSpeak = onSpeak,
                             )
                             // Writing shows the numeric quality score against its
-                            // bands. "—" is an item done but unscored
+                            // bands. "·" is an item done but unscored
                             // (ScoringMode.OFF); "Skipped" a genuinely-unanswered.
                             val wasAnswered = item.key in quiz.submittedKeys
                             Text(
                                 text = when {
-                                    score == null -> if (wasAnswered) "—" else "Skipped"
+                                    score == null -> if (wasAnswered) "·" else "Skipped"
                                     else -> score.toString()
                                 },
                                 style = MaterialTheme.typography.labelLarge,
@@ -1704,12 +1796,12 @@ private fun ReadingSummaryRow(
 
 /**
  * Score-cutoff editor for the writing summary's "retake the ones that need
- * work" button: a numeric box flanked by −/+ steppers, with common thresholds
- * as quick-pick chips to the right. Typing works the other way; a chip jumps
- * straight to it. Clamps to 1..99 (a whole number under a perfect 100) and
- * snaps the box back. Mirrors the Library "All"-popup threshold stepper so the
- * two feel identical. The stepper + chips sit in a [FlowRow] so the chips wrap
- * to a second line on narrow screens.
+ * work" button: a numeric box flanked by −/+ steppers, with a 70 quick-pick
+ * chip on the LEFT and a 90 on the RIGHT — the whole cluster horizontally
+ * centered. Typing works the other way; a chip jumps straight to it. Clamps to
+ * 1..99 (a whole number under a perfect 100) and snaps the box back. Wrapped in
+ * a centered [FlowRow] so the chips flow onto a second (still-centered) line if
+ * a large font scale makes the single line too wide for a narrow screen.
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -1717,7 +1809,6 @@ private fun QuizScoreThresholdStepper(
     value: Int,
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    quickPicks: List<Int> = listOf(60, 70, 80, 90),
 ) {
     fun clamp(n: Int) = n.coerceIn(1, 99)
     var text by remember { mutableStateOf(value.toString()) }
@@ -1726,9 +1817,18 @@ private fun QuizScoreThresholdStepper(
     }
     FlowRow(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        // 70 quick-pick on the left of the centered stepper.
+        FilterChip(
+            modifier = Modifier.align(Alignment.CenterVertically),
+            selected = value == 70,
+            onClick = { onValueChange(clamp(70)) },
+            label = { Text("70") },
+        )
+        // The − [value] + stepper stays one unbreakable unit so it never splits
+        // across a wrap.
         Row(
             modifier = Modifier.align(Alignment.CenterVertically),
             verticalAlignment = Alignment.CenterVertically,
@@ -1768,13 +1868,12 @@ private fun QuizScoreThresholdStepper(
                 Text(text = "+", style = MaterialTheme.typography.titleMedium)
             }
         }
-        quickPicks.forEach { pick ->
-            FilterChip(
-                modifier = Modifier.align(Alignment.CenterVertically),
-                selected = value == pick,
-                onClick = { onValueChange(clamp(pick)) },
-                label = { Text(pick.toString()) },
-            )
-        }
+        // 90 quick-pick on the right of the centered stepper.
+        FilterChip(
+            modifier = Modifier.align(Alignment.CenterVertically),
+            selected = value == 90,
+            onClick = { onValueChange(clamp(90)) },
+            label = { Text("90") },
+        )
     }
 }
