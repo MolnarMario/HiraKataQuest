@@ -198,10 +198,22 @@ data class QuizState(
     // cold. The post-answer reveal's mnemonic chip is independent of this
     // (always shown when memory hints are on). Default true keeps prior behaviour.
     val showHints: Boolean = true,
+    // Writing-quiz setup: after Submit, play the answer's stroke-order ANIMATION
+    // in the header corner (the same demo free practice uses). Default on; a
+    // learner who finds it distracting can turn it off. Ignored by the reading
+    // quiz (which has no canvas).
+    val showStrokeDemo: Boolean = true,
     // Reading-quiz correct-answer streak + the encouragement line for the latest
     // answer (null before the first answer). See [StreakEncouragement].
     val streak: Int = 0,
     val streakMessage: String? = null,
+    // Optional total stopwatch (a per-run setup toggle, both quiz kinds).
+    // [startedAtMillis] is captured (from the injected clock) when the quiz
+    // enters RUNNING; [elapsedMillis] is frozen when it reaches SUMMARY (the
+    // total the summary shows). Both null when the timer is off.
+    val timerEnabled: Boolean = false,
+    val startedAtMillis: Long? = null,
+    val elapsedMillis: Long? = null,
 ) {
     val current: QuizItem? get() = items.getOrNull(index)
 
@@ -1680,6 +1692,22 @@ class PracticeViewModel(
         }
     }
 
+    /** Writing-quiz setup: play the answer's stroke-order animation after Submit. */
+    fun setShowStrokeDemo(enabled: Boolean) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            state.copy(quiz = quiz.copy(showStrokeDemo = enabled))
+        }
+    }
+
+    /** Quiz setup (reading + writing): show a running stopwatch during the quiz. */
+    fun setTimerEnabled(enabled: Boolean) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            state.copy(quiz = quiz.copy(timerEnabled = enabled))
+        }
+    }
+
     /**
      * Records a READING answer for the current item: correct → 100, wrong → 0
      * in [QuizState.results] (the summary reads it), and reveals the item so the
@@ -1890,6 +1918,8 @@ class PracticeViewModel(
                     submitted = false,
                     results = emptyMap(),
                     submittedKeys = emptySet(),
+                    startedAtMillis = if (quiz.timerEnabled) clock.millis() else null,
+                    elapsedMillis = null,
                 ),
                 canvasClearKey = state.canvasClearKey + 1,
             )
@@ -1919,6 +1949,8 @@ class PracticeViewModel(
                     submitted = false,
                     results = emptyMap(),
                     submittedKeys = emptySet(),
+                    startedAtMillis = if (quiz.timerEnabled) clock.millis() else null,
+                    elapsedMillis = null,
                 ),
                 canvasClearKey = state.canvasClearKey + 1,
             )
@@ -1953,6 +1985,8 @@ class PracticeViewModel(
                     submitted = false,
                     results = emptyMap(),
                     submittedKeys = emptySet(),
+                    startedAtMillis = if (quiz.timerEnabled) clock.millis() else null,
+                    elapsedMillis = null,
                 ),
                 canvasClearKey = state.canvasClearKey + 1,
             )
@@ -2056,6 +2090,14 @@ class PracticeViewModel(
                     index = if (finished) quiz.index else quiz.index + 1,
                     revealed = false,
                     submitted = false,
+                    // Freeze the stopwatch total for the summary. Only the last
+                    // item finishes the quiz, and only this path reaches SUMMARY
+                    // (both writing and reading advance through here).
+                    elapsedMillis = if (finished) {
+                        quiz.startedAtMillis?.let { clock.millis() - it }
+                    } else {
+                        quiz.elapsedMillis
+                    },
                 ),
                 lastScore = null,
                 lastScoredCharacter = null,

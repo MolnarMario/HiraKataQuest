@@ -247,6 +247,8 @@ fun PracticeScreen(
                     onSetAnswerStyle = viewModel::setReadingAnswerStyle,
                     onSetTestMeaning = viewModel::setReadingTestMeaning,
                     onSetShowHints = viewModel::setShowHints,
+                    onSetShowStrokeDemo = viewModel::setShowStrokeDemo,
+                    onSetTimerEnabled = viewModel::setTimerEnabled,
                     unitCharactersFor = uiState::unitCharacters,
                     mnemonicsEnabled = uiState.mnemonicsEnabled,
                     mnemonicChoices = uiState.mnemonicChoices,
@@ -662,7 +664,7 @@ private fun UpdateDialog(
                     // security warning for apps not from the Play Store. Tell the
                     // user up front so "Install anyway" reads as expected, not alarming.
                     Text(
-                        text = "Heads up: Android may show a security warning — tap " +
+                        text = "Heads up: Android may show a security warning. Tap " +
                             "\"More details\", then \"Install anyway\". That's expected " +
                             "for apps installed outside the Play Store.",
                         style = MaterialTheme.typography.bodySmall,
@@ -685,7 +687,7 @@ private fun UpdateDialog(
             title = { Text("Downloading update") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Version ${state.info.versionName} — ${state.percent}%")
+                    Text("Version ${state.info.versionName} · ${state.percent}%")
                     LinearProgressIndicator(
                         progress = { state.percent / 100f },
                         modifier = Modifier.fillMaxWidth(),
