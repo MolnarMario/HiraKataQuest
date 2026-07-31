@@ -36,6 +36,9 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import com.hive.hiragana.presentation.theme.LocalKanaColors
+import com.hive.hiragana.presentation.theme.correctColor
+import com.hive.hiragana.presentation.theme.practiceMissColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -138,7 +141,7 @@ private val OptionSlotHeight = 52.dp
 @Composable
 fun ReadingFlashcardScreen(
     state: ReadingFlashcardState,
-    onReveal: () -> Unit,
+    onReveal: (Boolean) -> Unit,
     onNext: () -> Unit,
     onClose: () -> Unit,
     onSpeak: (String) -> Unit,
@@ -237,13 +240,13 @@ fun ReadingFlashcardScreen(
     // Reveal once the reading is answered and no meaning is owed — covers both
     // the meaning-off path and turning the toggle off mid-card.
     LaunchedEffect(readingOk, needMeaning, state.revealed) {
-        if (readingOk != null && !needMeaning && !state.revealed) onReveal()
+        if (readingOk != null && !needMeaning && !state.revealed) onReveal(readingOk == true)
     }
 
     // Answer the reading step; the effect above reveals when no meaning is owed.
     fun answerReading(correct: Boolean) { readingOk = correct }
     // Answer the meaning step and reveal the card.
-    fun answerMeaning(correct: Boolean) { meaningOk = correct; onReveal() }
+    fun answerMeaning(correct: Boolean) { meaningOk = correct; onReveal(readingOk == true && correct) }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         // The activity is windowSoftInputMode=adjustResize, so the window shrinks
@@ -425,12 +428,15 @@ fun ReadingFlashcardScreen(
                             ) {
                                 if (state.revealed) {
                                 Text(
-                                    text = if (allOk) "Correct!" else "Not quite",
+                                    // The streak encouragement is the headline; a
+                                    // gentle amber streak-broken line stands in for
+                                    // "Not quite" (practice is low-stakes).
+                                    text = state.streakMessage ?: if (allOk) "Correct!" else "Not quite",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = if (allOk) {
-                                        MaterialTheme.colorScheme.primary
+                                        correctColor(LocalKanaColors.current.isDark)
                                     } else {
-                                        MaterialTheme.colorScheme.error
+                                        practiceMissColor(LocalKanaColors.current.isDark)
                                     },
                                 )
                                 // Reading · audio · meaning on ONE line; wraps only if
@@ -748,7 +754,11 @@ private fun ResultMark(ok: Boolean) {
     Text(
         text = if (ok) "✓" else "✗",
         style = MaterialTheme.typography.titleMedium,
-        color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+        color = if (ok) {
+            correctColor(LocalKanaColors.current.isDark)
+        } else {
+            practiceMissColor(LocalKanaColors.current.isDark)
+        },
     )
 }
 

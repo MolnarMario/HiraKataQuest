@@ -716,6 +716,88 @@ class PracticeViewModelTest {
         assertFalse(quiz.revealed)
     }
 
+    /**
+     * From the writing-quiz summary, [PracticeViewModel.retryBelowScore] restarts
+     * the quiz with only the items whose score was below the given cutoff. Scored
+     * items count; genuinely-skipped items (no result) are excluded — they have no
+     * score to be "under". A cutoff above every possible score picks all scored
+     * items; per-item state resets like [startQuiz].
+     */
+    @Test
+    fun `retryBelowScore restarts with only the scored-below-cutoff items`() = runTest(dispatcher) {
+        val vm = buildViewModel(
+            characters = listOf(
+                character("a", "あ", frequency = 1),
+                character("i", "い", frequency = 2),
+                character("u", "う", frequency = 3),
+                character("e", "え", frequency = 4),
+            ),
+        )
+        advanceUntilIdle()
+
+        vm.openQuiz(kind = QuizKind.WRITING)
+        vm.startQuiz()
+        advanceUntilIdle()
+        assertEquals(4, vm.uiState.value.quiz!!.items.size)
+
+        // Write (and score) the first two items; skip the last two.
+        val firstKey = vm.uiState.value.quiz!!.current!!.key
+        vm.quizSubmit(inkSession(), cell())
+        vm.quizAdvance()
+        val secondKey = vm.uiState.value.quiz!!.current!!.key
+        vm.quizSubmit(inkSession(), cell())
+        vm.quizAdvance()
+        vm.quizAdvance() // skip
+        vm.quizAdvance() // skip -> SUMMARY
+        advanceUntilIdle()
+        assertEquals(QuizStage.SUMMARY, vm.uiState.value.quiz!!.stage)
+        // Both written items produced a headline; the skips did not.
+        assertEquals(2, vm.uiState.value.quiz!!.results.size)
+
+        // A cutoff above the max possible score (100) selects every scored item.
+        vm.retryBelowScore(101)
+        advanceUntilIdle()
+
+        val quiz = vm.uiState.value.quiz!!
+        assertEquals(QuizStage.RUNNING, quiz.stage)
+        assertEquals(2, quiz.items.size) // the two scored items only
+        assertEquals(setOf(firstKey, secondKey), quiz.items.map { it.key }.toSet())
+        assertEquals(0, quiz.index)
+        assertTrue(quiz.results.isEmpty())
+        assertTrue(quiz.submittedKeys.isEmpty())
+        assertFalse(quiz.revealed)
+    }
+
+    /**
+     * A cutoff below every score selects nothing, so [retryBelowScore] is a no-op
+     * and the quiz stays on the summary.
+     */
+    @Test
+    fun `retryBelowScore with an unreachable cutoff is a no-op`() = runTest(dispatcher) {
+        val vm = buildViewModel(
+            characters = listOf(
+                character("a", "あ", frequency = 1),
+                character("i", "い", frequency = 2),
+            ),
+        )
+        advanceUntilIdle()
+
+        vm.openQuiz(kind = QuizKind.WRITING)
+        vm.startQuiz()
+        advanceUntilIdle()
+        vm.quizSubmit(inkSession(), cell())
+        vm.quizAdvance()
+        vm.quizSubmit(inkSession(), cell())
+        vm.quizAdvance() // -> SUMMARY
+        advanceUntilIdle()
+        assertEquals(QuizStage.SUMMARY, vm.uiState.value.quiz!!.stage)
+
+        // No score can be below 1, so nothing qualifies.
+        vm.retryBelowScore(1)
+        advanceUntilIdle()
+        assertEquals(QuizStage.SUMMARY, vm.uiState.value.quiz!!.stage)
+    }
+
     // ---- default practice sets ------------------------------------------
 
     /**

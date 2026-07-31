@@ -4,9 +4,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,7 +28,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
@@ -67,6 +72,7 @@ import com.hive.hiragana.domain.scoring.WordUnitScore
 import com.hive.hiragana.drawing.canvas.BrushEffect
 import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.domain.audio.VoiceStatus
+import com.hive.hiragana.presentation.components.AnimatedStrokePreview
 import com.hive.hiragana.presentation.components.AutoShrinkText
 import com.hive.hiragana.presentation.components.CustomMnemonicStore
 import com.hive.hiragana.presentation.components.MnemonicBadge
@@ -81,7 +87,9 @@ import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.TracingCanvas
 import com.hive.hiragana.presentation.components.WordAverageCard
 import com.hive.hiragana.presentation.components.WordScoreChips
+import com.hive.hiragana.presentation.components.WordStrokePreview
 import com.hive.hiragana.presentation.theme.LocalKanaColors
+import com.hive.hiragana.presentation.theme.correctColor
 import kotlin.math.roundToInt
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.domain.model.SpecialKana
@@ -102,8 +110,9 @@ import com.hive.hiragana.presentation.viewmodels.WordQuizItem
  * Three stages ([QuizState.stage]): SETUP picks the source (the active-script
  * character scope, or any saved practice set), how many items (5/10/20/All
  * presets, or an exact number), and whether to show the grid; RUNNING is
- * prompt → write → optional reveal → submit (auto-scored), with Back/Next for
- * moving through the deck; SUMMARY lists every item with its score, or
+ * prompt → write → optional reveal → submit (auto-scored), advancing forward
+ * with Next (Undo reverts the last stroke; there is no Back to a prior item);
+ * SUMMARY lists every item with its score, or
  * "Skipped" if it was never written. Attempts persist as PracticeSource.QUIZ;
  * scheduling is never touched. Words are scored per-kana (the same engine as
  * whole-word practice) and their average is the item's quiz score.
@@ -123,6 +132,7 @@ fun QuizScreen(
     onBack: () -> Unit,
     onQuizAgain: () -> Unit,
     onRetryWrong: () -> Unit = {},
+    onRetryBelowScore: (Int) -> Unit = {},
     onClose: () -> Unit,
     scoringMode: ScoringMode,
     onSetScoringMode: (ScoringMode) -> Unit,
@@ -198,7 +208,6 @@ fun QuizScreen(
                     onToggleGrid = onToggleGrid,
                     onSubmit = onSubmit,
                     onAdvance = onAdvance,
-                    onBack = onBack,
                     onClose = onClose,
                     lastScore = lastScore,
                     lastScoredCharacter = lastScoredCharacter,
@@ -221,6 +230,7 @@ fun QuizScreen(
                 quiz = quiz,
                 onQuizAgain = onQuizAgain,
                 onRetryWrong = onRetryWrong,
+                onRetryBelowScore = onRetryBelowScore,
                 onClose = onClose,
                 onSpeak = onSpeak,
                 ttsStatus = ttsStatus,
@@ -447,7 +457,7 @@ private fun QuizSetup(
                                     )
                                 }
                                 Switch(
-                                    checked = quiz.readingShowHints,
+                                    checked = quiz.showHints,
                                     onCheckedChange = onSetShowHints,
                                 )
                             }
@@ -472,6 +482,28 @@ private fun QuizSetup(
                             }
                         }
                     } else {
+                        // Same per-run pre-answer hints toggle as the reading
+                        // quiz, gated on the global memory-hints setting.
+                        if (mnemonicsEnabled) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Hints during the quiz",
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        text = "Show a “Hint” button on each item to peek at " +
+                                            "its memory aid. Turn off to test yourself cold.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Switch(
+                                    checked = quiz.showHints,
+                                    onCheckedChange = onSetShowHints,
+                                )
+                            }
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -662,7 +694,7 @@ private fun ReadingQuizRunning(
             // learner enabled "Hints during the quiz" on the setup card (so a
             // cold test is possible). Renders nothing when no unit has a
             // mnemonic. Answers record normally either way.
-            if (!quiz.revealed && romajiOk == null && mnemonicsEnabled && quiz.readingShowHints) {
+            if (!quiz.revealed && romajiOk == null && mnemonicsEnabled && quiz.showHints) {
                 MnemonicHintButton(
                     unitCharacters = unitCharactersFor(current.answer),
                     showGlyph = true,
@@ -677,6 +709,7 @@ private fun ReadingQuizRunning(
                     item = current,
                     romajiOk = romajiOk == true,
                     meaningOk = if (needMeaning) meaningOk == true else null,
+                    streakMessage = quiz.streakMessage,
                     onSpeak = onSpeak,
                     ttsStatus = ttsStatus,
                     unitCharacters = unitCharactersFor(current.answer),
@@ -709,7 +742,7 @@ private fun ReadingQuizRunning(
                     text = "Reading: ${current.prompt}  ${if (romajiOk == true) "✓" else "✗"}",
                     style = MaterialTheme.typography.titleSmall,
                     color = if (romajiOk == true) {
-                        MaterialTheme.colorScheme.primary
+                        correctColor(LocalKanaColors.current.isDark)
                     } else {
                         MaterialTheme.colorScheme.error
                     },
@@ -816,6 +849,7 @@ private fun ReadingRevealCard(
     item: com.hive.hiragana.presentation.viewmodels.QuizItem,
     romajiOk: Boolean,
     meaningOk: Boolean?,
+    streakMessage: String? = null,
     onSpeak: (String) -> Unit,
     ttsStatus: VoiceStatus,
     unitCharacters: List<HiraganaCharacter> = emptyList(),
@@ -831,10 +865,13 @@ private fun ReadingRevealCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // The streak encouragement IS the headline (a green tier line for a
+            // correct answer, a gentle red streak-broken line for a wrong one),
+            // falling back to the plain verdict if there is no streak message.
             Text(
-                text = if (allOk) "Correct!" else "Not quite",
+                text = streakMessage ?: if (allOk) "Correct!" else "Not quite",
                 style = MaterialTheme.typography.titleMedium,
-                color = if (allOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                color = if (allOk) correctColor(LocalKanaColors.current.isDark) else MaterialTheme.colorScheme.error,
             )
             // Reading + audio, kept horizontally centered: the speaker adds width
             // on the right, so a matching leading spacer balances it and the
@@ -1029,7 +1066,6 @@ private fun QuizRunning(
     onToggleGrid: () -> Unit,
     onSubmit: () -> Unit,
     onAdvance: () -> Unit,
-    onBack: () -> Unit,
     onClose: () -> Unit,
     lastScore: CharacterScore?,
     lastScoredCharacter: String?,
@@ -1055,16 +1091,26 @@ private fun QuizRunning(
     BackHandler { showExitConfirm = true }
     val isWord = current is WordQuizItem
 
+    // On reveal the right column shows the answer's stroke-order ANIMATION (the
+    // same demo free practice uses). Resolve its units up front so the header
+    // can claim extra height for it, and so a mark with no timed data quietly
+    // falls back to just the glyph + hint.
+    val answerUnits = if (quiz.revealed) unitCharactersFor(current.answer) else emptyList()
+    val hasStrokeDemo = answerUnits.any { it.strokeAnimations.isNotEmpty() }
+
     // The header and action bar hold text that grows with the system font
     // scale, but their height shares were hand-tuned at scale 1 — grow both
     // (weights are relative, so the canvas shrinks to absorb it) instead of
     // letting the stacked header texts clip.
     val fontGrow = fontScaleFraction(1.4f)
+    // Give the header a bigger share once the stroke demo is on screen so it
+    // renders at a useful size; the canvas (a width-bound square) absorbs it.
+    val headerWeight = if (hasStrokeDemo) 0.32f else 0.22f
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.22f * fontGrow)
+                .weight(headerWeight * fontGrow)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1114,7 +1160,7 @@ private fun QuizRunning(
                         status = ttsStatus,
                         onSpeak = onSpeak,
                     )
-                    if (!quiz.submitted && mnemonicsEnabled) {
+                    if (!quiz.submitted && mnemonicsEnabled && quiz.showHints) {
                         MnemonicHintButton(
                             unitCharacters = unitCharactersFor(current.answer),
                             showGlyph = false,
@@ -1125,17 +1171,23 @@ private fun QuizRunning(
                     }
                 }
             }
+            // fillMaxHeight only while the stroke demo is shown, so its
+            // weight(1f) can claim the header's leftover height (below the glyph
+            // row, above the Grid switch) instead of overflowing. When there is
+            // no demo the column wraps its content and stays vertically centered
+            // by the parent Row, exactly as before.
             Column(
+                modifier = if (hasStrokeDemo) Modifier.fillMaxHeight() else Modifier,
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 // The kana answer appears only after Submit (revealed), so the
                 // learner commits from memory first. The icon-only memory-hint
-                // pill shares the answer's ROW (never its own row: the 0.22
-                // header column is height-bounded and the Grid switch below
-                // must stay visible on short screens) — a failed recall is
-                // exactly when re-reading the story helps, and the full-glyph
-                // dialog is fine now that the answer is on screen.
+                // pill shares the answer's ROW (never its own row: the header
+                // column is height-bounded and the Grid switch below must stay
+                // visible on short screens) — a failed recall is exactly when
+                // re-reading the story helps, and the full-glyph dialog is fine
+                // now that the answer is on screen.
                 if (quiz.revealed) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -1143,7 +1195,7 @@ private fun QuizRunning(
                     ) {
                         if (mnemonicsEnabled) {
                             MnemonicBadge(
-                                unitCharacters = unitCharactersFor(current.answer),
+                                unitCharacters = answerUnits,
                                 iconOnly = true,
                                 mnemonicChoices = mnemonicChoices,
                                 onChoose = onChooseMnemonic,
@@ -1156,6 +1208,29 @@ private fun QuizRunning(
                             color = MaterialTheme.colorScheme.onBackground,
                             maxLines = 1,
                         )
+                    }
+                    // The stroke-order demo: shows HOW the answer is written
+                    // (order + direction), not just the finished shape, so a
+                    // missed attempt teaches the fix. One kana → the single-
+                    // character demo; a word → a per-kana strip. Auto-plays on
+                    // reveal and can be replayed/slowed with its own controls.
+                    if (hasStrokeDemo) {
+                        if (answerUnits.size == 1) {
+                            AnimatedStrokePreview(
+                                character = answerUnits[0],
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(top = 2.dp),
+                            )
+                        } else {
+                            WordStrokePreview(
+                                characters = answerUnits,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .width(132.dp)
+                                    .padding(top = 2.dp),
+                            )
+                        }
                     }
                 }
                 Row(
@@ -1233,8 +1308,9 @@ private fun QuizRunning(
         }
 
         // No self-grade — handwriting is auto-scored. Submit scores + reveals the
-        // guide strokes; Next advances (feedback clears). Exit (confirmed) · Back ·
-        // Clear · Submit/Next.
+        // guide strokes; Next advances (feedback clears). Exit (confirmed) · Undo ·
+        // Clear · Submit/Next. There is deliberately no Back to a previous item:
+        // the quiz moves forward only, and Undo instead reverts the last stroke.
         val hasInk = canvasState.hasInk
         Row(
             modifier = Modifier
@@ -1252,13 +1328,16 @@ private fun QuizRunning(
             ) {
                 Text("Exit")
             }
+            // Undo reverts just the latest committed stroke, so a slip on a
+            // many-stroke character or word doesn't force a full Clear. Only
+            // meaningful while writing (before Submit) with ink to remove.
             OutlinedButton(
-                onClick = onBack,
-                enabled = quiz.index > 0,
+                onClick = { canvasState.undoLastStroke() },
+                enabled = canvasState.canUndo && !quiz.submitted,
                 contentPadding = compact,
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Back")
+                Text("Undo")
             }
             OutlinedButton(
                 onClick = { canvasState.clear() },
@@ -1318,6 +1397,7 @@ private fun QuizSummary(
     quiz: QuizState,
     onQuizAgain: () -> Unit,
     onRetryWrong: () -> Unit,
+    onRetryBelowScore: (Int) -> Unit,
     onClose: () -> Unit,
     onSpeak: (String) -> Unit = {},
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
@@ -1344,6 +1424,11 @@ private fun QuizSummary(
                 // Reading-summary group order (hoisted so rememberSaveable is
                 // called unconditionally): true = Wrong→Skipped→Correct.
                 var wrongFirst by rememberSaveable { mutableStateOf(true) }
+                // Writing-summary sort order + the "retake under a score" cutoff,
+                // hoisted for the same reason (called on every summary, used only
+                // in the writing branch). true = lowest score first (needs work).
+                var lowScoreFirst by rememberSaveable { mutableStateOf(true) }
+                var retakeThreshold by rememberSaveable { mutableStateOf(80) }
                 Text(
                     text = "Quiz complete",
                     style = MaterialTheme.typography.headlineSmall,
@@ -1391,7 +1476,7 @@ private fun QuizSummary(
                                 text = "$label · ${items.size}",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = when (label) {
-                                    "Correct" -> MaterialTheme.colorScheme.primary
+                                    "Correct" -> correctColor(LocalKanaColors.current.isDark)
                                     "Wrong" -> MaterialTheme.colorScheme.error
                                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                                 },
@@ -1412,7 +1497,31 @@ private fun QuizSummary(
                         }
                     }
                 } else {
-                    quiz.items.forEach { item ->
+                    // Sort the written items by their score so the ones that need
+                    // work group together. Unscored items (skipped, or under
+                    // ScoringMode.OFF) have no score to rank, so they always sink
+                    // to the end regardless of direction. Session-local, like the
+                    // reading group order and the Library's list sort.
+                    val (scoredItems, unscoredItems) =
+                        quiz.items.partition { quiz.results[it.key] != null }
+                    val orderedScored = if (lowScoreFirst) {
+                        scoredItems.sortedBy { quiz.results[it.key] }
+                    } else {
+                        scoredItems.sortedByDescending { quiz.results[it.key] }
+                    }
+                    val orderedItems = orderedScored + unscoredItems
+                    if (scoredItems.size > 1) {
+                        TextButton(onClick = { lowScoreFirst = !lowScoreFirst }) {
+                            Text(
+                                if (lowScoreFirst) {
+                                    "Sorted: lowest score first"
+                                } else {
+                                    "Sorted: highest score first"
+                                },
+                            )
+                        }
+                    }
+                    orderedItems.forEach { item ->
                         val score = quiz.results[item.key]
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1466,6 +1575,54 @@ private fun QuizSummary(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text("Retake the ones I missed ($missed)")
+                        }
+                    }
+                } else {
+                    // Writing: retake every item that scored below a cutoff the
+                    // learner sets here (default 80, stepped elegantly). Only
+                    // meaningful once something was actually scored — hidden when
+                    // scoring produced no headlines (e.g. ScoringMode.OFF).
+                    if (scored.isNotEmpty()) {
+                        val isWordQuiz = quiz.items.firstOrNull() is WordQuizItem
+                        val underCount = quiz.items.count { item ->
+                            val s = quiz.results[item.key]
+                            s != null && s < retakeThreshold
+                        }
+                        Text(
+                            text = "Retake the ones that need work",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            text = "Set a target score. You'll re-take every item " +
+                                "you scored below it.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        QuizScoreThresholdStepper(
+                            value = retakeThreshold,
+                            onValueChange = { retakeThreshold = it },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        val noun = when {
+                            underCount == 1 && isWordQuiz -> "word"
+                            isWordQuiz -> "words"
+                            underCount == 1 -> "character"
+                            else -> "characters"
+                        }
+                        Button(
+                            onClick = { onRetryBelowScore(retakeThreshold) },
+                            enabled = underCount > 0,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = if (underCount > 0) {
+                                    "Retake $underCount $noun under $retakeThreshold"
+                                } else {
+                                    "Nothing under $retakeThreshold"
+                                },
+                            )
                         }
                     }
                 }
@@ -1540,6 +1697,83 @@ private fun ReadingSummaryRow(
                 glyph = item.answer,
                 status = ttsStatus,
                 onSpeak = onSpeak,
+            )
+        }
+    }
+}
+
+/**
+ * Score-cutoff editor for the writing summary's "retake the ones that need
+ * work" button: a numeric box flanked by −/+ steppers, with common thresholds
+ * as quick-pick chips to the right. Typing works the other way; a chip jumps
+ * straight to it. Clamps to 1..99 (a whole number under a perfect 100) and
+ * snaps the box back. Mirrors the Library "All"-popup threshold stepper so the
+ * two feel identical. The stepper + chips sit in a [FlowRow] so the chips wrap
+ * to a second line on narrow screens.
+ */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun QuizScoreThresholdStepper(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    quickPicks: List<Int> = listOf(60, 70, 80, 90),
+) {
+    fun clamp(n: Int) = n.coerceIn(1, 99)
+    var text by remember { mutableStateOf(value.toString()) }
+    LaunchedEffect(value) {
+        if (text.toIntOrNull() != value) text = value.toString()
+    }
+    FlowRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.align(Alignment.CenterVertically),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilledTonalIconButton(
+                onClick = { onValueChange(clamp(value - 1)) },
+                enabled = value > 1,
+            ) {
+                Text(text = "−", style = MaterialTheme.typography.titleMedium)
+            }
+            OutlinedTextField(
+                value = text,
+                onValueChange = { new ->
+                    if (new.length <= 2 && new.all { it.isDigit() }) {
+                        val n = new.toIntOrNull()
+                        if (n == null) {
+                            text = new // allow a transient empty field
+                        } else {
+                            // Clamp on input so the box always shows the value in
+                            // effect, even when the clamp lands on the current one.
+                            val clamped = clamp(n)
+                            text = clamped.toString()
+                            onValueChange(clamped)
+                        }
+                    }
+                },
+                modifier = Modifier.width(72.dp * fontScaleFraction()),
+                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+            )
+            FilledTonalIconButton(
+                onClick = { onValueChange(clamp(value + 1)) },
+                enabled = value < 99,
+            ) {
+                Text(text = "+", style = MaterialTheme.typography.titleMedium)
+            }
+        }
+        quickPicks.forEach { pick ->
+            FilterChip(
+                modifier = Modifier.align(Alignment.CenterVertically),
+                selected = value == pick,
+                onClick = { onValueChange(clamp(pick)) },
+                label = { Text(pick.toString()) },
             )
         }
     }
