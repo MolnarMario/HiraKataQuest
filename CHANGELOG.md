@@ -12,6 +12,37 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-07-31 — 0.3.1: Quiz polish and memory hints for every kana
+
+#### Added
+- **Memory hints now cover every kana, not just the basic hiragana.** Katakana
+  and the voiced, combined, and extended kana all get keyword-and-story hints,
+  most with two or three alternate images to pick from. Composed kana (like
+  きゃ or ヴァ) also show an always-on **Structure** note that spells out how the
+  piece is built from its parts, separate from the memory hint itself.
+- **Encouragement as you build a streak in Reading mode.** Answer a run of
+  reading questions correctly (in the quiz or in flashcard practice) and the
+  reveal greets you with a short, escalating line of encouragement instead of a
+  flat "Correct!". A gentle note marks a broken streak.
+- **The writing quiz shows you how the answer is written.** When you reveal a
+  writing-quiz answer, its stroke-order animation now plays in the corner (the
+  same demo free practice uses), so a missed character teaches the fix, not just
+  the finished shape.
+- **An Undo button in the writing quiz.** The bottom bar's Back button is now
+  **Undo**, which reverts just your last stroke so a slip on a many-stroke
+  character no longer means clearing the whole thing.
+- **Sort your writing-quiz results, and retake the ones that need work.** The
+  end-of-quiz summary can now order its items by score (lowest or highest
+  first), and a new button re-quizzes every character or word you scored below a
+  target you set right there (default 80, with quick-pick 60/70/80/90 chips).
+  It is the writing counterpart to Reading mode's "retake the ones I missed".
+- **A clearer "Add new set" button** on the Practice sets tab (was a plain
+  "New").
+
+#### Changed
+- The Quiz-me "Practice from" list now shows only the sets in the script you're
+  currently studying, matching the Library's Sets tab.
+
 ### 2026-07-27 — 0.3.0: Dark mode, memory hints, and a Practice sets tab
 
 #### Added

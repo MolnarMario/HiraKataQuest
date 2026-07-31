@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Create
@@ -2803,28 +2804,40 @@ private fun SetsTabContent(
         }
     }
     Column(modifier = Modifier.fillMaxSize()) {
-        // Slim header: count + (persisted) sort menu + a "New" button whose
-        // menu picks the set type. Always rendered — even with zero sets, "New"
-        // must stay reachable; only the sort menu is count-gated.
+        // Slim header: a leading (persisted) sort menu + the count + an
+        // "Add new set" button whose menu picks the set type. Always rendered —
+        // even with zero sets, "Add new set" must stay reachable; only the sort
+        // menu is count-gated.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
+                .padding(start = 4.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (sets.size > 1) {
+                SetSortMenu(sortMode = sortMode, onSelect = onSortSelected)
+            } else {
+                Spacer(modifier = Modifier.width(12.dp))
+            }
             Text(
                 text = "${sets.size} set${if (sets.size == 1) "" else "s"}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            if (sets.size > 1) {
-                SetSortMenu(sortMode = sortMode, onSelect = onSortSelected)
-            }
             var newExpanded by remember { mutableStateOf(false) }
             Box {
-                TextButton(onClick = { newExpanded = true }) {
-                    Text("New", style = MaterialTheme.typography.titleMedium)
+                FilledTonalButton(
+                    onClick = { newExpanded = true },
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.IconSize),
+                    )
+                    Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                    Text("Add new set")
                 }
                 DropdownMenu(
                     expanded = newExpanded,
@@ -2850,7 +2863,7 @@ private fun SetsTabContent(
         HorizontalDivider()
         if (!hasAnySets) {
             Text(
-                text = "No ${activeScript.key} practice sets yet. Tap “New” to build " +
+                text = "No ${activeScript.key} practice sets yet. Tap “Add new set” to build " +
                     "one from any characters or words. (Sets follow the script " +
                     "picked in Options.)",
                 style = MaterialTheme.typography.bodyMedium,

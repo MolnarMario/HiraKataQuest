@@ -1925,6 +1925,40 @@ class PracticeViewModel(
         }
     }
 
+    /**
+     * From the WRITING-quiz SUMMARY, restart the quiz with only the items whose
+     * handwriting score this round was strictly below [threshold] (a whole 1..99
+     * number, the same scale the summary shows). Reuses the existing [QuizItem]
+     * instances (prompts already baked in) and resets the per-item state exactly
+     * like [startQuiz]. Only scored items count: a skipped or unscored item (no
+     * entry in [QuizState.results], e.g. under ScoringMode.OFF) has no score to
+     * be "under", so it is excluded. A no-op when nothing qualifies. This is the
+     * writing counterpart to the reading quiz's [retryWrong].
+     */
+    fun retryBelowScore(threshold: Int) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            if (quiz.stage != QuizStage.SUMMARY) return@update state
+            val below = quiz.items.filter { item ->
+                val score = quiz.results[item.key]
+                score != null && score < threshold
+            }
+            if (below.isEmpty()) return@update state
+            state.copy(
+                quiz = quiz.copy(
+                    stage = QuizStage.RUNNING,
+                    items = below.shuffled(),
+                    index = 0,
+                    revealed = false,
+                    submitted = false,
+                    results = emptyMap(),
+                    submittedKeys = emptySet(),
+                ),
+                canvasClearKey = state.canvasClearKey + 1,
+            )
+        }
+    }
+
     /** Resolves the quiz pool as an ordered list of [QuizItem]s for the source. */
     private fun buildQuizPool(
         state: PracticeUiState,

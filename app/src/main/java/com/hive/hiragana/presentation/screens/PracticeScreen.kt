@@ -209,7 +209,10 @@ fun PracticeScreen(
                     // a saved set) so the count presets, the "All" label, and
                     // the stepper match the pool startQuiz will build.
                     deckSize = uiState.quizSourceSize(uiState.quiz?.selectedSetId),
-                    practiceSets = uiState.practiceSets,
+                    // Scope the "Practice from" dropdown to the active script so it
+                    // matches the Library's Sets tab (a set is built in one writing
+                    // system); otherwise Katakana sets leak into a Hiragana quiz.
+                    practiceSets = uiState.practiceSets.filter { it.script == uiState.activeScript },
                     canvasState = canvasState,
                     onSetCount = viewModel::setQuizCount,
                     onToggleGrid = viewModel::toggleQuizGrid,
@@ -228,6 +231,7 @@ fun PracticeScreen(
                     onBack = viewModel::quizBack,
                     onQuizAgain = viewModel::startQuiz,
                     onRetryWrong = viewModel::retryWrong,
+                    onRetryBelowScore = viewModel::retryBelowScore,
                     onClose = viewModel::closeQuiz,
                     scoringMode = uiState.scoringMode,
                     onSetScoringMode = viewModel::setScoringMode,
