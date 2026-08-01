@@ -6,27 +6,43 @@
     },
     {
       "kana": "いえ",
-      "meaning": "house"
+      "meaning": "house",
+      "kanji": "家",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "うえ",
-      "meaning": "up; above"
+      "meaning": "up; above",
+      "kanji": "上",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あお",
-      "meaning": "blue"
+      "meaning": "blue",
+      "kanji": "青",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "いう",
-      "meaning": "to say"
+      "meaning": "to say",
+      "kanji": "言う",
+      "category": "verbs",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "あう",
-      "meaning": "to meet"
+      "meaning": "to meet",
+      "kanji": "会う",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "いいえ",
-      "meaning": "no"
+      "meaning": "no",
+      "category": "expressions"
     },
     {
       "kana": "おい",
@@ -38,7 +54,10 @@
     },
     {
       "kana": "あか",
-      "meaning": "red"
+      "meaning": "red",
+      "kanji": "赤",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あき",
@@ -46,43 +65,71 @@
     },
     {
       "kana": "いく",
-      "meaning": "to go"
+      "meaning": "to go",
+      "kanji": "行く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "いけ",
-      "meaning": "pond"
+      "meaning": "pond",
+      "kanji": "池",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "えき",
-      "meaning": "station"
+      "meaning": "station",
+      "kanji": "駅",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "かう",
-      "meaning": "to buy"
+      "meaning": "to buy",
+      "kanji": "買う",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "かお",
-      "meaning": "face"
+      "meaning": "face",
+      "kanji": "顔",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "かく",
-      "meaning": "to write"
+      "meaning": "to write",
+      "kanji": "書く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "きく",
-      "meaning": "to listen; to ask"
+      "meaning": "to listen; to ask",
+      "kanji": "聞く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "くうき",
-      "meaning": "air"
+      "meaning": "air",
+      "kanji": "空気",
+      "category": "misc",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "こえ",
-      "meaning": "voice"
+      "meaning": "voice",
+      "kanji": "声",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ここ",
-      "meaning": "here"
+      "meaning": "here",
+      "category": "pronouns"
     },
     {
       "kana": "こい",
@@ -90,103 +137,174 @@
     },
     {
       "kana": "おおきい",
-      "meaning": "big"
+      "meaning": "big",
+      "kanji": "大きい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "わたし",
-      "meaning": "I; me"
+      "meaning": "I; me",
+      "kanji": "私",
+      "category": "pronouns",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あなた",
-      "meaning": "you"
+      "meaning": "you",
+      "category": "pronouns"
     },
     {
       "kana": "ひと",
-      "meaning": "person"
+      "meaning": "person",
+      "kanji": "人",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おとこ",
-      "meaning": "man"
+      "meaning": "man",
+      "kanji": "男",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おんな",
-      "meaning": "woman"
+      "meaning": "woman",
+      "kanji": "女",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おとな",
-      "meaning": "adult"
+      "meaning": "adult",
+      "kanji": "大人",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "なまえ",
-      "meaning": "name"
+      "meaning": "name",
+      "kanji": "名前",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "みんな",
-      "meaning": "everyone"
+      "meaning": "everyone",
+      "category": "adverbs"
     },
     {
       "kana": "あたま",
-      "meaning": "head"
+      "meaning": "head",
+      "kanji": "頭",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "くち",
-      "meaning": "mouth"
+      "meaning": "mouth",
+      "kanji": "口",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "みみ",
-      "meaning": "ear"
+      "meaning": "ear",
+      "kanji": "耳",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あし",
-      "meaning": "leg; foot"
+      "meaning": "leg; foot",
+      "kanji": "足",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "はは",
-      "meaning": "mother"
+      "meaning": "mother",
+      "kanji": "母",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ちち",
-      "meaning": "father"
+      "meaning": "father",
+      "kanji": "父",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あに",
-      "meaning": "older brother"
+      "meaning": "older brother",
+      "kanji": "兄",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あね",
-      "meaning": "older sister"
+      "meaning": "older sister",
+      "kanji": "姉",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おとうと",
-      "meaning": "younger brother"
+      "meaning": "younger brother",
+      "kanji": "弟",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "いもうと",
-      "meaning": "younger sister"
+      "meaning": "younger sister",
+      "kanji": "妹",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ねこ",
-      "meaning": "cat"
+      "meaning": "cat",
+      "kanji": "猫",
+      "category": "nature",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "いぬ",
-      "meaning": "dog"
+      "meaning": "dog",
+      "kanji": "犬",
+      "category": "nature",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "とり",
-      "meaning": "bird"
+      "meaning": "bird",
+      "kanji": "鳥",
+      "category": "nature",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "うま",
-      "meaning": "horse"
+      "meaning": "horse",
+      "kanji": "馬",
+      "category": "nature",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "さかな",
-      "meaning": "fish"
+      "meaning": "fish",
+      "kanji": "魚",
+      "category": "food",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "うし",
-      "meaning": "cow"
+      "meaning": "cow",
+      "kanji": "牛",
+      "category": "nature",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "くま",
@@ -194,7 +312,10 @@
     },
     {
       "kana": "むし",
-      "meaning": "insect"
+      "meaning": "insect",
+      "kanji": "虫",
+      "category": "nature",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "きつね",
@@ -202,39 +323,73 @@
     },
     {
       "kana": "やま",
-      "meaning": "mountain"
+      "meaning": "mountain",
+      "kanji": "山",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "かわ",
-      "meaning": "river"
+      "meaning": "river",
+      "kanji": "川",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "うみ",
-      "meaning": "sea"
+      "meaning": "sea",
+      "kanji": "海",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "そら",
-      "meaning": "sky"
+      "meaning": "sky",
+      "kanji": "空",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "つき",
-      "meaning": "moon"
+      "meaning": "moon",
+      "kanji": "月",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ほし",
-      "meaning": "star"
+      "meaning": "star",
+      "kanji": "星",
+      "category": "nature",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "あめ",
-      "meaning": "rain"
+      "meaning": "rain",
+      "kanji": "雨",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ゆき",
-      "meaning": "snow"
+      "meaning": "snow",
+      "kanji": "雪",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "はな",
-      "meaning": "flower"
+      "meaning": "flower",
+      "kanji": "花",
+      "category": "nature",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "鼻",
+          "meaning": "nose",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
     },
     {
       "kana": "くも",
@@ -242,7 +397,10 @@
     },
     {
       "kana": "いし",
-      "meaning": "stone"
+      "meaning": "stone",
+      "kanji": "石",
+      "category": "nature",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "はる",
@@ -258,19 +416,31 @@
     },
     {
       "kana": "あさ",
-      "meaning": "morning"
+      "meaning": "morning",
+      "kanji": "朝",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ひる",
-      "meaning": "noon; daytime"
+      "meaning": "noon; daytime",
+      "kanji": "昼",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "よる",
-      "meaning": "night"
+      "meaning": "night",
+      "kanji": "夜",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "いま",
-      "meaning": "now"
+      "meaning": "now",
+      "kanji": "今",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "とき",
@@ -278,15 +448,24 @@
     },
     {
       "kana": "とし",
-      "meaning": "year"
+      "meaning": "year",
+      "kanji": "年",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あした",
-      "meaning": "tomorrow"
+      "meaning": "tomorrow",
+      "kanji": "明日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "きのう",
-      "meaning": "yesterday"
+      "meaning": "yesterday",
+      "kanji": "昨日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "すし",
@@ -294,7 +473,10 @@
     },
     {
       "kana": "にく",
-      "meaning": "meat"
+      "meaning": "meat",
+      "kanji": "肉",
+      "category": "food",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "こめ",
@@ -318,11 +500,17 @@
     },
     {
       "kana": "しお",
-      "meaning": "salt"
+      "meaning": "salt",
+      "kanji": "塩",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "さとう",
-      "meaning": "sugar"
+      "meaning": "sugar",
+      "kanji": "砂糖",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "みそ",
@@ -338,11 +526,17 @@
     },
     {
       "kana": "やさい",
-      "meaning": "vegetables"
+      "meaning": "vegetables",
+      "kanji": "野菜",
+      "category": "food",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "はし",
-      "meaning": "chopsticks"
+      "meaning": "chopsticks",
+      "kanji": "橋",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "うち",
@@ -350,55 +544,101 @@
     },
     {
       "kana": "くに",
-      "meaning": "country"
+      "meaning": "country",
+      "kanji": "国",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "まち",
-      "meaning": "town"
+      "meaning": "town",
+      "kanji": "町",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "みせ",
-      "meaning": "shop"
+      "meaning": "shop",
+      "kanji": "店",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "みち",
-      "meaning": "road"
+      "meaning": "road",
+      "kanji": "道",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "へや",
-      "meaning": "room"
+      "meaning": "room",
+      "kanji": "部屋",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "つくえ",
-      "meaning": "desk"
+      "meaning": "desk",
+      "kanji": "机",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "いす",
-      "meaning": "chair"
+      "meaning": "chair",
+      "kanji": "椅子",
+      "category": "school",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "ほん",
-      "meaning": "book"
+      "meaning": "book",
+      "kanji": "本",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "かみ",
-      "meaning": "paper"
+      "meaning": "paper",
+      "kanji": "紙",
+      "category": "school",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "髪",
+          "meaning": "hair",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
     },
     {
       "kana": "ふく",
-      "meaning": "clothes"
+      "meaning": "clothes",
+      "kanji": "服",
+      "category": "clothing",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "くつ",
-      "meaning": "shoes"
+      "meaning": "shoes",
+      "kanji": "靴",
+      "category": "clothing",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "かさ",
-      "meaning": "umbrella"
+      "meaning": "umbrella",
+      "kanji": "傘",
+      "category": "objects",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "くるま",
-      "meaning": "car"
+      "meaning": "car",
+      "kanji": "車",
+      "category": "objects",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ふね",
@@ -406,19 +646,31 @@
     },
     {
       "kana": "にわ",
-      "meaning": "garden"
+      "meaning": "garden",
+      "kanji": "庭",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "とけい",
-      "meaning": "clock"
+      "meaning": "clock",
+      "kanji": "時計",
+      "category": "objects",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おかね",
-      "meaning": "money"
+      "meaning": "money",
+      "kanji": "お金",
+      "category": "objects",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "くすり",
-      "meaning": "medicine"
+      "meaning": "medicine",
+      "kanji": "薬",
+      "category": "misc",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おふろ",
@@ -426,7 +678,10 @@
     },
     {
       "kana": "うた",
-      "meaning": "song"
+      "meaning": "song",
+      "kanji": "歌",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ゆめ",
@@ -434,7 +689,10 @@
     },
     {
       "kana": "おと",
-      "meaning": "sound"
+      "meaning": "sound",
+      "kanji": "音",
+      "category": "misc",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "せかい",
@@ -442,163 +700,276 @@
     },
     {
       "kana": "てんき",
-      "meaning": "weather"
+      "meaning": "weather",
+      "kanji": "天気",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "たてもの",
-      "meaning": "building"
+      "meaning": "building",
+      "kanji": "建物",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "せんせい",
-      "meaning": "teacher"
+      "meaning": "teacher",
+      "kanji": "先生",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "まえ",
-      "meaning": "front; before"
+      "meaning": "front; before",
+      "kanji": "前",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "なか",
-      "meaning": "inside; middle"
+      "meaning": "inside; middle",
+      "kanji": "中",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "そと",
-      "meaning": "outside"
+      "meaning": "outside",
+      "kanji": "外",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "した",
-      "meaning": "below; under"
+      "meaning": "below; under",
+      "kanji": "下",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "うしろ",
-      "meaning": "behind"
+      "meaning": "behind",
+      "kanji": "後ろ",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "のむ",
-      "meaning": "to drink"
+      "meaning": "to drink",
+      "kanji": "飲む",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "みる",
-      "meaning": "to see"
+      "meaning": "to see",
+      "kanji": "見る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "よむ",
-      "meaning": "to read"
+      "meaning": "to read",
+      "kanji": "読む",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ねる",
-      "meaning": "to sleep"
+      "meaning": "to sleep",
+      "kanji": "寝る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おきる",
-      "meaning": "to wake up"
+      "meaning": "to wake up",
+      "kanji": "起きる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "すわる",
-      "meaning": "to sit"
+      "meaning": "to sit",
+      "kanji": "座る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あるく",
-      "meaning": "to walk"
+      "meaning": "to walk",
+      "kanji": "歩く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "はなす",
-      "meaning": "to speak"
+      "meaning": "to speak",
+      "kanji": "話す",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "はしる",
-      "meaning": "to run"
+      "meaning": "to run",
+      "kanji": "走る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "すき",
-      "meaning": "liked; favorite"
+      "meaning": "liked; favorite",
+      "kanji": "好き",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "たかい",
-      "meaning": "tall; expensive"
+      "meaning": "tall; expensive",
+      "kanji": "高い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "やすい",
-      "meaning": "cheap"
+      "meaning": "cheap",
+      "kanji": "安い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ちいさい",
-      "meaning": "small"
+      "meaning": "small",
+      "kanji": "小さい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あつい",
-      "meaning": "hot"
+      "meaning": "hot",
+      "kanji": "暑い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "熱い",
+          "meaning": "hot (touch)",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
     },
     {
       "kana": "さむい",
-      "meaning": "cold"
+      "meaning": "cold",
+      "kanji": "寒い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "たのしい",
-      "meaning": "fun"
+      "meaning": "fun",
+      "kanji": "楽しい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おいしい",
-      "meaning": "delicious"
+      "meaning": "delicious",
+      "category": "adjectives"
     },
     {
       "kana": "しろ",
-      "meaning": "white"
+      "meaning": "white",
+      "kanji": "白",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "くろ",
-      "meaning": "black"
+      "meaning": "black",
+      "kanji": "黒",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "これ",
-      "meaning": "this"
+      "meaning": "this",
+      "category": "pronouns"
     },
     {
       "kana": "それ",
-      "meaning": "that"
+      "meaning": "that",
+      "category": "pronouns"
     },
     {
       "kana": "あれ",
-      "meaning": "that over there"
+      "meaning": "that over there",
+      "category": "pronouns"
     },
     {
       "kana": "そこ",
-      "meaning": "there"
+      "meaning": "there",
+      "category": "pronouns"
     },
     {
       "kana": "あそこ",
-      "meaning": "over there"
+      "meaning": "over there",
+      "category": "pronouns"
     },
     {
       "kana": "なに",
-      "meaning": "what"
+      "meaning": "what",
+      "kanji": "何",
+      "category": "question words",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "いつ",
-      "meaning": "when"
+      "meaning": "when",
+      "category": "question words"
     },
     {
       "kana": "はい",
-      "meaning": "yes"
+      "meaning": "yes",
+      "kanji": "杯",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "いち",
-      "meaning": "one"
+      "meaning": "one",
+      "kanji": "一",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "さん",
-      "meaning": "three"
+      "meaning": "three",
+      "kanji": "三",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ろく",
-      "meaning": "six"
+      "meaning": "six",
+      "kanji": "六",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "なな",
-      "meaning": "seven"
+      "meaning": "seven",
+      "kanji": "七",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "はち",
-      "meaning": "eight"
+      "meaning": "eight",
+      "kanji": "八",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おはよう",
@@ -606,31 +977,48 @@
     },
     {
       "kana": "こんにちは",
-      "meaning": "hello"
+      "meaning": "hello",
+      "category": "expressions"
     },
     {
       "kana": "さようなら",
-      "meaning": "goodbye"
+      "meaning": "goodbye",
+      "category": "expressions"
     },
     {
       "kana": "かぎ",
-      "meaning": "key"
+      "meaning": "key",
+      "kanji": "鍵",
+      "category": "household",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "めがね",
-      "meaning": "glasses"
+      "meaning": "glasses",
+      "kanji": "眼鏡",
+      "category": "clothing",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "たまご",
-      "meaning": "egg"
+      "meaning": "egg",
+      "kanji": "卵",
+      "category": "food",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "かぞく",
-      "meaning": "family"
+      "meaning": "family",
+      "kanji": "家族",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "でんわ",
-      "meaning": "telephone"
+      "meaning": "telephone",
+      "kanji": "電話",
+      "category": "objects",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ぶた",
@@ -642,15 +1030,22 @@
     },
     {
       "kana": "かばん",
-      "meaning": "bag"
+      "meaning": "bag",
+      "kanji": "鞄",
+      "category": "objects",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "そば",
-      "meaning": "buckwheat noodles"
+      "meaning": "buckwheat noodles",
+      "category": "positions"
     },
     {
       "kana": "みず",
-      "meaning": "water"
+      "meaning": "water",
+      "kanji": "水",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "はなび",
@@ -658,15 +1053,24 @@
     },
     {
       "kana": "ごはん",
-      "meaning": "cooked rice; meal"
+      "meaning": "cooked rice; meal",
+      "kanji": "ご飯",
+      "category": "food",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "でぐち",
-      "meaning": "exit"
+      "meaning": "exit",
+      "kanji": "出口",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "じかん",
-      "meaning": "time; hour"
+      "meaning": "time; hour",
+      "kanji": "時間",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "かがみ",
@@ -674,23 +1078,38 @@
     },
     {
       "kana": "からだ",
-      "meaning": "body"
+      "meaning": "body",
+      "kanji": "体",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ちず",
-      "meaning": "map"
+      "meaning": "map",
+      "kanji": "地図",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "だいがく",
-      "meaning": "university"
+      "meaning": "university",
+      "kanji": "大学",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ぎんこう",
-      "meaning": "bank"
+      "meaning": "bank",
+      "kanji": "銀行",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "でんき",
-      "meaning": "electricity"
+      "meaning": "electricity",
+      "kanji": "電気",
+      "category": "household",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "どうぶつ",
@@ -706,7 +1125,10 @@
     },
     {
       "kana": "みぎ",
-      "meaning": "right"
+      "meaning": "right",
+      "kanji": "右",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "あぶら",
@@ -714,15 +1136,31 @@
     },
     {
       "kana": "かぜ",
-      "meaning": "wind; a cold"
+      "meaning": "wind; a cold",
+      "kanji": "風",
+      "category": "nature",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "風邪",
+          "meaning": "a cold",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
     },
     {
       "kana": "さんぽ",
-      "meaning": "a walk"
+      "meaning": "a walk",
+      "kanji": "散歩",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "えんぴつ",
-      "meaning": "pencil"
+      "meaning": "pencil",
+      "kanji": "鉛筆",
+      "category": "objects",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ぺらぺら",
@@ -750,7 +1188,10 @@
     },
     {
       "kana": "ぜんぶ",
-      "meaning": "all; everything"
+      "meaning": "all; everything",
+      "kanji": "全部",
+      "category": "adverbs",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "だんご",
@@ -770,51 +1211,87 @@
     },
     {
       "kana": "ぼうし",
-      "meaning": "hat"
+      "meaning": "hat",
+      "kanji": "帽子",
+      "category": "clothing",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "きょう",
-      "meaning": "today"
+      "meaning": "today",
+      "kanji": "今日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "しゅくだい",
-      "meaning": "homework"
+      "meaning": "homework",
+      "kanji": "宿題",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "でんしゃ",
-      "meaning": "train"
+      "meaning": "train",
+      "kanji": "電車",
+      "category": "objects",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おちゃ",
-      "meaning": "tea"
+      "meaning": "tea",
+      "kanji": "お茶",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "じてんしゃ",
-      "meaning": "bicycle"
+      "meaning": "bicycle",
+      "kanji": "自転車",
+      "category": "objects",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "びょういん",
-      "meaning": "hospital"
+      "meaning": "hospital",
+      "kanji": "病院",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "りょこう",
-      "meaning": "travel"
+      "meaning": "travel",
+      "kanji": "旅行",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "しゃしん",
-      "meaning": "photograph"
+      "meaning": "photograph",
+      "kanji": "写真",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "きゅう",
-      "meaning": "nine"
+      "meaning": "nine",
+      "kanji": "九",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ぎゅうにゅう",
-      "meaning": "milk"
+      "meaning": "milk",
+      "kanji": "牛乳",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "じゅう",
-      "meaning": "ten"
+      "meaning": "ten",
+      "kanji": "十",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ちょう",
@@ -822,7 +1299,10 @@
     },
     {
       "kana": "きょうしつ",
-      "meaning": "classroom"
+      "meaning": "classroom",
+      "kanji": "教室",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "しゅみ",
@@ -830,19 +1310,31 @@
     },
     {
       "kana": "りょうり",
-      "meaning": "cooking"
+      "meaning": "cooking",
+      "kanji": "料理",
+      "category": "household",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "びょうき",
-      "meaning": "illness"
+      "meaning": "illness",
+      "kanji": "病気",
+      "category": "misc",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ひゃく",
-      "meaning": "hundred"
+      "meaning": "hundred",
+      "kanji": "百",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "じしょ",
-      "meaning": "dictionary"
+      "meaning": "dictionary",
+      "kanji": "辞書",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "おもちゃ",
@@ -878,7 +1370,10 @@
     },
     {
       "kana": "しゅう",
-      "meaning": "week"
+      "meaning": "week",
+      "kanji": "週",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ぴょんぴょん",
@@ -890,11 +1385,17 @@
     },
     {
       "kana": "しょうゆ",
-      "meaning": "soy sauce"
+      "meaning": "soy sauce",
+      "kanji": "醤油",
+      "category": "food",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "じゅぎょう",
-      "meaning": "class lesson"
+      "meaning": "class lesson",
+      "kanji": "授業",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "りゃく",
@@ -918,7 +1419,10 @@
     },
     {
       "kana": "じょうず",
-      "meaning": "skillful"
+      "meaning": "skillful",
+      "kanji": "上手",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "ぎゃく",
@@ -934,15 +1438,24 @@
     },
     {
       "kana": "きって",
-      "meaning": "postage stamp"
+      "meaning": "postage stamp",
+      "kanji": "切手",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "がっこう",
-      "meaning": "school"
+      "meaning": "school",
+      "kanji": "学校",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ざっし",
-      "meaning": "magazine"
+      "meaning": "magazine",
+      "kanji": "雑誌",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "きっぷ",
@@ -958,7 +1471,8 @@
     },
     {
       "kana": "まっすぐ",
-      "meaning": "straight"
+      "meaning": "straight",
+      "category": "adverbs"
     },
     {
       "kana": "けっこん",
@@ -966,27 +1480,2881 @@
     },
     {
       "kana": "せっけん",
-      "meaning": "soap"
+      "meaning": "soap",
+      "kanji": "石鹸",
+      "category": "household",
+      "kanji_usage": "mixed"
     },
     {
       "kana": "みっつ",
-      "meaning": "three (things)"
+      "meaning": "three (things)",
+      "category": "numbers"
     },
     {
       "kana": "やっつ",
-      "meaning": "eight (things)"
+      "meaning": "eight (things)",
+      "category": "numbers"
     },
     {
       "kana": "きっさてん",
-      "meaning": "café"
+      "meaning": "café",
+      "kanji": "喫茶店",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
     },
     {
       "kana": "ちょっと",
-      "meaning": "a little"
+      "meaning": "a little",
+      "category": "adverbs"
     },
     {
       "kana": "けっか",
       "meaning": "result"
+    },
+    {
+      "kana": "かのじょ",
+      "meaning": "she",
+      "kanji": "彼女",
+      "category": "pronouns",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かれ",
+      "meaning": "he",
+      "kanji": "彼",
+      "category": "pronouns",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "じぶん",
+      "meaning": "oneself",
+      "kanji": "自分",
+      "category": "pronouns",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "わたしたち",
+      "meaning": "we",
+      "kanji": "私たち",
+      "category": "pronouns",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あちら",
+      "meaning": "that way over there",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "あの",
+      "meaning": "that over there (before noun)",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "あんな",
+      "meaning": "that kind of over there",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "こちら",
+      "meaning": "this way",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "この",
+      "meaning": "this (before noun)",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "こんな",
+      "meaning": "this kind of",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "そちら",
+      "meaning": "that way",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "その",
+      "meaning": "that (before noun)",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "そんな",
+      "meaning": "that kind of",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "どちら",
+      "meaning": "which way",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "どの",
+      "meaning": "which (before noun)",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "どんな",
+      "meaning": "what kind of",
+      "category": "demonstratives"
+    },
+    {
+      "kana": "いくつ",
+      "meaning": "how many",
+      "category": "question words"
+    },
+    {
+      "kana": "いくら",
+      "meaning": "how much (price)",
+      "category": "question words"
+    },
+    {
+      "kana": "だれ",
+      "meaning": "who",
+      "kanji": "誰",
+      "category": "question words",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "どう",
+      "meaning": "how",
+      "category": "question words"
+    },
+    {
+      "kana": "どうして",
+      "meaning": "why",
+      "category": "question words"
+    },
+    {
+      "kana": "どこ",
+      "meaning": "where",
+      "category": "question words"
+    },
+    {
+      "kana": "どれ",
+      "meaning": "which (thing)",
+      "category": "question words"
+    },
+    {
+      "kana": "いつつ",
+      "meaning": "five (things)",
+      "category": "numbers"
+    },
+    {
+      "kana": "ここのつ",
+      "meaning": "nine (things)",
+      "category": "numbers"
+    },
+    {
+      "kana": "ご",
+      "meaning": "five",
+      "kanji": "五",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "せん",
+      "meaning": "thousand",
+      "kanji": "千",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "とお",
+      "meaning": "ten (things)",
+      "category": "numbers"
+    },
+    {
+      "kana": "ななつ",
+      "meaning": "seven (things)",
+      "category": "numbers"
+    },
+    {
+      "kana": "に",
+      "meaning": "two",
+      "kanji": "二",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はん",
+      "meaning": "half",
+      "kanji": "半",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はんぶん",
+      "meaning": "half portion",
+      "kanji": "半分",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ひとつ",
+      "meaning": "one (thing)",
+      "category": "numbers"
+    },
+    {
+      "kana": "ふたつ",
+      "meaning": "two (things)",
+      "category": "numbers"
+    },
+    {
+      "kana": "まん",
+      "meaning": "ten thousand",
+      "kanji": "万",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "むっつ",
+      "meaning": "six (things)",
+      "category": "numbers"
+    },
+    {
+      "kana": "よっつ",
+      "meaning": "four (things)",
+      "category": "numbers"
+    },
+    {
+      "kana": "よん",
+      "meaning": "four",
+      "kanji": "四",
+      "category": "numbers",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "えん",
+      "meaning": "yen",
+      "kanji": "円",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かい",
+      "meaning": "counter for times",
+      "kanji": "回",
+      "category": "counters",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "階",
+          "meaning": "counter for floors",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
+    },
+    {
+      "kana": "さい",
+      "meaning": "counter for years of age",
+      "kanji": "歳",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "さつ",
+      "meaning": "counter for books",
+      "kanji": "冊",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "だい",
+      "meaning": "counter for machines",
+      "kanji": "台",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ど",
+      "meaning": "degree or occurrence",
+      "kanji": "度",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "にん",
+      "meaning": "counter for people",
+      "kanji": "人",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ばん",
+      "meaning": "number in a series",
+      "kanji": "番",
+      "category": "counters",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "晩",
+          "meaning": "evening",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
+    },
+    {
+      "kana": "ひき",
+      "meaning": "counter for small animals",
+      "kanji": "匹",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まい",
+      "meaning": "counter for flat objects",
+      "kanji": "枚",
+      "category": "counters",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いちがつ",
+      "meaning": "January",
+      "kanji": "一月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いつか",
+      "meaning": "5th of the month",
+      "kanji": "五日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "くがつ",
+      "meaning": "September",
+      "kanji": "九月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ここのか",
+      "meaning": "9th of the month",
+      "kanji": "九日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ごがつ",
+      "meaning": "May",
+      "kanji": "五月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "さんがつ",
+      "meaning": "March",
+      "kanji": "三月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しがつ",
+      "meaning": "April",
+      "kanji": "四月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しちがつ",
+      "meaning": "July",
+      "kanji": "七月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "じゅういちがつ",
+      "meaning": "November",
+      "kanji": "十一月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "じゅうがつ",
+      "meaning": "October",
+      "kanji": "十月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "じゅうにがつ",
+      "meaning": "December",
+      "kanji": "十二月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ついたち",
+      "meaning": "1st of the month",
+      "kanji": "一日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "とおか",
+      "meaning": "10th of the month",
+      "kanji": "十日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "なのか",
+      "meaning": "7th of the month",
+      "kanji": "七日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "にがつ",
+      "meaning": "February",
+      "kanji": "二月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はちがつ",
+      "meaning": "August",
+      "kanji": "八月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はつか",
+      "meaning": "20th of the month",
+      "kanji": "二十日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ふつか",
+      "meaning": "2nd of the month",
+      "kanji": "二日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "みっか",
+      "meaning": "3rd of the month",
+      "kanji": "三日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "むいか",
+      "meaning": "6th of the month",
+      "kanji": "六日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ようか",
+      "meaning": "8th of the month",
+      "kanji": "八日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "よっか",
+      "meaning": "4th of the month",
+      "kanji": "四日",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ろくがつ",
+      "meaning": "June",
+      "kanji": "六月",
+      "category": "dates",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あさって",
+      "meaning": "day after tomorrow",
+      "kanji": "明後日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おととい",
+      "meaning": "day before yesterday",
+      "kanji": "一昨日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かようび",
+      "meaning": "Tuesday",
+      "kanji": "火曜日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "きょねん",
+      "meaning": "last year",
+      "kanji": "去年",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "きんようび",
+      "meaning": "Friday",
+      "kanji": "金曜日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "けさ",
+      "meaning": "this morning",
+      "kanji": "今朝",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "げつようび",
+      "meaning": "Monday",
+      "kanji": "月曜日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ことし",
+      "meaning": "this year",
+      "kanji": "今年",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こんげつ",
+      "meaning": "this month",
+      "kanji": "今月",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こんしゅう",
+      "meaning": "this week",
+      "kanji": "今週",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こんばん",
+      "meaning": "this evening",
+      "kanji": "今晩",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ごご",
+      "meaning": "afternoon / p.m.",
+      "kanji": "午後",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ごぜん",
+      "meaning": "morning / a.m.",
+      "kanji": "午前",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しゅうかん",
+      "meaning": "week duration",
+      "kanji": "週間",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "じ",
+      "meaning": "o'clock",
+      "kanji": "時",
+      "category": "time",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "字",
+          "meaning": "character / letter",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
+    },
+    {
+      "kana": "すいようび",
+      "meaning": "Wednesday",
+      "kanji": "水曜日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "せんげつ",
+      "meaning": "last month",
+      "kanji": "先月",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "せんしゅう",
+      "meaning": "last week",
+      "kanji": "先週",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "たんじょうび",
+      "meaning": "birthday",
+      "kanji": "誕生日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "どようび",
+      "meaning": "Saturday",
+      "kanji": "土曜日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "にちようび",
+      "meaning": "Sunday",
+      "kanji": "日曜日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ひ",
+      "meaning": "day / sun",
+      "kanji": "日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ふん",
+      "meaning": "minute",
+      "kanji": "分",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まいあさ",
+      "meaning": "every morning",
+      "kanji": "毎朝",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まいしゅう",
+      "meaning": "every week",
+      "kanji": "毎週",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まいつき",
+      "meaning": "every month",
+      "kanji": "毎月",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まいとし",
+      "meaning": "every year",
+      "kanji": "毎年",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まいにち",
+      "meaning": "every day",
+      "kanji": "毎日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まいばん",
+      "meaning": "every night",
+      "kanji": "毎晩",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "もくようび",
+      "meaning": "Thursday",
+      "kanji": "木曜日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "やすみ",
+      "meaning": "holiday / rest",
+      "kanji": "休み",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ゆうがた",
+      "meaning": "evening",
+      "kanji": "夕方",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ようび",
+      "meaning": "day of the week",
+      "kanji": "曜日",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "らいげつ",
+      "meaning": "next month",
+      "kanji": "来月",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "らいしゅう",
+      "meaning": "next week",
+      "kanji": "来週",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "らいねん",
+      "meaning": "next year",
+      "kanji": "来年",
+      "category": "time",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おかあさん",
+      "meaning": "mother (someone's)",
+      "kanji": "お母さん",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おとうさん",
+      "meaning": "father (someone's)",
+      "kanji": "お父さん",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こども",
+      "meaning": "child",
+      "kanji": "子供",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ともだち",
+      "meaning": "friend",
+      "kanji": "友達",
+      "category": "family",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いしゃ",
+      "meaning": "doctor",
+      "kanji": "医者",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "うんてんしゅ",
+      "meaning": "driver",
+      "kanji": "運転手",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おとこのこ",
+      "meaning": "boy",
+      "kanji": "男の子",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おんなのこ",
+      "meaning": "girl",
+      "kanji": "女の子",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かいしゃいん",
+      "meaning": "office worker",
+      "kanji": "会社員",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "がいこくじん",
+      "meaning": "foreigner",
+      "kanji": "外国人",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "がくせい",
+      "meaning": "student",
+      "kanji": "学生",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "けいさつ",
+      "meaning": "police",
+      "kanji": "警察",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "てんいん",
+      "meaning": "shop clerk",
+      "kanji": "店員",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "みなさん",
+      "meaning": "everyone",
+      "kanji": "皆さん",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "りゅうがくせい",
+      "meaning": "foreign student",
+      "kanji": "留学生",
+      "category": "people",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いりぐち",
+      "meaning": "entrance",
+      "kanji": "入口",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "えいがかん",
+      "meaning": "cinema",
+      "kanji": "映画館",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かいしゃ",
+      "meaning": "company",
+      "kanji": "会社",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かど",
+      "meaning": "corner",
+      "kanji": "角",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "がいこく",
+      "meaning": "foreign country",
+      "kanji": "外国",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "くうこう",
+      "meaning": "airport",
+      "kanji": "空港",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "げんかん",
+      "meaning": "entrance hall",
+      "kanji": "玄関",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こうえん",
+      "meaning": "park",
+      "kanji": "公園",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こうこう",
+      "meaning": "high school",
+      "kanji": "高校",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こうじょう",
+      "meaning": "factory",
+      "kanji": "工場",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こうばん",
+      "meaning": "police box",
+      "kanji": "交番",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しょくどう",
+      "meaning": "dining hall",
+      "kanji": "食堂",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "じむしょ",
+      "meaning": "office",
+      "kanji": "事務所",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "せき",
+      "meaning": "seat",
+      "kanji": "席",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "だいどころ",
+      "meaning": "kitchen",
+      "kanji": "台所",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "としょかん",
+      "meaning": "library",
+      "kanji": "図書館",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "どうぶつえん",
+      "meaning": "zoo",
+      "kanji": "動物園",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "にほん",
+      "meaning": "Japan",
+      "kanji": "日本",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "びじゅつかん",
+      "meaning": "art museum",
+      "kanji": "美術館",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ふろ",
+      "meaning": "bath",
+      "kanji": "風呂",
+      "category": "places",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "みなと",
+      "meaning": "harbor",
+      "kanji": "港",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "むら",
+      "meaning": "village",
+      "kanji": "村",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ゆうびんきょく",
+      "meaning": "post office",
+      "kanji": "郵便局",
+      "category": "places",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いみ",
+      "meaning": "meaning",
+      "kanji": "意味",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かたかな",
+      "meaning": "katakana",
+      "kanji": "片仮名",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かんじ",
+      "meaning": "kanji",
+      "kanji": "漢字",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こくばん",
+      "meaning": "blackboard",
+      "kanji": "黒板",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こたえ",
+      "meaning": "answer",
+      "kanji": "答え",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ことば",
+      "meaning": "word / language",
+      "kanji": "言葉",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "さくぶん",
+      "meaning": "composition",
+      "kanji": "作文",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しつもん",
+      "meaning": "question",
+      "kanji": "質問",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "てがみ",
+      "meaning": "letter",
+      "kanji": "手紙",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "にもつ",
+      "meaning": "luggage",
+      "kanji": "荷物",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はがき",
+      "meaning": "postcard",
+      "kanji": "葉書",
+      "category": "school",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "ひらがな",
+      "meaning": "hiragana",
+      "kanji": "平仮名",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ふうとう",
+      "meaning": "envelope",
+      "kanji": "封筒",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ほんだな",
+      "meaning": "bookshelf",
+      "kanji": "本棚",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まんねんひつ",
+      "meaning": "fountain pen",
+      "kanji": "万年筆",
+      "category": "school",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "もんだい",
+      "meaning": "problem",
+      "kanji": "問題",
+      "category": "school",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "せんたく",
+      "meaning": "laundry",
+      "kanji": "洗濯",
+      "category": "household",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "そうじ",
+      "meaning": "cleaning",
+      "kanji": "掃除",
+      "category": "household",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "と",
+      "meaning": "door",
+      "kanji": "戸",
+      "category": "household",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まど",
+      "meaning": "window",
+      "kanji": "窓",
+      "category": "household",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "れいぞうこ",
+      "meaning": "refrigerator",
+      "kanji": "冷蔵庫",
+      "category": "household",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "え",
+      "meaning": "picture / drawing",
+      "kanji": "絵",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "えいが",
+      "meaning": "movie",
+      "kanji": "映画",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おんがく",
+      "meaning": "music",
+      "kanji": "音楽",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かいもの",
+      "meaning": "shopping",
+      "kanji": "買い物",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しごと",
+      "meaning": "work / job",
+      "kanji": "仕事",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はなし",
+      "meaning": "talk / story",
+      "kanji": "話",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "れんしゅう",
+      "meaning": "practice",
+      "kanji": "練習",
+      "category": "activities",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あさごはん",
+      "meaning": "breakfast",
+      "kanji": "朝ご飯",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あじ",
+      "meaning": "taste",
+      "kanji": "味",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おかし",
+      "meaning": "sweets",
+      "kanji": "お菓子",
+      "category": "food",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "おべんとう",
+      "meaning": "boxed lunch",
+      "kanji": "お弁当",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ぎゅうにく",
+      "meaning": "beef",
+      "kanji": "牛肉",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "くだもの",
+      "meaning": "fruit",
+      "kanji": "果物",
+      "category": "food",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "さけ",
+      "meaning": "alcohol",
+      "kanji": "酒",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "たべもの",
+      "meaning": "food",
+      "kanji": "食べ物",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "とりにく",
+      "meaning": "chicken meat",
+      "kanji": "鶏肉",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "のみもの",
+      "meaning": "drink",
+      "kanji": "飲み物",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ばんごはん",
+      "meaning": "dinner",
+      "kanji": "晩ご飯",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ひるごはん",
+      "meaning": "lunch",
+      "kanji": "昼ご飯",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ぶたにく",
+      "meaning": "pork",
+      "kanji": "豚肉",
+      "category": "food",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しんぶん",
+      "meaning": "newspaper",
+      "kanji": "新聞",
+      "category": "objects",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "きもの",
+      "meaning": "kimono",
+      "kanji": "着物",
+      "category": "clothing",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "くつした",
+      "meaning": "socks",
+      "kanji": "靴下",
+      "category": "clothing",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "さいふ",
+      "meaning": "wallet",
+      "kanji": "財布",
+      "category": "clothing",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "ようふく",
+      "meaning": "western clothes",
+      "kanji": "洋服",
+      "category": "clothing",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あおい",
+      "meaning": "blue",
+      "kanji": "青い",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あかい",
+      "meaning": "red",
+      "kanji": "赤い",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いろ",
+      "meaning": "color",
+      "kanji": "色",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "きいろ",
+      "meaning": "yellow",
+      "kanji": "黄色",
+      "category": "colors",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "きいろい",
+      "meaning": "yellow",
+      "kanji": "黄色い",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "くろい",
+      "meaning": "black",
+      "kanji": "黒い",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しろい",
+      "meaning": "white",
+      "kanji": "白い",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ちゃいろ",
+      "meaning": "brown",
+      "kanji": "茶色",
+      "category": "colors",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "みどり",
+      "meaning": "green",
+      "kanji": "緑",
+      "category": "colors",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おなか",
+      "meaning": "stomach",
+      "kanji": "お腹",
+      "category": "body",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "くび",
+      "meaning": "neck",
+      "kanji": "首",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "せ",
+      "meaning": "height / back",
+      "kanji": "背",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "て",
+      "meaning": "hand",
+      "kanji": "手",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "は",
+      "meaning": "tooth",
+      "kanji": "歯",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "め",
+      "meaning": "eye",
+      "kanji": "目",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ゆび",
+      "meaning": "finger",
+      "kanji": "指",
+      "category": "body",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あいだ",
+      "meaning": "between",
+      "kanji": "間",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "きた",
+      "meaning": "north",
+      "kanji": "北",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ちかく",
+      "meaning": "nearby",
+      "kanji": "近く",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "となり",
+      "meaning": "next to",
+      "kanji": "隣",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "にし",
+      "meaning": "west",
+      "kanji": "西",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ひがし",
+      "meaning": "east",
+      "kanji": "東",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ひだり",
+      "meaning": "left",
+      "kanji": "左",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "みなみ",
+      "meaning": "south",
+      "kanji": "南",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "むこう",
+      "meaning": "over there / opposite",
+      "kanji": "向こう",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "よこ",
+      "meaning": "side",
+      "kanji": "横",
+      "category": "positions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "き",
+      "meaning": "tree",
+      "kanji": "木",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "くさ",
+      "meaning": "grass",
+      "kanji": "草",
+      "category": "nature",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "たいよう",
+      "meaning": "sun",
+      "kanji": "太陽",
+      "category": "nature",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こと",
+      "meaning": "matter / thing",
+      "kanji": "事",
+      "category": "misc",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "じゅうしょ",
+      "meaning": "address",
+      "kanji": "住所",
+      "category": "misc",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ところ",
+      "meaning": "place",
+      "kanji": "所",
+      "category": "misc",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "ねつ",
+      "meaning": "fever",
+      "kanji": "熱",
+      "category": "misc",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ばんごう",
+      "meaning": "number",
+      "kanji": "番号",
+      "category": "misc",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "もの",
+      "meaning": "thing",
+      "kanji": "物",
+      "category": "misc",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "あく",
+      "meaning": "to open (intransitive)",
+      "kanji": "開く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あける",
+      "meaning": "to open something",
+      "kanji": "開ける",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あそぶ",
+      "meaning": "to play",
+      "kanji": "遊ぶ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あびる",
+      "meaning": "to bathe",
+      "kanji": "浴びる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あらう",
+      "meaning": "to wash",
+      "kanji": "洗う",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ある",
+      "meaning": "to exist (things)",
+      "category": "verbs"
+    },
+    {
+      "kana": "いそぐ",
+      "meaning": "to hurry",
+      "kanji": "急ぐ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いる",
+      "meaning": "to exist (people/animals)",
+      "category": "verbs"
+    },
+    {
+      "kana": "いれる",
+      "meaning": "to put in",
+      "kanji": "入れる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "うたう",
+      "meaning": "to sing",
+      "kanji": "歌う",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "うまれる",
+      "meaning": "to be born",
+      "kanji": "生まれる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "うる",
+      "meaning": "to sell",
+      "kanji": "売る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おく",
+      "meaning": "to put / place",
+      "kanji": "置く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おくる",
+      "meaning": "to send",
+      "kanji": "送る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おしえる",
+      "meaning": "to teach",
+      "kanji": "教える",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おす",
+      "meaning": "to push",
+      "kanji": "押す",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おぼえる",
+      "meaning": "to memorize",
+      "kanji": "覚える",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おもう",
+      "meaning": "to think / feel",
+      "kanji": "思う",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "およぐ",
+      "meaning": "to swim",
+      "kanji": "泳ぐ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おりる",
+      "meaning": "to get off",
+      "kanji": "降りる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おわる",
+      "meaning": "to end",
+      "kanji": "終わる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かえす",
+      "meaning": "to return something",
+      "kanji": "返す",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かえる",
+      "meaning": "to return / go home",
+      "kanji": "帰る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かける",
+      "meaning": "to hang / to put on",
+      "kanji": "掛ける",
+      "category": "verbs",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "かす",
+      "meaning": "to lend",
+      "kanji": "貸す",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かぶる",
+      "meaning": "to wear on the head",
+      "category": "verbs"
+    },
+    {
+      "kana": "かりる",
+      "meaning": "to borrow",
+      "kanji": "借りる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かんがえる",
+      "meaning": "to consider",
+      "kanji": "考える",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "きる",
+      "meaning": "to wear (upper body)",
+      "kanji": "着る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "切る",
+          "meaning": "to cut",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
+    },
+    {
+      "kana": "くる",
+      "meaning": "to come",
+      "kanji": "来る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "けす",
+      "meaning": "to turn off / erase",
+      "kanji": "消す",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "けっこんする",
+      "meaning": "to get married",
+      "kanji": "結婚する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "こまる",
+      "meaning": "to be troubled",
+      "kanji": "困る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "さんぽする",
+      "meaning": "to take a walk",
+      "kanji": "散歩する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しつもんする",
+      "meaning": "to ask a question",
+      "kanji": "質問する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しぬ",
+      "meaning": "to die",
+      "kanji": "死ぬ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しまる",
+      "meaning": "to close (intransitive)",
+      "kanji": "閉まる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しめる",
+      "meaning": "to close something",
+      "kanji": "閉める",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しる",
+      "meaning": "to know",
+      "kanji": "知る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "すう",
+      "meaning": "to inhale / smoke",
+      "kanji": "吸う",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "すむ",
+      "meaning": "to live / reside",
+      "kanji": "住む",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "する",
+      "meaning": "to do",
+      "category": "verbs"
+    },
+    {
+      "kana": "せんたくする",
+      "meaning": "to do laundry",
+      "kanji": "洗濯する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "そうじする",
+      "meaning": "to clean",
+      "kanji": "掃除する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "たつ",
+      "meaning": "to stand",
+      "kanji": "立つ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "たべる",
+      "meaning": "to eat",
+      "kanji": "食べる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "だす",
+      "meaning": "to take out / send",
+      "kanji": "出す",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "つかう",
+      "meaning": "to use",
+      "kanji": "使う",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "つかれる",
+      "meaning": "to get tired",
+      "kanji": "疲れる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "つくる",
+      "meaning": "to make",
+      "kanji": "作る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "つける",
+      "meaning": "to turn on",
+      "category": "verbs"
+    },
+    {
+      "kana": "でかける",
+      "meaning": "to go out",
+      "kanji": "出かける",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "でる",
+      "meaning": "to exit / leave",
+      "kanji": "出る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "でんわする",
+      "meaning": "to make a phone call",
+      "kanji": "電話する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "とぶ",
+      "meaning": "to fly",
+      "kanji": "飛ぶ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "とまる",
+      "meaning": "to stop",
+      "kanji": "止まる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "とる",
+      "meaning": "to take",
+      "kanji": "取る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "撮る",
+          "meaning": "to take a photo",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
+    },
+    {
+      "kana": "なく",
+      "meaning": "to cry",
+      "kanji": "泣く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "なくす",
+      "meaning": "to lose something",
+      "kanji": "無くす",
+      "category": "verbs",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "ならう",
+      "meaning": "to learn",
+      "kanji": "習う",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ならぶ",
+      "meaning": "to line up",
+      "kanji": "並ぶ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ならべる",
+      "meaning": "to arrange in a row",
+      "kanji": "並べる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ぬぐ",
+      "meaning": "to take off clothes",
+      "kanji": "脱ぐ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "のぼる",
+      "meaning": "to climb",
+      "kanji": "登る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "のる",
+      "meaning": "to ride",
+      "kanji": "乗る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はいる",
+      "meaning": "to enter",
+      "kanji": "入る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はく",
+      "meaning": "to wear (lower body)",
+      "kanji": "履く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はじまる",
+      "meaning": "to begin (intransitive)",
+      "kanji": "始まる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はじめる",
+      "meaning": "to begin something",
+      "kanji": "始める",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "はたらく",
+      "meaning": "to work",
+      "kanji": "働く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ひく",
+      "meaning": "to pull",
+      "kanji": "引く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "弾く",
+          "meaning": "to play an instrument",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
+    },
+    {
+      "kana": "べんきょうする",
+      "meaning": "to study",
+      "kanji": "勉強する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まがる",
+      "meaning": "to turn",
+      "kanji": "曲がる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まつ",
+      "meaning": "to wait",
+      "kanji": "待つ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "みがく",
+      "meaning": "to polish / brush",
+      "kanji": "磨く",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "もつ",
+      "meaning": "to hold / carry",
+      "kanji": "持つ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "やすむ",
+      "meaning": "to rest",
+      "kanji": "休む",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "よぶ",
+      "meaning": "to call",
+      "kanji": "呼ぶ",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "りょうりする",
+      "meaning": "to cook",
+      "kanji": "料理する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "りょこうする",
+      "meaning": "to travel",
+      "kanji": "旅行する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "れんしゅうする",
+      "meaning": "to practice",
+      "kanji": "練習する",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "わかる",
+      "meaning": "to understand",
+      "kanji": "分かる",
+      "category": "verbs",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "わすれる",
+      "meaning": "to forget",
+      "kanji": "忘れる",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "わたす",
+      "meaning": "to hand over",
+      "kanji": "渡す",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "わたる",
+      "meaning": "to cross",
+      "kanji": "渡る",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "わらう",
+      "meaning": "to laugh",
+      "kanji": "笑う",
+      "category": "verbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あかるい",
+      "meaning": "bright",
+      "kanji": "明るい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あたたかい",
+      "meaning": "warm",
+      "kanji": "暖かい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あたらしい",
+      "meaning": "new",
+      "kanji": "新しい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あぶない",
+      "meaning": "dangerous",
+      "kanji": "危ない",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "あまい",
+      "meaning": "sweet",
+      "kanji": "甘い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いい",
+      "meaning": "good",
+      "category": "adjectives"
+    },
+    {
+      "kana": "いそがしい",
+      "meaning": "busy",
+      "kanji": "忙しい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いたい",
+      "meaning": "painful",
+      "kanji": "痛い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いろいろ",
+      "meaning": "various",
+      "kanji": "色々",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "うるさい",
+      "meaning": "noisy",
+      "category": "adjectives"
+    },
+    {
+      "kana": "おおい",
+      "meaning": "many",
+      "kanji": "多い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おそい",
+      "meaning": "slow / late",
+      "kanji": "遅い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おなじ",
+      "meaning": "same",
+      "kanji": "同じ",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おもい",
+      "meaning": "heavy",
+      "kanji": "重い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "おもしろい",
+      "meaning": "interesting",
+      "kanji": "面白い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "からい",
+      "meaning": "spicy",
+      "kanji": "辛い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かるい",
+      "meaning": "light in weight",
+      "kanji": "軽い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "かんたん",
+      "meaning": "simple",
+      "kanji": "簡単",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "きたない",
+      "meaning": "dirty",
+      "kanji": "汚い",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "きらい",
+      "meaning": "disliked",
+      "kanji": "嫌い",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "きれい",
+      "meaning": "pretty / clean",
+      "kanji": "綺麗",
+      "category": "adjectives",
+      "kanji_usage": "usually_kana"
+    },
+    {
+      "kana": "くらい",
+      "meaning": "dark",
+      "kanji": "暗い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "けっこう",
+      "meaning": "fine / quite",
+      "kanji": "結構",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "げんき",
+      "meaning": "healthy / energetic",
+      "kanji": "元気",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しずか",
+      "meaning": "quiet",
+      "kanji": "静か",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "しんせつ",
+      "meaning": "kind",
+      "kanji": "親切",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "じょうぶ",
+      "meaning": "sturdy",
+      "kanji": "丈夫",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "すくない",
+      "meaning": "few",
+      "kanji": "少ない",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "すずしい",
+      "meaning": "cool",
+      "kanji": "涼しい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "せまい",
+      "meaning": "narrow",
+      "kanji": "狭い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "たいせつ",
+      "meaning": "important",
+      "kanji": "大切",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "たいへん",
+      "meaning": "tough / very",
+      "kanji": "大変",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "だいじょうぶ",
+      "meaning": "fine / okay",
+      "kanji": "大丈夫",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "ちかい",
+      "meaning": "near",
+      "kanji": "近い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "つまらない",
+      "meaning": "boring",
+      "category": "adjectives"
+    },
+    {
+      "kana": "つめたい",
+      "meaning": "cold (touch)",
+      "kanji": "冷たい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "つよい",
+      "meaning": "strong",
+      "kanji": "強い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "とおい",
+      "meaning": "far",
+      "kanji": "遠い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ながい",
+      "meaning": "long",
+      "kanji": "長い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "にぎやか",
+      "meaning": "lively",
+      "category": "adjectives"
+    },
+    {
+      "kana": "はやい",
+      "meaning": "fast",
+      "kanji": "速い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji",
+      "other_kanji": [
+        {
+          "kanji": "早い",
+          "meaning": "early",
+          "kanji_usage": "usually_kanji"
+        }
+      ]
+    },
+    {
+      "kana": "ひま",
+      "meaning": "free time",
+      "kanji": "暇",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ひろい",
+      "meaning": "wide / spacious",
+      "kanji": "広い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ふとい",
+      "meaning": "thick",
+      "kanji": "太い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ふるい",
+      "meaning": "old",
+      "kanji": "古い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "へた",
+      "meaning": "unskillful",
+      "kanji": "下手",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "べんり",
+      "meaning": "convenient",
+      "kanji": "便利",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ほしい",
+      "meaning": "wanted",
+      "kanji": "欲しい",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "ほそい",
+      "meaning": "thin",
+      "kanji": "細い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "まるい",
+      "meaning": "round",
+      "kanji": "丸い",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "みじかい",
+      "meaning": "short",
+      "kanji": "短い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "むずかしい",
+      "meaning": "difficult",
+      "kanji": "難しい",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "やさしい",
+      "meaning": "easy / kind",
+      "kanji": "易しい",
+      "category": "adjectives",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "ゆうめい",
+      "meaning": "famous",
+      "kanji": "有名",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "よわい",
+      "meaning": "weak",
+      "kanji": "弱い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "わかい",
+      "meaning": "young",
+      "kanji": "若い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "わるい",
+      "meaning": "bad",
+      "kanji": "悪い",
+      "category": "adjectives",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "あまり",
+      "meaning": "not much",
+      "category": "adverbs"
+    },
+    {
+      "kana": "いちばん",
+      "meaning": "most / number one",
+      "kanji": "一番",
+      "category": "adverbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "いっしょに",
+      "meaning": "together",
+      "kanji": "一緒に",
+      "category": "adverbs",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "いつも",
+      "meaning": "always",
+      "category": "adverbs"
+    },
+    {
+      "kana": "おおぜい",
+      "meaning": "many people",
+      "kanji": "大勢",
+      "category": "adverbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "すぐ",
+      "meaning": "soon / immediately",
+      "category": "adverbs"
+    },
+    {
+      "kana": "すこし",
+      "meaning": "a little",
+      "kanji": "少し",
+      "category": "adverbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "ぜんぜん",
+      "meaning": "not at all",
+      "kanji": "全然",
+      "category": "adverbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "たくさん",
+      "meaning": "a lot",
+      "category": "adverbs"
+    },
+    {
+      "kana": "ときどき",
+      "meaning": "sometimes",
+      "kanji": "時々",
+      "category": "adverbs",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "とても",
+      "meaning": "very",
+      "category": "adverbs"
+    },
+    {
+      "kana": "はじめて",
+      "meaning": "for the first time",
+      "kanji": "初めて",
+      "category": "adverbs",
+      "kanji_usage": "mixed"
+    },
+    {
+      "kana": "ほんとうに",
+      "meaning": "really",
+      "category": "adverbs"
+    },
+    {
+      "kana": "また",
+      "meaning": "again",
+      "category": "adverbs"
+    },
+    {
+      "kana": "まだ",
+      "meaning": "not yet / still",
+      "category": "adverbs"
+    },
+    {
+      "kana": "もう",
+      "meaning": "already",
+      "category": "adverbs"
+    },
+    {
+      "kana": "もっと",
+      "meaning": "more",
+      "category": "adverbs"
+    },
+    {
+      "kana": "ゆっくり",
+      "meaning": "slowly",
+      "category": "adverbs"
+    },
+    {
+      "kana": "よく",
+      "meaning": "well / often",
+      "category": "adverbs"
+    },
+    {
+      "kana": "しかし",
+      "meaning": "however",
+      "category": "conjunctions"
+    },
+    {
+      "kana": "じゃあ",
+      "meaning": "well then",
+      "category": "conjunctions"
+    },
+    {
+      "kana": "そして",
+      "meaning": "and then",
+      "category": "conjunctions"
+    },
+    {
+      "kana": "それから",
+      "meaning": "after that",
+      "category": "conjunctions"
+    },
+    {
+      "kana": "だから",
+      "meaning": "therefore",
+      "category": "conjunctions"
+    },
+    {
+      "kana": "では",
+      "meaning": "well then",
+      "category": "conjunctions"
+    },
+    {
+      "kana": "でも",
+      "meaning": "but",
+      "category": "conjunctions"
+    },
+    {
+      "kana": "ありがとうございます",
+      "meaning": "thank you",
+      "category": "expressions"
+    },
+    {
+      "kana": "いかが",
+      "meaning": "how about",
+      "category": "expressions"
+    },
+    {
+      "kana": "いただきます",
+      "meaning": "said before eating",
+      "category": "expressions"
+    },
+    {
+      "kana": "いってきます",
+      "meaning": "I am leaving",
+      "category": "expressions"
+    },
+    {
+      "kana": "いってらっしゃい",
+      "meaning": "see you later",
+      "category": "expressions"
+    },
+    {
+      "kana": "いらっしゃいませ",
+      "meaning": "welcome to the shop",
+      "category": "expressions"
+    },
+    {
+      "kana": "おかえりなさい",
+      "meaning": "welcome home",
+      "category": "expressions"
+    },
+    {
+      "kana": "おねがいします",
+      "meaning": "please",
+      "category": "expressions"
+    },
+    {
+      "kana": "おはようございます",
+      "meaning": "good morning",
+      "category": "expressions"
+    },
+    {
+      "kana": "おめでとうございます",
+      "meaning": "congratulations",
+      "category": "expressions"
+    },
+    {
+      "kana": "おやすみなさい",
+      "meaning": "good night",
+      "category": "expressions"
+    },
+    {
+      "kana": "こんばんは",
+      "meaning": "good evening",
+      "category": "expressions"
+    },
+    {
+      "kana": "ごちそうさまでした",
+      "meaning": "said after eating",
+      "category": "expressions"
+    },
+    {
+      "kana": "ごめんなさい",
+      "meaning": "I am sorry",
+      "category": "expressions"
+    },
+    {
+      "kana": "しつれいします",
+      "meaning": "excuse me",
+      "kanji": "失礼します",
+      "category": "expressions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "すみません",
+      "meaning": "excuse me / sorry",
+      "category": "expressions"
+    },
+    {
+      "kana": "そうです",
+      "meaning": "that is right",
+      "category": "expressions"
+    },
+    {
+      "kana": "ただいま",
+      "meaning": "I am home",
+      "category": "expressions"
+    },
+    {
+      "kana": "ちがいます",
+      "meaning": "that is wrong",
+      "kanji": "違います",
+      "category": "expressions",
+      "kanji_usage": "usually_kanji"
+    },
+    {
+      "kana": "どういたしまして",
+      "meaning": "you are welcome",
+      "category": "expressions"
+    },
+    {
+      "kana": "どうぞ",
+      "meaning": "please go ahead",
+      "category": "expressions"
+    },
+    {
+      "kana": "どうも",
+      "meaning": "thanks / somehow",
+      "category": "expressions"
+    },
+    {
+      "kana": "はじめまして",
+      "meaning": "nice to meet you",
+      "category": "expressions"
+    },
+    {
+      "kana": "もしもし",
+      "meaning": "hello on the phone",
+      "category": "expressions"
+    },
+    {
+      "kana": "よろしくおねがいします",
+      "meaning": "pleased to meet you",
+      "category": "expressions"
+    },
+    {
+      "kana": "です",
+      "meaning": "to be (copula)",
+      "category": "grammar"
+    },
+    {
+      "kana": "ます",
+      "meaning": "polite verb ending",
+      "category": "grammar"
     }
   ]
 }

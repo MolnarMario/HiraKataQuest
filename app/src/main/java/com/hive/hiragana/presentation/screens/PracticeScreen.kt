@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hive.hiragana.domain.model.AppMode
@@ -51,6 +53,7 @@ import com.hive.hiragana.presentation.components.CharacterGuidePanel
 import com.hive.hiragana.presentation.components.CustomMnemonicStore
 import com.hive.hiragana.presentation.components.FreePracticeActionBar
 import com.hive.hiragana.presentation.components.MnemonicBadge
+import com.hive.hiragana.presentation.components.KanjiBadge
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.ScoreFeedbackCard
 import com.hive.hiragana.presentation.components.SpecialKanaBadge
@@ -97,6 +100,16 @@ fun PracticeScreen(
     // flips the button from "download" to "play" without a restart.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshTtsAvailability()
+    }
+
+    // One-shot user messages (e.g. the result of "generate a set from my strong
+    // kana") surface as a toast, then clear so they don't repeat on recomposition.
+    val context = LocalContext.current
+    LaunchedEffect(uiState.transientMessage) {
+        uiState.transientMessage?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            viewModel.clearTransientMessage()
+        }
     }
 
     // Auto-narration (opt-in, Writing only): speak each newly shown
@@ -251,6 +264,7 @@ fun PracticeScreen(
                     onSetTimerEnabled = viewModel::setTimerEnabled,
                     unitCharactersFor = uiState::unitCharacters,
                     mnemonicsEnabled = uiState.mnemonicsEnabled,
+                    kanjiHintsEnabled = uiState.kanjiHintsEnabled,
                     mnemonicChoices = uiState.mnemonicChoices,
                     onChooseMnemonic = viewModel::chooseMnemonic,
                     customMnemonics = customMnemonicStore,
@@ -272,6 +286,7 @@ fun PracticeScreen(
                     testMeaning = uiState.readingMeaningPractice,
                     onSetTestMeaning = viewModel::setReadingMeaningPractice,
                     mnemonicsEnabled = uiState.mnemonicsEnabled,
+                    kanjiHintsEnabled = uiState.kanjiHintsEnabled,
                     mnemonicChoices = uiState.mnemonicChoices,
                     onChooseMnemonic = viewModel::chooseMnemonic,
                     customMnemonics = customMnemonicStore,
@@ -353,6 +368,8 @@ fun PracticeScreen(
                     onSetReadingAutoSpeak = viewModel::setReadingAutoSpeak,
                     mnemonicsEnabled = uiState.mnemonicsEnabled,
                     onSetMnemonics = viewModel::setMnemonicsEnabled,
+                    kanjiHintsEnabled = uiState.kanjiHintsEnabled,
+                    onSetKanjiHints = viewModel::setKanjiHintsEnabled,
                     appearance = uiState.appearance,
                     onSetAppearance = viewModel::setAppearance,
                     practiceSets = uiState.practiceSets,
@@ -379,6 +396,10 @@ fun PracticeScreen(
                             viewModel.practiceSet(id)
                         }
                     },
+                    onGenerateStrongKanaSet = viewModel::generateStrongKanaWordSet,
+                    libraryCategories = uiState.libraryCategories,
+                    onToggleCategory = viewModel::toggleLibraryCategory,
+                    onClearCategories = viewModel::clearLibraryCategories,
                     setsSortKey = uiState.setsSortKey,
                     onSetsSortSelected = viewModel::setSetsSort,
                     openSetsManagerSignal = uiState.pendingOpenSetsManager,
@@ -491,6 +512,10 @@ private fun PracticeContent(
             val hasSpecial = footerUnits.any {
                 SpecialKana.noteFor(it.character) != null
             }
+            // The active word's kanji spelling, if any — the informative-only
+            // "see the kanji" chip (opt-in via the Kanji-reference toggle; never
+            // applies to single-character practice).
+            val hasKanji = uiState.kanjiHintsEnabled && activeWord?.kanji != null
             val scoredSheet = uiState.scoringMode != ScoringMode.OFF &&
                 uiState.practiceLayout == PracticeLayout.SINGLE
             TracingCanvas(
@@ -530,7 +555,7 @@ private fun PracticeContent(
                 // average taking precedence). Reserved structurally so the
                 // chip can never overlap the square's border (it did when it
                 // floated on whatever margin was left).
-                footerHeight = if (hasDivergence || hasMnemonic || hasSpecial || (isWordSheet && scoredSheet)) {
+                footerHeight = if (hasDivergence || hasMnemonic || hasSpecial || hasKanji || (isWordSheet && scoredSheet)) {
                     44.dp
                 } else {
                     0.dp
@@ -554,7 +579,7 @@ private fun PracticeContent(
                             if (hasMnemonic) {
                                 MnemonicBadge(
                                     unitCharacters = footerUnits,
-                                    iconOnly = hasDivergence || hasSpecial,
+                                    iconOnly = hasDivergence || hasSpecial || hasKanji,
                                     mnemonicChoices = uiState.mnemonicChoices,
                                     onChoose = viewModel::chooseMnemonic,
                                     customs = CustomMnemonicStore(
@@ -568,6 +593,17 @@ private fun PracticeContent(
                                 unitCharacters = footerUnits,
                                 iconOnly = hasDivergence,
                             )
+                            if (hasKanji) {
+                                KanjiBadge(
+                                    kanji = activeWord?.kanji,
+                                    reading = activeWord?.kana.orEmpty(),
+                                    meaning = activeWord?.meaning.orEmpty(),
+                                    kanjiUsage = activeWord?.kanjiUsage,
+                                    otherForms = activeWord?.otherKanjiForms ?: emptyList(),
+                                    // Tighter padding when other chips share the row.
+                                    compact = hasDivergence || hasSpecial,
+                                )
+                            }
                             PrintDivergenceBadge(unitCharacters = footerUnits)
                         }
                     }

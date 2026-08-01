@@ -193,6 +193,17 @@ interface SettingsRepository {
     fun setMnemonicsEnabled(enabled: Boolean)
 
     /**
+     * Whether the informative "Kanji" reference button is shown on words that
+     * have a kanji spelling (free practice, the quizzes, and flashcards).
+     * Default FALSE — the app teaches kana, so the kanji is opt-in extra
+     * reference the learner turns on when they want it. Display-only: never
+     * affects scoring, attempts, or scheduling.
+     */
+    fun isKanjiHintsEnabled(): Boolean
+
+    fun setKanjiHintsEnabled(enabled: Boolean)
+
+    /**
      * The learner's per-kana mnemonic choices: glyph -> the promoted
      * alternate's keyword. A kana absent from the map uses its default
      * mnemonic. Everyone's brain hooks onto different images, so the "More

@@ -10,9 +10,9 @@ package com.hive.hiragana.domain.model
  * it was read from (never stored in the JSON); a word's script is derived
  * from its kana (see [VocabularyWord.script]).
  */
-enum class Script(val key: String) {
-    HIRAGANA("hiragana"),
-    KATAKANA("katakana");
+enum class Script(val key: String, val displayName: String) {
+    HIRAGANA("hiragana", "Hiragana"),
+    KATAKANA("katakana", "Katakana");
 
     companion object {
         /** Decodes a persisted [key]; unknown or null values fall back to [HIRAGANA]. */

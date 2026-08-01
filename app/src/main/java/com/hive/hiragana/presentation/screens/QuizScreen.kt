@@ -75,6 +75,7 @@ import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.presentation.components.AnimatedStrokePreview
 import com.hive.hiragana.presentation.components.AutoShrinkText
 import com.hive.hiragana.presentation.components.CustomMnemonicStore
+import com.hive.hiragana.presentation.components.KanjiBadge
 import com.hive.hiragana.presentation.components.MnemonicBadge
 import com.hive.hiragana.presentation.components.MnemonicHintButton
 import com.hive.hiragana.presentation.components.PronunciationButton
@@ -160,6 +161,8 @@ fun QuizScreen(
     // Memory hints: the pre-answer Hint buttons + the reveal chip, plus the
     // learner's promoted alternates and the picker's selection sink.
     mnemonicsEnabled: Boolean = true,
+    // Whether the informative "Kanji" button shows on word reveals (opt-in).
+    kanjiHintsEnabled: Boolean = false,
     mnemonicChoices: Map<String, String> = emptyMap(),
     onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
     customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
@@ -202,6 +205,7 @@ fun QuizScreen(
                     ttsStatus = ttsStatus,
                     unitCharactersFor = unitCharactersFor,
                     mnemonicsEnabled = mnemonicsEnabled,
+                    kanjiHintsEnabled = kanjiHintsEnabled,
                     mnemonicChoices = mnemonicChoices,
                     onChooseMnemonic = onChooseMnemonic,
                     customMnemonics = customMnemonics,
@@ -224,6 +228,7 @@ fun QuizScreen(
                     glyphStrokesFor = glyphStrokesFor,
                     unitCharactersFor = unitCharactersFor,
                     mnemonicsEnabled = mnemonicsEnabled,
+                    kanjiHintsEnabled = kanjiHintsEnabled,
                     mnemonicChoices = mnemonicChoices,
                     onChooseMnemonic = onChooseMnemonic,
                     customMnemonics = customMnemonics,
@@ -672,6 +677,7 @@ private fun ReadingQuizRunning(
     ttsStatus: VoiceStatus,
     unitCharactersFor: (String) -> List<HiraganaCharacter>,
     mnemonicsEnabled: Boolean,
+    kanjiHintsEnabled: Boolean,
     mnemonicChoices: Map<String, String>,
     onChooseMnemonic: (String, String?) -> Unit,
     customMnemonics: CustomMnemonicStore,
@@ -803,6 +809,7 @@ private fun ReadingQuizRunning(
                     ttsStatus = ttsStatus,
                     unitCharacters = unitCharactersFor(current.answer),
                     mnemonicsEnabled = mnemonicsEnabled,
+                    kanjiHintsEnabled = kanjiHintsEnabled,
                     mnemonicChoices = mnemonicChoices,
                     onChooseMnemonic = onChooseMnemonic,
                     customMnemonics = customMnemonics,
@@ -943,6 +950,7 @@ private fun ReadingRevealCard(
     ttsStatus: VoiceStatus,
     unitCharacters: List<HiraganaCharacter> = emptyList(),
     mnemonicsEnabled: Boolean = true,
+    kanjiHintsEnabled: Boolean = false,
     mnemonicChoices: Map<String, String> = emptyMap(),
     onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
     customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
@@ -1004,6 +1012,15 @@ private fun ReadingRevealCard(
             // Note the special marks (ー, small tsu, small vowels, ん, を) that
             // don't read like an ordinary syllable (renders nothing otherwise).
             SpecialKanaBadge(unitCharacters = unitCharacters)
+            // The word's kanji spelling, for reference (opt-in; renders nothing
+            // when off or the word has none). Informative only — never quizzed.
+            KanjiBadge(
+                kanji = item.kanji.takeIf { kanjiHintsEnabled },
+                reading = SpecialKana.readingLabel(item.answer) ?: item.prompt,
+                meaning = item.subtitle.orEmpty(),
+                kanjiUsage = item.kanjiUsage,
+                otherForms = item.otherKanjiForms,
+            )
             // Memory hint for the kana just answered — re-reading the story
             // right after a recall attempt is when it encodes best. The "How to
             // remember" chip shows here AFTER the result regardless of the setup
@@ -1166,6 +1183,7 @@ private fun QuizRunning(
     glyphStrokesFor: (List<String>) -> List<List<String>> = { emptyList() },
     unitCharactersFor: (String) -> List<HiraganaCharacter> = { emptyList() },
     mnemonicsEnabled: Boolean = true,
+    kanjiHintsEnabled: Boolean = false,
     mnemonicChoices: Map<String, String> = emptyMap(),
     onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
     customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
@@ -1278,6 +1296,16 @@ private fun QuizRunning(
                                 customs = customMnemonics,
                             )
                         }
+                        // The word's kanji, for reference (opt-in; compact in
+                        // this tight header; renders nothing when off/none).
+                        KanjiBadge(
+                            kanji = current.kanji.takeIf { kanjiHintsEnabled },
+                            reading = current.prompt,
+                            meaning = current.subtitle.orEmpty(),
+                            kanjiUsage = current.kanjiUsage,
+                            otherForms = current.otherKanjiForms,
+                            compact = true,
+                        )
                     }
                 }
             }

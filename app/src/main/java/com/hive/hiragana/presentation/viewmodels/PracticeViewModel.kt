@@ -17,6 +17,9 @@ import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_STORY_MAX
 import com.hive.hiragana.domain.model.CUSTOM_MNEMONIC_TITLE_MAX
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.KanaMnemonic
+import com.hive.hiragana.domain.model.KanjiForm
+import com.hive.hiragana.domain.model.KanjiUsage
+import com.hive.hiragana.domain.model.StrongKanaWords
 import com.hive.hiragana.domain.model.PracticeAttempt
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.KanaReading
@@ -90,7 +93,18 @@ enum class QuizKind { WRITING, READING }
 enum class ReadingAnswerStyle { CHOICE, TYPE }
 
 /** One reading flashcard: the printed glyph/word on the front, reading + meaning on the back. */
-data class ReadingCard(val glyph: String, val romaji: String, val meaning: String?)
+data class ReadingCard(
+    val glyph: String,
+    val romaji: String,
+    val meaning: String?,
+    // The word's kanji spelling, for informative-only reveal; null for
+    // single characters and kana-only words.
+    val kanji: String? = null,
+    // How often that kanji form is seen (colored tag); null when no kanji.
+    val kanjiUsage: KanjiUsage? = null,
+    // Other kanji sharing this reading (homophones); empty for most words.
+    val otherKanjiForms: List<KanjiForm> = emptyList(),
+)
 
 /**
  * Reading-track flashcard study state: a flip through the scoped deck/words.
@@ -148,6 +162,15 @@ sealed interface QuizItem {
     val answer: String
     val glyphs: List<String>
     val subtitle: String?
+
+    /** The word's kanji spelling, if any — informative-only (never a char). */
+    val kanji: String?
+
+    /** How often the [kanji] form is seen (colored tag); null when no kanji. */
+    val kanjiUsage: KanjiUsage?
+
+    /** Other kanji sharing this reading (homophones); empty for most words. */
+    val otherKanjiForms: List<KanjiForm>
 }
 
 data class CharQuizItem(val character: HiraganaCharacter) : QuizItem {
@@ -156,6 +179,9 @@ data class CharQuizItem(val character: HiraganaCharacter) : QuizItem {
     override val answer: String get() = character.character
     override val glyphs: List<String> get() = listOf(character.character)
     override val subtitle: String? get() = null
+    override val kanji: String? get() = null
+    override val kanjiUsage: KanjiUsage? get() = null
+    override val otherKanjiForms: List<KanjiForm> get() = emptyList()
 }
 
 data class WordQuizItem(
@@ -166,6 +192,9 @@ data class WordQuizItem(
     override val answer: String get() = word.kana
     override val glyphs: List<String> get() = KanaUnits.split(word.kana)
     override val subtitle: String get() = word.meaning
+    override val kanji: String? get() = word.kanji
+    override val kanjiUsage: KanjiUsage? get() = word.kanjiUsage
+    override val otherKanjiForms: List<KanjiForm> get() = word.otherKanjiForms
 }
 
 data class QuizState(
@@ -377,6 +406,9 @@ data class PracticeUiState(
     // buttons (persisted; default true). Display-only — never touches
     // scoring, attempts, or scheduling.
     val mnemonicsEnabled: Boolean = true,
+    // Whether the informative "Kanji" reference button shows on words that have
+    // a kanji spelling (default FALSE — opt-in extra, this app teaches kana).
+    val kanjiHintsEnabled: Boolean = false,
     // The learner's per-kana mnemonic choices (glyph -> promoted alternate's
     // keyword; absent = the default). Persisted. Display-only.
     val mnemonicChoices: Map<String, String> = emptyMap(),
@@ -385,6 +417,13 @@ data class PracticeUiState(
     // creating one promotes it to that kana's default (via mnemonicChoices).
     // Persisted. Display-only.
     val customMnemonics: Map<String, List<KanaMnemonic>> = emptyMap(),
+    // The Library Words-tab category filter (hiragana only). Lives in the VM (not
+    // LibraryScreen-local) so it survives entering a word and returning — the
+    // Library overlay leaves composition on a practice tap. Empty = all words.
+    val libraryCategories: List<String> = emptyList(),
+    // A one-shot user message (e.g. the result of generating a set), surfaced as
+    // a toast by PracticeScreen then cleared. Not preserved across rebuilds.
+    val transientMessage: String? = null,
 ) {
     /**
      * The scoped study deck: the active script, minus voiced kana / yōon /
@@ -557,6 +596,7 @@ class PracticeViewModel(
             readingAutoSpeakEnabled = settingsRepository.isReadingAutoSpeakEnabled(),
             readingMeaningPractice = settingsRepository.isReadingMeaningPractice(),
             mnemonicsEnabled = settingsRepository.isMnemonicsEnabled(),
+            kanjiHintsEnabled = settingsRepository.isKanjiHintsEnabled(),
             mnemonicChoices = settingsRepository.getMnemonicChoices(),
             customMnemonics = settingsRepository.getCustomMnemonics(),
         ),
@@ -1043,8 +1083,10 @@ class PracticeViewModel(
         readingAutoSpeakEnabled = readingAutoSpeakEnabled,
         readingMeaningPractice = readingMeaningPractice,
         mnemonicsEnabled = mnemonicsEnabled,
+        kanjiHintsEnabled = kanjiHintsEnabled,
         mnemonicChoices = mnemonicChoices,
         customMnemonics = customMnemonics,
+        libraryCategories = libraryCategories,
         ttsStatus = ttsStatus,
         updateState = updateState,
         canvasClearKey = canvasClearKey + 1,
@@ -1068,8 +1110,28 @@ class PracticeViewModel(
         // Not isLoading: the library overlay stays mounted and re-scopes in
         // place; the rebuilt free practice waits behind it. No reload needed —
         // the full merged deck is already in memory, so re-scoping is enough.
-        _uiState.update { it.rebuilt(isLoading = false, activeScript = script) }
+        // Categories are per-script (hiragana only), so a script switch clears them.
+        _uiState.update { it.rebuilt(isLoading = false, activeScript = script).copy(libraryCategories = emptyList()) }
         enterFreePracticeFromLastSection()
+    }
+
+    /** Toggles a Library category filter (Words tab). Persisted in the VM. */
+    fun toggleLibraryCategory(category: String) {
+        _uiState.update {
+            val next = if (category in it.libraryCategories) {
+                it.libraryCategories - category
+            } else {
+                it.libraryCategories + category
+            }
+            it.copy(libraryCategories = next)
+        }
+    }
+
+    /** Clears the Library category filter (back to all words). */
+    fun clearLibraryCategories() {
+        if (_uiState.value.libraryCategories.isNotEmpty()) {
+            _uiState.update { it.copy(libraryCategories = emptyList()) }
+        }
     }
 
     /**
@@ -1367,6 +1429,19 @@ class PracticeViewModel(
     }
 
     /**
+     * Toggles the "Kanji" reference button. Like [setMnemonicsEnabled] the chip
+     * lives in the paper card's reserved footer strip, so clear the sheet on a
+     * change (strip heights must stay constant under px-stored ink).
+     */
+    fun setKanjiHintsEnabled(enabled: Boolean) {
+        _uiState.update { state ->
+            if (state.kanjiHintsEnabled == enabled) return@update state
+            settingsRepository.setKanjiHintsEnabled(enabled)
+            state.copy(kanjiHintsEnabled = enabled).withClearedSheet()
+        }
+    }
+
+    /**
      * Promotes one kana's mnemonic alternate (the "More ways to remember"
      * picker in the mnemonic dialog); a null [keyword] restores the default.
      * Persisted per kana. Display-only, so no sheet clear: the chip and
@@ -1600,6 +1675,61 @@ class PracticeViewModel(
         }
     }
 
+    /**
+     * Generates a Word set from the learner's **strong kana**: every word in the
+     * active script whose reading units are all kana scored 85+ in BOTH writing
+     * (form/fit avg) and reading (MCQ/typed avg). Great for cementing what you
+     * already know without meeting a brand-new kana. Publishes a one-shot
+     * [PracticeUiState.transientMessage] with the outcome (created N words, or
+     * guidance when nothing qualifies yet).
+     */
+    fun generateStrongKanaWordSet() {
+        val state = _uiState.value
+        val threshold = 85
+        // A reading unit (single kana OR a yōon composite like きょ, both of
+        // which have their own score rows) counts as mastered only when it
+        // clears the bar in writing AND reading.
+        val mastered = buildSet {
+            val glyphs = state.scoreStats.keys + state.readingStats.keys
+            for (g in glyphs) {
+                val writing = state.scoreStats[g]?.let { it.avgForm ?: it.avgFit }
+                val reading = state.readingStats[g]?.colorPercent
+                if (writing != null && writing >= threshold &&
+                    reading != null && reading >= threshold
+                ) {
+                    add(g)
+                }
+            }
+        }
+        val members = StrongKanaWords.select(state.activeScriptWords, mastered).map { it.kana }
+        if (members.isEmpty()) {
+            _uiState.update {
+                it.copy(
+                    transientMessage = "No words yet — reach 85+ in both writing and " +
+                        "reading on more kana first.",
+                )
+            }
+            return
+        }
+        val name = "Strong-kana words (${state.activeScript.displayName})"
+        viewModelScope.launch {
+            runCatching {
+                practiceSetRepository.createSet(name, PracticeSetType.WORDS, state.activeScript, members)
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(transientMessage = "Created \"$name\" · ${members.size} words")
+                }
+            }.onFailure { Log.w(TAG, "Failed to generate strong-kana set", it) }
+        }
+    }
+
+    /** Clears the one-shot [PracticeUiState.transientMessage] after it is shown. */
+    fun clearTransientMessage() {
+        if (_uiState.value.transientMessage != null) {
+            _uiState.update { it.copy(transientMessage = null) }
+        }
+    }
+
     /** Replaces a set's members (add/remove while editing). No-op on empty members. */
     fun updatePracticeSetMembers(id: Long, members: List<String>) {
         if (members.isEmpty()) return
@@ -1773,7 +1903,12 @@ class PracticeViewModel(
             state.includeExtended,
         )
         if (words.isEmpty()) return
-        val cards = words.map { ReadingCard(it.kana, state.pronunciationOf(it), it.meaning) }
+        val cards = words.map {
+            ReadingCard(
+                it.kana, state.pronunciationOf(it), it.meaning,
+                it.kanji, it.kanjiUsage, it.otherKanjiForms,
+            )
+        }
         val start = words.indexOfFirst { it.kana == word.kana }.coerceAtLeast(0)
         _uiState.update { it.copy(readingFlashcard = ReadingFlashcardState(cards, start)) }
     }
@@ -1795,7 +1930,12 @@ class PracticeViewModel(
             }
             PracticeSetType.WORDS -> set.members.mapNotNull { kana ->
                 state.allWords.firstOrNull { it.kana == kana }
-                    ?.let { ReadingCard(it.kana, state.pronunciationOf(it), it.meaning) }
+                    ?.let {
+                        ReadingCard(
+                            it.kana, state.pronunciationOf(it), it.meaning,
+                            it.kanji, it.kanjiUsage, it.otherKanjiForms,
+                        )
+                    }
             }
         }
         if (cards.isEmpty()) return

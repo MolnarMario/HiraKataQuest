@@ -113,6 +113,7 @@ import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.domain.model.ScriptScope
 import com.hive.hiragana.presentation.components.AutoShrinkText
+import com.hive.hiragana.presentation.components.CategoryFilter
 import com.hive.hiragana.presentation.components.ConceptInfo
 import com.hive.hiragana.presentation.components.ConceptInfoIcon
 import com.hive.hiragana.presentation.components.KanaConcepts
@@ -137,7 +138,9 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.InputChip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -334,6 +337,9 @@ fun LibraryScreen(
     // Hint buttons (both modes).
     mnemonicsEnabled: Boolean = true,
     onSetMnemonics: (Boolean) -> Unit = {},
+    // Kanji reference: the opt-in "Kanji" button on words (default off).
+    kanjiHintsEnabled: Boolean = false,
+    onSetKanjiHints: (Boolean) -> Unit = {},
     // Light/dark appearance (System / Light / Dark), shown at the bottom of
     // the Study-scope sheet.
     appearance: AppearanceMode = AppearanceMode.LIGHT,
@@ -345,6 +351,14 @@ fun LibraryScreen(
     onDeleteSet: (Long) -> Unit = {},
     onLaunchSetQuiz: (Long) -> Unit = {},
     onPracticeSet: (Long) -> Unit = {},
+    // Builds a Word set from the learner's strong kana (85+ in writing AND
+    // reading), invoked from the Sets tab "Add new set" menu.
+    onGenerateStrongKanaSet: () -> Unit = {},
+    // The persisted Words-tab category filter (hiragana only) + its mutators.
+    // VM-backed so it survives entering a word and returning to the list.
+    libraryCategories: List<String> = emptyList(),
+    onToggleCategory: (String) -> Unit = {},
+    onClearCategories: () -> Unit = {},
     // The sets manager's persisted sort order (a [SetSort] name; null/unknown
     // falls back to the default). Persisted so the list keeps the learner's
     // chosen order across edit flows, quiz round-trips, and restarts.
@@ -392,6 +406,22 @@ fun LibraryScreen(
     var selectionType by remember { mutableStateOf(PracticeSetType.CHARACTERS) }
     var selectionScript by remember { mutableStateOf(activeScript) }
     var showNameDialog by remember { mutableStateOf(false) }
+
+    // ---- Category filter (Words browse tab) ----
+    // Hiragana-only: katakana loanwords carry no category, so the control hides.
+    // The SELECTION is VM-backed ([libraryCategories]) so it survives leaving the
+    // Library (a practice tap) and coming back.
+    val availableCategories = remember(words, activeScript) {
+        words.filter { it.script == activeScript }
+            .mapNotNull { it.category }
+            .distinct()
+            .sorted()
+    }
+    // Only categories still present in the active script apply (a stale one from
+    // before a script switch is ignored, and never filters the list to empty).
+    val activeCategories = remember(libraryCategories, availableCategories) {
+        libraryCategories.filter { it in availableCategories }
+    }
 
     fun startNewSet(type: PracticeSetType) {
         selectionType = type
@@ -467,6 +497,12 @@ fun LibraryScreen(
             words, activeScript, includeDiacritics, includeYoon, includeExtended,
         )
     }
+    // Category filter (Words browse): narrow to the selected topical groups
+    // before search/sort. No selection = all words, in the original order.
+    val categoryWords = remember(scriptWords, activeCategories) {
+        if (activeCategories.isEmpty()) scriptWords
+        else scriptWords.filter { it.category in activeCategories }
+    }
     val trimmedQuery = query.trim()
     // Normalize the query once: drop all whitespace and lowercase, so romaji
     // typed with or without spaces ("neko" / "ne ko") and any casing compare
@@ -484,14 +520,14 @@ fun LibraryScreen(
     // method reference each recomposition, so keying on it would defeat the memo
     // and rebuild this O(words) map on every keystroke (same reasoning as the
     // Words grid's romajiByKana).
-    val wordRomaji = remember(scriptWords) {
-        scriptWords.associate { it.kana to pronunciation(it) }
+    val wordRomaji = remember(categoryWords) {
+        categoryWords.associate { it.kana to pronunciation(it) }
     }
-    val filteredWords = remember(scriptWords, normalizedQuery, wordRomaji) {
+    val filteredWords = remember(categoryWords, normalizedQuery, wordRomaji) {
         if (normalizedQuery.isEmpty()) {
-            scriptWords
+            categoryWords
         } else {
-            scriptWords.filter { it.matches(normalizedQuery, wordRomaji[it.kana].orEmpty()) }
+            categoryWords.filter { it.matches(normalizedQuery, wordRomaji[it.kana].orEmpty()) }
         }
     }
     // The Sets tab shows only the active script's sets (a set is built in one
@@ -659,6 +695,53 @@ fun LibraryScreen(
                 }
             }
 
+            // Category filter for the Words tab (hiragana only — the control
+            // hides itself when there are no categories). The dropdown ADDS
+            // categories; each selected one shows as a chip you can remove with
+            // its ✕. Removing the last chip restores the full list.
+            if (selectedTab == 1 && availableCategories.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CategoryFilter(
+                        categories = availableCategories,
+                        selected = activeCategories.toSet(),
+                        onToggle = onToggleCategory,
+                        onClear = onClearCategories,
+                        fixedLabel = "Category",
+                    )
+                    // Removable chips (scroll horizontally if many are picked).
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        activeCategories.forEach { category ->
+                            InputChip(
+                                selected = true,
+                                onClick = { onToggleCategory(category) },
+                                label = {
+                                    Text(category.replaceFirstChar { it.uppercase() })
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = "Remove $category filter",
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
             when {
                 // First branch: a persisted chart/grid view must never route the
                 // Sets tab to CharacterChart/WordGrid.
@@ -671,6 +754,7 @@ fun LibraryScreen(
                     sortMode = SetSort.fromKey(setsSortKey),
                     onSortSelected = { onSetsSortSelected(it.name) },
                     onNewSet = { type -> startNewSet(type) },
+                    onGenerateStrongKanaSet = onGenerateStrongKanaSet,
                     onEdit = { startEditSet(it) },
                     onRename = onRenameSet,
                     onDelete = onDeleteSet,
@@ -787,6 +871,8 @@ fun LibraryScreen(
                     onSetReadingAutoSpeak = onSetReadingAutoSpeak,
                     mnemonicsEnabled = mnemonicsEnabled,
                     onSetMnemonics = onSetMnemonics,
+                    kanjiHintsEnabled = kanjiHintsEnabled,
+                    onSetKanjiHints = onSetKanjiHints,
                     appearance = appearance,
                     onSetAppearance = onSetAppearance,
                     brushInkColor = brushInkColor,
@@ -1043,6 +1129,8 @@ private fun ScopeSheetContent(
     onSetReadingAutoSpeak: (Boolean) -> Unit,
     mnemonicsEnabled: Boolean,
     onSetMnemonics: (Boolean) -> Unit,
+    kanjiHintsEnabled: Boolean,
+    onSetKanjiHints: (Boolean) -> Unit,
     appearance: AppearanceMode,
     onSetAppearance: (AppearanceMode) -> Unit,
     brushInkColor: Int,
@@ -1254,6 +1342,18 @@ private fun ScopeSheetContent(
                 "shape to its sound. Covers the 46 basic hiragana for now.",
             checked = mnemonicsEnabled,
             onCheckedChange = onSetMnemonics,
+        )
+
+        // Kanji reference: an opt-in "Kanji" button on words that have a kanji
+        // spelling. Off by default — this app teaches kana; the kanji is extra
+        // reference for the curious. Display-only, like Memory hints.
+        SettingsSwitchRow(
+            title = "Kanji reference",
+            hint = "Show a \"Kanji\" button on words written with kanji, colored by " +
+                "how often the kanji form is used. Tap it to see the kanji, reading, " +
+                "and meaning. For reference only — never quizzed or scored.",
+            checked = kanjiHintsEnabled,
+            onCheckedChange = onSetKanjiHints,
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
@@ -2098,7 +2198,18 @@ private fun SelectionModeContent(
     onSave: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val rows = remember(type, characters, words) {
+    // Category filter (word sets only): pick topical groups so a "Family"/"Food"
+    // set is a couple of taps. Derived from the passed (script-filtered) words,
+    // so it's empty (and the control hidden) for katakana / character sets.
+    val availableCategories = remember(words) {
+        words.mapNotNull { it.category }.distinct().sorted()
+    }
+    val selectedCategories = remember { mutableStateListOf<String>() }
+    val visibleWords = remember(words, selectedCategories.toList()) {
+        if (selectedCategories.isEmpty()) words
+        else words.filter { it.category in selectedCategories }
+    }
+    val rows = remember(type, characters, visibleWords) {
         if (type == PracticeSetType.CHARACTERS) {
             characters.map {
                 SelectionRow(
@@ -2109,7 +2220,7 @@ private fun SelectionModeContent(
                 )
             }
         } else {
-            words.map {
+            visibleWords.map {
                 SelectionRow(
                     value = it.kana,
                     glyph = it.kana,
@@ -2332,6 +2443,18 @@ private fun SelectionModeContent(
                 query = query,
                 onQueryChange = { query = it },
                 placeholder = "Search $noun",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
+        if (type == PracticeSetType.WORDS && availableCategories.isNotEmpty()) {
+            CategoryFilter(
+                categories = availableCategories,
+                selected = selectedCategories.toSet(),
+                onToggle = { c ->
+                    if (c in selectedCategories) selectedCategories.remove(c)
+                    else selectedCategories.add(c)
+                },
+                onClear = { selectedCategories.clear() },
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             )
         }
@@ -2773,6 +2896,7 @@ private fun SetsTabContent(
     sortMode: SetSort,
     onSortSelected: (SetSort) -> Unit,
     onNewSet: (PracticeSetType) -> Unit,
+    onGenerateStrongKanaSet: () -> Unit,
     onEdit: (PracticeSet) -> Unit,
     onRename: (Long, String) -> Unit,
     onDelete: (Long) -> Unit,
@@ -2855,6 +2979,16 @@ private fun SetsTabContent(
                         onClick = {
                             newExpanded = false
                             onNewSet(PracticeSetType.WORDS)
+                        },
+                    )
+                    HorizontalDivider()
+                    // One-tap: a Word set of everything whose kana you've already
+                    // mastered (85+ in writing AND reading).
+                    DropdownMenuItem(
+                        text = { Text("From my strong kana") },
+                        onClick = {
+                            newExpanded = false
+                            onGenerateStrongKanaSet()
                         },
                     )
                 }

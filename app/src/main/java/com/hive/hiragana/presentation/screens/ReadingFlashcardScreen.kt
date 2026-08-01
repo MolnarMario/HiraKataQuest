@@ -72,6 +72,7 @@ import com.hive.hiragana.domain.model.PrintDivergence
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.domain.model.SpecialKana
 import com.hive.hiragana.presentation.components.CustomMnemonicStore
+import com.hive.hiragana.presentation.components.KanjiBadge
 import com.hive.hiragana.presentation.components.MnemonicBadge
 import com.hive.hiragana.presentation.components.MnemonicHintButton
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
@@ -157,6 +158,8 @@ fun ReadingFlashcardScreen(
     // on the reveal (both render only where a kana has a mnemonic), plus the
     // learner's promoted alternates and the picker's selection sink.
     mnemonicsEnabled: Boolean = true,
+    // Whether the informative "Kanji" button shows (opt-in; question + reveal).
+    kanjiHintsEnabled: Boolean = false,
     mnemonicChoices: Map<String, String> = emptyMap(),
     onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
     customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
@@ -216,6 +219,9 @@ fun ReadingFlashcardScreen(
     val hasSpecial = remember(cardUnits) {
         cardUnits.any { SpecialKana.noteFor(it.character) != null }
     }
+    // The word's kanji spelling, if any — the informative "see the kanji" chip
+    // (opt-in via the Kanji-reference toggle).
+    val hasKanji = kanjiHintsEnabled && card.kanji != null
 
     // Reading answered but the meaning still owed — the intermediate step
     // before the card reveals.
@@ -519,10 +525,18 @@ fun ReadingFlashcardScreen(
                                         unitCharacters = cardUnits,
                                         iconOnly = hasDivergence,
                                     )
+                                    KanjiBadge(
+                                        kanji = card.kanji.takeIf { kanjiHintsEnabled },
+                                        reading = card.romaji,
+                                        meaning = card.meaning.orEmpty(),
+                                        kanjiUsage = card.kanjiUsage,
+                                        otherForms = card.otherKanjiForms,
+                                        compact = hasDivergence || hasSpecial,
+                                    )
                                     if (mnemonicsEnabled) {
                                         MnemonicBadge(
                                             unitCharacters = cardUnits,
-                                            iconOnly = hasDivergence || hasSpecial,
+                                            iconOnly = hasDivergence || hasSpecial || hasKanji,
                                             mnemonicChoices = mnemonicChoices,
                                             onChoose = onChooseMnemonic,
                                             customs = customMnemonics,
@@ -546,20 +560,35 @@ fun ReadingFlashcardScreen(
                                     text = "What does it mean?",
                                     style = MaterialTheme.typography.titleMedium,
                                 )
-                            } else if (mnemonicsEnabled) {
+                            } else {
                                 // Pre-answer: the reserved result region is
-                                // otherwise blank, so the Hint sits here and is
-                                // replaced by the result on reveal — nothing
-                                // moves. The glyph is the visible prompt, so
-                                // the dialog may show the specimen; the keyword
-                                // hints the hidden sound.
-                                MnemonicHintButton(
-                                    unitCharacters = cardUnits,
-                                    showGlyph = true,
-                                    mnemonicChoices = mnemonicChoices,
-                                    onChoose = onChooseMnemonic,
-                                    customs = customMnemonics,
-                                )
+                                // otherwise blank, so the Hint + Kanji buttons
+                                // sit here and are replaced by the result on
+                                // reveal — nothing moves. Both are opt-in taps
+                                // (each renders nothing when unavailable): the
+                                // Hint keyword nudges the sound; the "Kanji"
+                                // button opens the reference glyph for the word.
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    if (mnemonicsEnabled) {
+                                        MnemonicHintButton(
+                                            unitCharacters = cardUnits,
+                                            showGlyph = true,
+                                            mnemonicChoices = mnemonicChoices,
+                                            onChoose = onChooseMnemonic,
+                                            customs = customMnemonics,
+                                        )
+                                    }
+                                    KanjiBadge(
+                                        kanji = card.kanji.takeIf { kanjiHintsEnabled },
+                                        reading = card.romaji,
+                                        meaning = card.meaning.orEmpty(),
+                                        kanjiUsage = card.kanjiUsage,
+                                        otherForms = card.otherKanjiForms,
+                                    )
+                                }
                             }
                             }
                         }
