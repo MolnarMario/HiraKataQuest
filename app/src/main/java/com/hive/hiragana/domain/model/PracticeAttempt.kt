@@ -11,6 +11,13 @@ package com.hive.hiragana.domain.model
  * @param fitScore         handwriting-quality FIT dial (0..100), or null
  * @param recognitionScore ML Kit legibility score (0..100), or null when
  *                         the recognizer didn't run
+ * @param headlineScore    the number the learner was actually SHOWN for this
+ *                         attempt (the dials combined under the active
+ *                         ScoringMode, with any legibility discount applied),
+ *                         so the Library reports the same figure as the
+ *                         feedback card. Null on rows written before the
+ *                         2026-08-02 scoring rework, whose dials are on the
+ *                         old scale — readers fall back to [formScore] there
  */
 data class PracticeAttempt(
     val id: Long = 0L,
@@ -24,6 +31,7 @@ data class PracticeAttempt(
     val formScore: Float? = null,
     val fitScore: Float? = null,
     val recognitionScore: Float? = null,
+    val headlineScore: Float? = null,
 )
 
 /**

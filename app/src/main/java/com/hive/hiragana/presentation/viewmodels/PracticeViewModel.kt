@@ -2201,7 +2201,10 @@ class PracticeViewModel(
                 // Skip units with no reference (e.g. ー) or no ink in their cell.
                 if (reference.isEmpty() || ink.isEmpty()) return@forEachIndexed
                 val geometry = GeometryScorer.score(ink, reference, cells[index])
-                unitScores.add(WordUnitScore(unit, CharacterScore.combine(geometry, null, mode)))
+                // Word practice never runs recognition, so this headline is
+                // final and can be stored as-is.
+                val unitScore = CharacterScore.combine(geometry, null, mode)
+                unitScores.add(WordUnitScore(unit, unitScore))
                 // Each kana persists its own scored row so the Library's
                 // per-glyph avg/best reflects word practice too.
                 persist(
@@ -2215,6 +2218,7 @@ class PracticeViewModel(
                         source = source,
                         formScore = geometry.form.toFloat(),
                         fitScore = geometry.fit?.toFloat(),
+                        headlineScore = unitScore.headline.toFloat(),
                     ),
                 )
             }
@@ -2245,6 +2249,7 @@ class PracticeViewModel(
                         source = source,
                         formScore = avgForm,
                         fitScore = avgFit,
+                        headlineScore = avgHeadline.toFloat(),
                     ),
                 )
                 return
@@ -2369,7 +2374,7 @@ class PracticeViewModel(
         // Instant geometry feedback, then persist IMMEDIATELY with the
         // geometry dials — persistence must never be gated on recognition,
         // which may be slow or (offline) never resolve. Recognition is a
-        // best-effort refinement of the on-screen headline only.
+        // best-effort refinement of the headline.
         val geometry = GeometryScorer.score(userStrokes, reference, cell)
         val score = CharacterScore.combine(geometry, null, mode)
         _uiState.update {
@@ -2380,12 +2385,6 @@ class PracticeViewModel(
                 lastWordAverage = null,
             )
         }
-        persist(
-            base.copy(
-                formScore = geometry.form.toFloat(),
-                fitScore = geometry.fit?.toFloat(),
-            ),
-        )
 
         val recognizerStrokes = session.strokes
             .map { stroke -> stroke.points.map { RecognizerStrokePoint(it.x, it.y, it.timestamp) } }
@@ -2393,22 +2392,47 @@ class PracticeViewModel(
         val target = character.character
         val attemptId = ++scoreAttemptSeq
         viewModelScope.launch {
+            // Insert FIRST, carrying the geometry-only headline: the row must
+            // exist before anything can await the recognizer.
+            val rowId = runCatching {
+                practiceRepository.recordAttempt(
+                    base.copy(
+                        formScore = geometry.form.toFloat(),
+                        fitScore = geometry.fit?.toFloat(),
+                        headlineScore = score.headline.toFloat(),
+                    ),
+                )
+            }.onFailure {
+                Log.w(TAG, "Failed to record attempt for ${character.id}", it)
+            }.getOrNull()
+
             val recognition = runCatching { handwritingRecognizer.recognize(recognizerStrokes, target) }
                 .getOrElse {
                     Log.w(TAG, "Recognition failed for $target", it)
                     RecognitionResult.UNAVAILABLE
                 }
-            // Only refine the headline if this is STILL the latest scored attempt
+            val refined = CharacterScore.combine(geometry, recognition, mode)
+
+            // Only refine the CARD if this is STILL the latest scored attempt
             // (not just the same glyph — Submit→Again→resubmit reuses the glyph)
             // and its score is the one on screen. A stale recognition from an
             // earlier attempt must not clobber the current one, nor flash onto
             // the phase under a just-closed quiz (which clears lastScoredCharacter).
             _uiState.update { s ->
                 if (attemptId == scoreAttemptSeq && s.lastScoredCharacter == target) {
-                    s.copy(lastScore = CharacterScore.combine(geometry, recognition, mode))
+                    s.copy(lastScore = refined)
                 } else {
                     s
                 }
+            }
+
+            // The ROW, by contrast, is refined unconditionally: it belongs to
+            // this attempt no matter what has since happened on screen, and it
+            // must end up holding the number the learner was shown so the
+            // Library cannot disagree with the feedback card.
+            if (rowId != null && refined.headline != score.headline) {
+                runCatching { practiceRepository.updateHeadline(rowId, refined.headline) }
+                    .onFailure { Log.w(TAG, "Failed to refine headline for $target", it) }
             }
         }
         // The synchronous geometry headline (recognition refines the live

@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PracticeSetItemEntity::class,
         ReadingProgressEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class HiraganaDatabase : RoomDatabase() {
@@ -175,6 +175,25 @@ abstract class HiraganaDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v6 -> v7: adds `headline_score` to `practice_history` — the number
+         * the learner was actually shown for an attempt, so the Library can
+         * report the same figure as the feedback card did instead of
+         * re-deriving one from the raw dials (they disagreed: an attempt
+         * displayed as 65 contributed 88 to the Library).
+         *
+         * Purely additive, and deliberately left NULL for existing rows: those
+         * predate the 2026-08-02 scoring rework, so their dials are on the old
+         * scale. The null IS the cutover marker — readers fall back to
+         * `form_score` for them, which keeps every historic attempt counted
+         * without pretending it was measured the new way.
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE practice_history ADD COLUMN headline_score REAL")
+            }
+        }
+
         fun build(context: Context): HiraganaDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
@@ -183,6 +202,7 @@ abstract class HiraganaDatabase : RoomDatabase() {
             )
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                    MIGRATION_6_7,
                 )
                 .build()
     }

@@ -1094,9 +1094,20 @@ class PracticeViewModelTest {
         /** Every recorded attempt is appended here so tests can assert on persistence. */
         val recorded: MutableList<PracticeAttempt> = mutableListOf(),
     ) : PracticeRepository {
-        override suspend fun recordAttempt(attempt: PracticeAttempt) {
+        /** Ids are 1-based row indices, mirroring Room's autoGenerate. */
+        override suspend fun recordAttempt(attempt: PracticeAttempt): Long {
             recorded.add(attempt)
+            return recorded.size.toLong()
         }
+
+        /** Applies the refinement in place, so tests see the stored headline. */
+        override suspend fun updateHeadline(id: Long, headline: Int) {
+            val index = (id - 1).toInt()
+            recorded.getOrNull(index)?.let {
+                recorded[index] = it.copy(headlineScore = headline.toFloat())
+            }
+        }
+
         override fun observeAttempts(): Flow<List<PracticeAttempt>> = emptyFlow()
         override fun observeScoreSummaries(): Flow<List<CharacterScoreSummary>> = emptyFlow()
     }

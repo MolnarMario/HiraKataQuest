@@ -155,11 +155,18 @@ import androidx.compose.ui.platform.LocalConfiguration
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
-/** The score used to color a cell/row: average form, falling back to average fit. */
-private fun CharacterScoreSummary?.avgScore(): Int? = this?.avgForm ?: this?.avgFit
+/**
+ * The score used to color a cell/row: the number the learner was actually
+ * shown, falling back to the raw dials for pre-2026-08-02 rows.
+ *
+ * This used to read `avgForm ?: avgFit` — the RAW geometry — while the
+ * feedback card showed the recognition-adjusted headline, so one attempt had
+ * two different numbers (an エ displayed as 65 contributed 88 here).
+ */
+private fun CharacterScoreSummary?.avgScore(): Int? = this?.displayAverage
 
-/** The best score used for sorting: best form, falling back to best fit. */
-private fun CharacterScoreSummary?.bestScore(): Int? = this?.bestForm ?: this?.bestFit
+/** The best score used for sorting, on the same displayed scale as [avgScore]. */
+private fun CharacterScoreSummary?.bestScore(): Int? = this?.displayBest
 
 /**
  * Compact writing-score line for a word row ("Avg 82 · Best 90"), mirroring the
@@ -2058,8 +2065,8 @@ private fun NoMatchesMessage(query: String, what: String) {
 /** Character-row subtitle: stroke count, plus a compact quality summary once scored. */
 private fun characterSubtitle(strokeCount: Int, summary: CharacterScoreSummary?): String {
     val base = "$strokeCount strokes"
-    val avg = summary?.let { it.avgForm ?: it.avgFit } ?: return base
-    val best = summary.bestForm ?: summary.bestFit
+    val avg = summary.avgScore() ?: return base
+    val best = summary.bestScore()
     return if (best != null) "$base · avg $avg · best $best" else "$base · avg $avg"
 }
 

@@ -30,6 +30,13 @@ data class CellRect(val left: Float, val top: Float, val size: Float) {
  * is taught: the genkōyōshi square is a proportion guide, not a trace target.
  * The FIT dial is the only one that measures adherence to the guide cell.
  *
+ * Forgiving is not the same as credulous. FORM is gated by a symmetric
+ * chamfer [resemblance] term over every point on both drawings, so ink that
+ * simply isn't the character cannot collect points from the per-stroke pass
+ * (which by construction only inspects the first `min(user, reference)`
+ * strokes in draw order). Every dial bottoms out at a real 0 — no additive
+ * floors, no constants that a score can come to rest on.
+ *
  * Input coordinate spaces may differ (user ink is canvas pixels, reference
  * points are viewBox units) — that's fine, because normalization erases the
  * absolute scale. FIT alone needs a common space, so it takes the guide
@@ -60,6 +67,22 @@ object GeometryScorer {
     private const val IDEAL_FILL = 0.82f
 
     /**
+     * RESEMBLANCE gate — distance (unit-square units) at which a point counts
+     * as "nowhere near" the other drawing. Generous, like [SHAPE_TOLERANCE]:
+     * this term exists to catch ink that isn't the character AT ALL, not to
+     * demand tracing accuracy (that's what the per-stroke shape score is for).
+     */
+    private const val COVERAGE_TOLERANCE = 0.30f
+
+    /**
+     * Resemblance at or above which the gate is fully open (no penalty).
+     * Ordinary correct writing sits comfortably above this, so the gate is
+     * invisible to real practice and only bites on ink that doesn't resemble
+     * the target. Calibrated against GeometryScorerCalibrationTest.
+     */
+    private const val GATE_FULL = 0.55f
+
+    /**
      * Stroke-count penalties. Deliberately gentle and asymmetric: our KanjiVG
      * reference is only ONE stroke-count convention, and a complete character
      * written with an EXTRA stroke (き/か in 4 strokes rather than 3 — a
@@ -71,6 +94,15 @@ object GeometryScorer {
     private const val EXTRA_STROKE_FLOOR = 0.70f
     private const val MISSING_STROKE_PENALTY = 0.5f
     private const val MISSING_STROKE_FLOOR = 0.40f
+
+    /**
+     * Cost of drawing strokes backwards, scaled by the fraction affected.
+     * Stroke direction (筆順) is a real rule, not a stylistic preference, so
+     * it has to cost something even though the finished glyph looks correct —
+     * but it is one mistake and should be charged once, which is why the
+     * shape term now measures shape alone (see [score]).
+     */
+    private const val BACKWARDS_PENALTY = 0.30f
 
     /**
      * Scores one attempt. [userStrokes] are the drawn strokes (canvas px,
@@ -103,6 +135,7 @@ object GeometryScorer {
         var worstStroke = -1
         var worstScore = Float.MAX_VALUE
         var backwardsStroke = -1
+        var backwardsCount = 0
 
         for (i in 0 until matched) {
             val u = resample(userNorm[i], RESAMPLE_N)
@@ -111,11 +144,22 @@ object GeometryScorer {
             val forwardShape = meanPointDistance(u, r)
             val reverseShape = meanPointDistance(u.asReversed(), r)
             // A stroke drawn the right shape but backwards aligns far better
-            // reversed — detect it (to coach) but still score the forward
-            // (correct-direction) alignment.
-            if (reverseShape < forwardShape * 0.6f && backwardsStroke < 0) backwardsStroke = i
+            // reversed.
+            val backwards = reverseShape < forwardShape * 0.6f
+            if (backwards) {
+                backwardsCount++
+                if (backwardsStroke < 0) backwardsStroke = i
+            }
 
-            val shapeScore = (1f - forwardShape / SHAPE_TOLERANCE).coerceIn(0f, 1f)
+            // SHAPE is measured on the better of the two alignments, so it
+            // measures shape and nothing else. Scoring it on the forward
+            // alignment (the original) charged a backwards stroke twice for
+            // one mistake — once here and again in the direction dial — and
+            // buried a real, nameable finding inside an index-alignment
+            // artifact. Direction is charged where it belongs: in [dirScore]
+            // and the explicit [BACKWARDS_PENALTY] below.
+            val shapeScore =
+                (1f - min(forwardShape, reverseShape) / SHAPE_TOLERANCE).coerceIn(0f, 1f)
             val dirScore = directionSimilarity(u, r)
             val strokeScore = SHAPE_WEIGHT * shapeScore + DIRECTION_WEIGHT * dirScore
 
@@ -132,7 +176,23 @@ object GeometryScorer {
             refNorm.take(matched),
         )
 
-        var form01 = STROKE_WEIGHT * perStrokeAvg + PROPORTION_WEIGHT * proportionScore
+        // RESEMBLANCE gate. The per-stroke loop above only ever looks at the
+        // first `matched` strokes in draw order, so on its own it cannot see
+        // ink that is simply not the character: extra strokes go uninspected,
+        // and a single line lands wherever the first reference stroke is. The
+        // chamfer term below looks at EVERY point on both sides at once, so
+        // "did you draw the whole character" and "did you draw anything that
+        // isn't the character" both finally count. Multiplicative, because
+        // resembling the target is a precondition for quality, not a bonus.
+        val resemblance = resemblance(userNorm, refNorm)
+        val gate = (resemblance / GATE_FULL).coerceIn(0f, 1f)
+
+        var form01 = (STROKE_WEIGHT * perStrokeAvg + PROPORTION_WEIGHT * proportionScore) * gate
+
+        // Backwards strokes: charged once, in proportion to how many.
+        if (backwardsCount > 0) {
+            form01 *= 1f - BACKWARDS_PENALTY * backwardsCount / matched
+        }
 
         // Stroke-count mismatch is coached and penalised, but gently and
         // asymmetrically (see the penalty constants): an extra stroke on a
@@ -153,7 +213,10 @@ object GeometryScorer {
 
         // Coaching tags (kept short; combine() trims to 2).
         if (backwardsStroke >= 0) {
-            tags.add("Stroke ${backwardsStroke + 1} looks drawn backwards")
+            tags.add(
+                if (backwardsCount > 1) "$backwardsCount strokes drawn backwards"
+                else "Stroke ${backwardsStroke + 1} looks drawn backwards",
+            )
         }
         if (tags.isEmpty()) {
             when {
@@ -208,6 +271,53 @@ object GeometryScorer {
             }
         }
         return fit
+    }
+
+    // --- resemblance ---------------------------------------------------------
+
+    /**
+     * Symmetric chamfer similarity between two already-normalized drawings,
+     * 0..1. Order-independent and stroke-count-independent, so it answers the
+     * one question the per-stroke comparison cannot: is this ink the same
+     * DRAWING as the reference?
+     *
+     * - `coverage` averages, over every REFERENCE point, how close the
+     *   nearest user point is → "did you draw the whole character?"
+     * - `precision` averages, over every USER point, how close the nearest
+     *   reference point is → "did you draw anything that isn't the
+     *   character?" This is what finally makes surplus strokes cost.
+     *
+     * Combined as a geometric mean so one side cannot mask the other: ink
+     * that covers the glyph but adds a scribble scores low, and so does a
+     * single stroke that sits on the glyph but leaves most of it undrawn.
+     */
+    internal fun resemblance(user: List<List<Pt>>, reference: List<List<Pt>>): Float {
+        // Resample so long and short strokes contribute comparably, and so
+        // cost stays bounded regardless of how fast the user drew.
+        val userPts = user.flatMap { resample(it, RESAMPLE_N) }
+        val refPts = reference.flatMap { resample(it, RESAMPLE_N) }
+        if (userPts.isEmpty() || refPts.isEmpty()) return 0f
+
+        val coverage = meanNearness(refPts, userPts)
+        val precision = meanNearness(userPts, refPts)
+        return sqrt(coverage * precision)
+    }
+
+    /**
+     * Mean over [from] of how near each point is to its closest point in
+     * [to], as a 0..1 ramp that reaches 0 at [COVERAGE_TOLERANCE].
+     */
+    private fun meanNearness(from: List<Pt>, to: List<Pt>): Float {
+        var sum = 0f
+        for (p in from) {
+            var nearest = Float.MAX_VALUE
+            for (q in to) {
+                val d = dist(p, q)
+                if (d < nearest) nearest = d
+            }
+            sum += (1f - nearest / COVERAGE_TOLERANCE).coerceIn(0f, 1f)
+        }
+        return sum / from.size
     }
 
     // --- geometry helpers ----------------------------------------------------
@@ -283,8 +393,14 @@ object GeometryScorer {
 
     /**
      * Mean cosine similarity of the two polylines' tangent directions,
-     * mapped from [-1,1] to [0,1]. Captures whether strokes progress the
-     * same way (a reversed or wrongly-angled stroke drops this).
+     * clamped at 0. Captures whether strokes progress the same way.
+     *
+     * The clamp matters: mapping [-1,1] onto [0,1] instead (the original)
+     * scored a PERPENDICULAR stroke 0.5 and only a perfectly reversed one 0,
+     * so randomly-angled ink collected half of this dial for free. Clamping
+     * costs correct writing almost nothing (a good stroke's cosine is ~0.95
+     * either way) and costs wrong directions everything, which is the honest
+     * shape for a dial that claims to measure direction.
      */
     private fun directionSimilarity(a: List<Pt>, b: List<Pt>): Float {
         val n = min(a.size, b.size)
@@ -299,7 +415,7 @@ object GeometryScorer {
             count++
         }
         if (count == 0) return 1f
-        return ((sum / count) + 1f) / 2f
+        return max(0f, sum / count)
     }
 
     /**

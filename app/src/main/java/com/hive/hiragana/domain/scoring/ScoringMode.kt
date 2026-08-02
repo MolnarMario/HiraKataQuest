@@ -14,7 +14,15 @@ package com.hive.hiragana.domain.scoring
  *   writing scores high even if it doesn't hug the guide strokes.
  * - [FIT] — how well the writing fills and centers within the guide cell.
  *   The strict "neatness" dial, for learners who want to chase tidiness.
- * - [BOTH] — the average of the two.
+ *   FIT looks ONLY at the ink's bounding box, so on its own it would award
+ *   ~94 to a single line drawn through the middle of the square; the
+ *   headline is therefore gated by FORM (see [CharacterScore.combine]) so
+ *   tidiness can only be scored on something that is actually a character.
+ * - [BOTH] — FORM adjusted by FIT. Deliberately NOT the average of the two:
+ *   averaging let the shape-blind FIT dial carry a bad attempt (form 20 with
+ *   fit 94 read as 57), so FIT modulates FORM within a band instead. Good
+ *   writing is unaffected; bad writing can no longer be rescued by sitting
+ *   neatly in the box.
  * - [OFF] — scoring disabled entirely (no computation, no feedback).
  */
 enum class ScoringMode(val key: String) {
