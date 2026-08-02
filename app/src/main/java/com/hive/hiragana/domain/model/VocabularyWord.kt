@@ -11,11 +11,31 @@ package com.hive.hiragana.domain.model
  *                           derived by the parser from [kana], never stored
  *                           in the JSON. The word unlocks once every one of
  *                           them is learned (docs/PHASE3-DESIGN.md §3)
+ * @param kanji              the word's kanji spelling (e.g. 彼女 for かのじょ),
+ *                           when it has one. Purely informative — this app
+ *                           never teaches or scores kanji; it is shown on an
+ *                           opt-in "Kanji" button so the learner can see how the
+ *                           word is normally written. Null for kana-only words
+ *                           (あそこ) and all katakana loanwords.
+ * @param category           the word's topical group (e.g. "family", "food",
+ *                           "verbs"), from the JLPT vocabulary list. Backs the
+ *                           Library category filter (hiragana only). Null for
+ *                           the original hand-authored words not in that list.
+ * @param kanjiUsage         how likely the [kanji] form is seen in real life;
+ *                           only meaningful when [kanji] is non-null. Shown as a
+ *                           colored likelihood tag in the Kanji dialog.
+ * @param otherKanjiForms    other kanji that share this reading (homophones),
+ *                           e.g. 鼻 "nose" for はな whose primary is 花 "flower".
+ *                           Empty for the vast majority of words. Informative.
  */
 data class VocabularyWord(
     val kana: String,
     val meaning: String,
     val requiredCharacters: Set<String>,
+    val kanji: String? = null,
+    val category: String? = null,
+    val kanjiUsage: KanjiUsage? = null,
+    val otherKanjiForms: List<KanjiForm> = emptyList(),
 ) {
     /**
      * Which writing system this word belongs to, derived from [kana]: any
@@ -64,10 +84,21 @@ data class VocabularyWord(
          * character (whose glyph is the 2-code-point "きょ"); plain kana each
          * become their own unit, unchanged.
          */
-        fun fromKana(kana: String, meaning: String) = VocabularyWord(
+        fun fromKana(
+            kana: String,
+            meaning: String,
+            kanji: String? = null,
+            category: String? = null,
+            kanjiUsage: KanjiUsage? = null,
+            otherKanjiForms: List<KanjiForm> = emptyList(),
+        ) = VocabularyWord(
             kana = kana,
             meaning = meaning,
             requiredCharacters = KanaUnits.split(kana).toSet(),
+            kanji = kanji,
+            category = category,
+            kanjiUsage = kanjiUsage,
+            otherKanjiForms = otherKanjiForms,
         )
     }
 }

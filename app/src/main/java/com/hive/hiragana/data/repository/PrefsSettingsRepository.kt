@@ -158,6 +158,13 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         prefs.edit().putBoolean(KEY_MNEMONICS_ENABLED, enabled).apply()
     }
 
+    override fun isKanjiHintsEnabled(): Boolean =
+        prefs.getBoolean(KEY_KANJI_HINTS_ENABLED, false)
+
+    override fun setKanjiHintsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_KANJI_HINTS_ENABLED, enabled).apply()
+    }
+
     // Encoded as one line per choice, "glyph=KEYWORD" (kana glyphs and the
     // uppercase keywords never contain '=' or a newline) — a whole Room table
     // for at most 46 tiny picks would be overkill.
@@ -265,6 +272,7 @@ class PrefsSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_READING_AUTO_SPEAK = "reading_auto_speak_enabled"
         const val KEY_READING_MEANING_PRACTICE = "reading_meaning_practice"
         const val KEY_MNEMONICS_ENABLED = "mnemonics_enabled"
+        const val KEY_KANJI_HINTS_ENABLED = "kanji_hints_enabled"
         const val KEY_MNEMONIC_CHOICES = "mnemonic_choices"
         const val KEY_CUSTOM_MNEMONICS = "custom_mnemonics"
         const val KEY_CHARACTER_FORM = "character_form"

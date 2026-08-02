@@ -71,3 +71,21 @@ val HintTealContainer = Color(0xFFCFE8E9)
 val OnHintTealContainer = Color(0xFF13494B)
 val HintTealContainerDark = Color(0xFF204A4C)
 val OnHintTealContainerDark = Color(0xFFA7DADC)
+
+// Kanji-usage likelihood tag (KanjiInfo dialog): how often the kanji form is
+// seen — green (usually kanji) / blue (mixed) / grey (usually kana). Each has a
+// dark twin so the light-on-dark text stays legible (compat rule).
+val UsageKanjiContainer = Color(0xFFCDEBD0)
+val OnUsageKanjiContainer = Color(0xFF14401B)
+val UsageKanjiContainerDark = Color(0xFF23492A)
+val OnUsageKanjiContainerDark = Color(0xFFA6D8AC)
+
+val UsageMixedContainer = Color(0xFFD6DBF3)
+val OnUsageMixedContainer = Color(0xFF23305F)
+val UsageMixedContainerDark = Color(0xFF33406E)
+val OnUsageMixedContainerDark = Color(0xFFB9C3EE)
+
+val UsageKanaContainer = Color(0xFFE2E1E5)
+val OnUsageKanaContainer = Color(0xFF3D3E42)
+val UsageKanaContainerDark = Color(0xFF3B3B40)
+val OnUsageKanaContainerDark = Color(0xFFCAC9CE)

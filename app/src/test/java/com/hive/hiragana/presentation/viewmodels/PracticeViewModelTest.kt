@@ -47,6 +47,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -145,13 +146,14 @@ class PracticeViewModelTest {
         practiceSetRepository: FakePracticeSetRepository = FakePracticeSetRepository(),
         words: List<VocabularyWord> = emptyList(),
         ttsPlayer: PronunciationPlayer = FakePronunciationPlayer(),
+        readingProgressRepository: ReadingProgressRepository = FakeReadingProgressRepository(),
     ) = PracticeViewModel(
         characterRepository = FakeCharacterRepository(characters),
         practiceRepository = practiceRepository,
         vocabularyRepository = FakeVocabularyRepository(words),
         settingsRepository = settings,
         practiceSetRepository = practiceSetRepository,
-        readingProgressRepository = FakeReadingProgressRepository(),
+        readingProgressRepository = readingProgressRepository,
         handwritingRecognizer = recognizer,
         ttsPlayer = ttsPlayer,
         appUpdater = FakeAppUpdater(),
@@ -650,6 +652,89 @@ class PracticeViewModelTest {
     }
 
     /**
+     * [PracticeViewModel.generateStrongKanaWordSet] creates a Word set of exactly
+     * the words whose every kana is mastered (85+ in BOTH writing and reading).
+     * ねこ (both ね/こ mastered) is included; いぬ (い/ぬ unscored) is excluded.
+     */
+    @Test
+    fun `generateStrongKanaWordSet builds a set from mastered kana`() = runTest(dispatcher) {
+        val summaries = listOf(
+            CharacterScoreSummary("ね", attempts = 3, avgForm = 90, bestForm = 92, avgFit = null, bestFit = null),
+            CharacterScoreSummary("こ", attempts = 3, avgForm = 88, bestForm = 90, avgFit = null, bestFit = null),
+        )
+        val reading = listOf(
+            ReadingProgress("ね", mcqAttempts = 10, mcqCorrect = 9, typeAttempts = 0, typeCorrect = 0),
+            ReadingProgress("こ", mcqAttempts = 10, mcqCorrect = 9, typeAttempts = 0, typeCorrect = 0),
+        )
+        val vm = buildViewModel(
+            settings = FakeSettingsRepository().apply { seededDefaults = true },
+            words = listOf(
+                VocabularyWord.fromKana("ねこ", "cat"),
+                VocabularyWord.fromKana("いぬ", "dog"),
+            ),
+            practiceRepository = FakePracticeRepository(summaries = summaries),
+            readingProgressRepository = FakeReadingProgressRepository(reading),
+        )
+        advanceUntilIdle()
+
+        vm.generateStrongKanaWordSet()
+        advanceUntilIdle()
+
+        val sets = vm.uiState.value.practiceSets
+        assertEquals(1, sets.size)
+        assertEquals(PracticeSetType.WORDS, sets.first().type)
+        assertEquals(listOf("ねこ"), sets.first().members)
+    }
+
+    /**
+     * With no mastered kana, [PracticeViewModel.generateStrongKanaWordSet]
+     * creates nothing and surfaces a one-shot guidance message.
+     */
+    @Test
+    fun `generateStrongKanaWordSet with no mastery shows a message and no set`() = runTest(dispatcher) {
+        val vm = buildViewModel(
+            settings = FakeSettingsRepository().apply { seededDefaults = true },
+            words = listOf(VocabularyWord.fromKana("ねこ", "cat")),
+        )
+        advanceUntilIdle()
+
+        vm.generateStrongKanaWordSet()
+        advanceUntilIdle()
+
+        assertEquals(0, vm.uiState.value.practiceSets.size)
+        assertNotNull(vm.uiState.value.transientMessage)
+    }
+
+    /**
+     * The Library category filter is VM-backed so it survives leaving the
+     * Library (a practice tap rebuilds state). Toggling adds/removes; entering
+     * free practice preserves it; switching script clears it.
+     */
+    @Test
+    fun `library category filter toggles, persists across rebuild, and clears on script switch`() =
+        runTest(dispatcher) {
+            val vm = buildViewModel(words = listOf(VocabularyWord.fromKana("ねこ", "cat")))
+            advanceUntilIdle()
+
+            vm.toggleLibraryCategory("body")
+            vm.toggleLibraryCategory("food")
+            assertEquals(listOf("body", "food"), vm.uiState.value.libraryCategories)
+
+            vm.toggleLibraryCategory("body") // remove one
+            assertEquals(listOf("food"), vm.uiState.value.libraryCategories)
+
+            // A practice tap rebuilds state — the filter must survive it.
+            vm.practiceCharacter(deck().first())
+            advanceUntilIdle()
+            assertEquals(listOf("food"), vm.uiState.value.libraryCategories)
+
+            // Switching script clears it (categories are hiragana-only).
+            vm.setActiveScript(Script.KATAKANA)
+            advanceUntilIdle()
+            assertEquals(emptyList<String>(), vm.uiState.value.libraryCategories)
+        }
+
+    /**
      * Closing a quiz that was launched from a saved set raises the one-shot so
      * the Library reopens on the Sets tab; consuming it clears the shot.
      */
@@ -1093,12 +1178,14 @@ class PracticeViewModelTest {
     private class FakePracticeRepository(
         /** Every recorded attempt is appended here so tests can assert on persistence. */
         val recorded: MutableList<PracticeAttempt> = mutableListOf(),
+        /** Preset per-glyph score summaries the VM's collector will publish. */
+        private val summaries: List<CharacterScoreSummary> = emptyList(),
     ) : PracticeRepository {
         override suspend fun recordAttempt(attempt: PracticeAttempt) {
             recorded.add(attempt)
         }
         override fun observeAttempts(): Flow<List<PracticeAttempt>> = emptyFlow()
-        override fun observeScoreSummaries(): Flow<List<CharacterScoreSummary>> = emptyFlow()
+        override fun observeScoreSummaries(): Flow<List<CharacterScoreSummary>> = flowOf(summaries)
     }
 
     private class FakeVocabularyRepository(
@@ -1219,6 +1306,9 @@ class PracticeViewModelTest {
         private var mnemonics = true
         override fun isMnemonicsEnabled(): Boolean = mnemonics
         override fun setMnemonicsEnabled(enabled: Boolean) { mnemonics = enabled }
+        private var kanjiHints = false
+        override fun isKanjiHintsEnabled(): Boolean = kanjiHints
+        override fun setKanjiHintsEnabled(enabled: Boolean) { kanjiHints = enabled }
         private var mnemonicChoices = mapOf<String, String>()
         override fun getMnemonicChoices(): Map<String, String> = mnemonicChoices
         override fun setMnemonicChoices(choices: Map<String, String>) {
@@ -1252,8 +1342,10 @@ class PracticeViewModelTest {
     }
 
     /** In-memory practice sets, backing a [MutableStateFlow] for observation. */
-    private class FakeReadingProgressRepository : ReadingProgressRepository {
-        override fun observe(): Flow<List<ReadingProgress>> = MutableStateFlow(emptyList())
+    private class FakeReadingProgressRepository(
+        private val progress: List<ReadingProgress> = emptyList(),
+    ) : ReadingProgressRepository {
+        override fun observe(): Flow<List<ReadingProgress>> = MutableStateFlow(progress)
         override suspend fun record(itemKey: String, typed: Boolean, correct: Boolean) {}
     }
 

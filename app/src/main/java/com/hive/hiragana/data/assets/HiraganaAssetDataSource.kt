@@ -3,6 +3,8 @@ package com.hive.hiragana.data.assets
 import android.content.res.AssetManager
 import android.util.Log
 import com.hive.hiragana.domain.model.HiraganaCharacter
+import com.hive.hiragana.domain.model.KanjiForm
+import com.hive.hiragana.domain.model.KanjiUsage
 import com.hive.hiragana.domain.model.Script
 import com.hive.hiragana.domain.model.StrokeDefinition
 import com.hive.hiragana.domain.model.StrokeFrame
@@ -95,7 +97,32 @@ class HiraganaAssetDataSource(private val assetManager: AssetManager) {
         VocabularyWord.fromKana(
             kana = json.getString("kana"),
             meaning = json.getString("meaning"),
+            // Optional: the word's kanji spelling, shown as informative-only
+            // reference in practice/quiz. Absent for kana-only + katakana words.
+            kanji = json.optString("kanji").ifBlank { null },
+            // Optional: topical group (hiragana only) backing the category filter.
+            category = json.optString("category").ifBlank { null },
+            // Optional: how often the kanji form is seen (colored dialog tag).
+            kanjiUsage = KanjiUsage.fromJson(json.optString("kanji_usage").ifBlank { null }),
+            // Optional: other kanji sharing this reading (homophones).
+            otherKanjiForms = parseKanjiForms(json.optJSONArray("other_kanji")),
         )
+
+    private fun parseKanjiForms(array: JSONArray?): List<KanjiForm> {
+        if (array == null) return emptyList()
+        return buildList {
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                add(
+                    KanjiForm(
+                        kanji = obj.getString("kanji"),
+                        meaning = obj.getString("meaning"),
+                        usage = KanjiUsage.fromJson(obj.optString("kanji_usage").ifBlank { null }),
+                    )
+                )
+            }
+        }
+    }
 
     private fun readAsset(path: String): String =
         assetManager.open(path).bufferedReader().use { it.readText() }
