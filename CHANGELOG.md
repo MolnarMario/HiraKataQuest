@@ -12,6 +12,52 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-08-02 — 0.4.0: A real vocabulary, kanji reference, and honest scores
+
+#### Added
+- **The word list grew from about 250 words to nearly 700.** The hiragana deck
+  now carries the common JLPT N5 vocabulary, plus 25 more katakana loanwords, so
+  practising words no longer runs out of material.
+- **A "Kanji" button on words that have a kanji spelling** (off by default; turn
+  on "Kanji reference" in Study scope). It is colored by how the word is
+  normally written: green when it is usually kanji, blue when it is mixed, grey
+  when it is usually kana. Tapping it opens a reference card with the kanji, the
+  reading, the meaning, and, for words that sound alike, the other kanji that
+  share that reading with a one-line note on the difference. Purely
+  informative: it is never quizzed and never scored.
+- **Filter the Words tab by category** (hiragana), with removable chips, both
+  when browsing and when building a word set.
+- **A "From my strong kana" set generator.** It builds a word set out of words
+  whose every kana you already score 85 or better in both writing and reading,
+  so review material comes from what you have actually learned.
+
+#### Changed
+- **Writing mode now opens the Library instead of a random character.** Picking
+  what to practise is the first thing you do, which is how Reading mode already
+  worked. Tapping a character or word drops you straight into practice, and Back
+  returns to the Library.
+- **Handwriting scores are a measurement now, not a cap.** Two scores used to be
+  suspiciously common: a well-formed character the recognizer merely misread
+  always landed on exactly 65, and a scribble that cleared a low bar always
+  landed on exactly 45. Both were ceilings rather than measurements. Recognition
+  now nudges the score instead of capping it, extra strokes actually cost
+  something, no scoring mode is blind to the shape any more, and a backwards
+  stroke is charged once rather than twice. A clean katakana "e" that used to
+  show 65 with a "looks more like" complaint now scores 93; a single random line
+  scores 7 instead of 45.
+- **The score on the feedback card and the score in the Library finally agree.**
+  The Library used to average the raw form dial while the card showed the
+  adjusted number, so the same attempt could read 65 on one screen and 88 on the
+  other. It now stores and averages the number you were actually shown. Practice
+  recorded before this update keeps counting toward your averages.
+- **Katakana are no longer misread as the kanji they came from.** Thirty
+  lookalike pairs (the katakana "e" and the kanji for "work", and so on) are now
+  treated as the same drawing, because nothing in the ink can tell them apart.
+- **The reading quiz keeps a steady layout.** The prompt no longer jumps when
+  you answer, typing works the way it does in flashcard practice (the keyboard
+  stays open, the Done key checks and moves on, an empty answer skips), and
+  memory-hint stories bold the reading they are teaching.
+
 ### 2026-08-02 — 0.3.3: Smarter Library search and visible scores
 
 #### Added
