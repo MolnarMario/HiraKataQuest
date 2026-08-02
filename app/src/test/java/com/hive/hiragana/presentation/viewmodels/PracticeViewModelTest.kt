@@ -580,6 +580,25 @@ class PracticeViewModelTest {
     }
 
     /**
+     * Entering the Writing track lands on the Library (so the learner picks what
+     * to practice) rather than dropping straight onto a random character. A
+     * free-practice item is still set up underneath so closing the Library has a
+     * valid sheet to fall back to.
+     */
+    @Test
+    fun `entering writing lands on the library`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.setAppMode(AppMode.WRITING)
+
+        val state = vm.uiState.value
+        assertTrue(state.isLibraryOpen)
+        assertEquals(SessionPhase.FREE, state.phase)
+        assertNotNull(state.currentCharacter)
+    }
+
+    /**
      * When the last-used section was Words, a cold start resumes free practice
      * on a random word, with the whole scoped word list loaded so Next cycles.
      */

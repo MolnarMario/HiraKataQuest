@@ -775,7 +775,7 @@ class PracticeViewModel(
                     // Only Writing needs its free-practice item set up eagerly;
                     // Reading renders the Library hub via its own screen branch.
                     if (_uiState.value.appMode == AppMode.WRITING) {
-                        enterFreePracticeFromLastSection()
+                        enterWritingLibrary()
                     }
                 }
             }.onFailure { error ->
@@ -1184,7 +1184,20 @@ class PracticeViewModel(
         if (mode == _uiState.value.appMode) return
         settingsRepository.setAppMode(mode)
         _uiState.update { it.copy(appMode = mode) }
-        if (mode == AppMode.WRITING) enterFreePracticeFromLastSection()
+        if (mode == AppMode.WRITING) enterWritingLibrary()
+    }
+
+    /**
+     * Enters the Writing track on the Library hub rather than dropping straight
+     * onto a random character: the learner picks what to practice, mirroring the
+     * Reading track (which always lands on the Library). A free-practice item is
+     * still set up underneath so closing the Library (the in-app Back arrow →
+     * [closeLibrary]) has a valid sheet to fall back to, and so a Library
+     * character/word tap flows into free practice exactly as before.
+     */
+    private fun enterWritingLibrary() {
+        enterFreePracticeFromLastSection()
+        _uiState.update { it.copy(isLibraryOpen = true) }
     }
 
     /** Returns to the opening screen ("home"); keeps the persisted last mode. */
