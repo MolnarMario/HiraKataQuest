@@ -23,8 +23,11 @@ class RoomPracticeRepository(
     private val dao: PracticeAttemptDao,
 ) : PracticeRepository {
 
-    override suspend fun recordAttempt(attempt: PracticeAttempt) {
+    override suspend fun recordAttempt(attempt: PracticeAttempt): Long =
         dao.insert(attempt.toEntity())
+
+    override suspend fun updateHeadline(id: Long, headline: Int) {
+        dao.updateHeadline(id, headline.toFloat())
     }
 
     override fun observeAttempts(): Flow<List<PracticeAttempt>> =
@@ -41,6 +44,8 @@ private fun CharacterScoreStats.toSummary() = CharacterScoreSummary(
     bestForm = bestForm?.roundToInt(),
     avgFit = avgFit?.roundToInt(),
     bestFit = bestFit?.roundToInt(),
+    avgDisplayed = avgDisplayed?.roundToInt(),
+    bestDisplayed = bestDisplayed?.roundToInt(),
 )
 
 private fun PracticeAttempt.toEntity() = PracticeAttemptEntity(
@@ -54,6 +59,7 @@ private fun PracticeAttempt.toEntity() = PracticeAttemptEntity(
     formScore = formScore,
     fitScore = fitScore,
     recognitionScore = recognitionScore,
+    headlineScore = headlineScore,
 )
 
 private fun PracticeAttemptEntity.toDomain() = PracticeAttempt(
@@ -68,4 +74,5 @@ private fun PracticeAttemptEntity.toDomain() = PracticeAttempt(
     formScore = formScore,
     fitScore = fitScore,
     recognitionScore = recognitionScore,
+    headlineScore = headlineScore,
 )

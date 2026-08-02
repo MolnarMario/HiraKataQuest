@@ -146,17 +146,24 @@ fun ScoringInfoDialog(onDismiss: () -> Unit) {
                 )
                 InfoSection(
                     title = "Fit",
-                    body = "How well you fill and centre the guide cell. Scored " +
-                        "only in Fit or Both mode.",
+                    body = "How well you fill and centre the guide cell. Fit only " +
+                        "measures the box, so it adjusts your Form score rather " +
+                        "than standing in for it: neat placement can't earn a " +
+                        "good score on the wrong shape.",
                 )
                 InfoSection(
                     title = "Readability",
                     body = "Your ink is also checked by the device's handwriting " +
-                        "recognizer: a shape that reads as a different character " +
-                        "caps the score with “Looks more like …”.",
+                        "recognizer. If it reads as something else you'll see " +
+                        "“Looks more like …” and the score is trimmed a little. " +
+                        "It's only a nudge: the shape comparison above knows " +
+                        "which character you were aiming for, and the recognizer " +
+                        "doesn't.",
                 )
                 Text(
-                    text = "Scores are advice only. They never lock or gate anything.",
+                    text = "Every score is measured from what you drew, so ink " +
+                        "that isn't the character scores near zero. Scores are " +
+                        "advice only and never lock or gate anything.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
