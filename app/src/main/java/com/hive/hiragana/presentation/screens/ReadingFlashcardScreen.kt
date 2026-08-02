@@ -724,7 +724,7 @@ fun ReadingFlashcardScreen(
  * sizing (the glyph is bounded by geometry, not text preferences).
  */
 @Composable
-private fun FlashcardGlyph(
+internal fun FlashcardGlyph(
     glyph: String,
     boxWidth: Dp,
     boxHeight: Dp,

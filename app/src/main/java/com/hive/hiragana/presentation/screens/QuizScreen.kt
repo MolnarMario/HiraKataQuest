@@ -3,6 +3,7 @@ package com.hive.hiragana.presentation.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -12,10 +13,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -51,11 +54,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,6 +72,7 @@ import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
+import com.hive.hiragana.domain.model.PrintDivergence
 import com.hive.hiragana.domain.scoring.CharacterScore
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.scoring.WordUnitScore
@@ -253,6 +260,17 @@ fun QuizScreen(
         }
     }
 }
+
+// The reading quiz keeps the same solid, no-reflow layout as the reading
+// flashcard (Practice mode): the prompt glyph takes the leftover height above a
+// FIXED reveal reserve, and the answer input is pinned in a fixed bottom
+// section, so revealing the answer fills reserved space in place — the glyph
+// never moves and nothing scrolls.
+/** Height reserved for the reveal/prompt region, sized to hold the reveal. */
+private val ReadingRevealReserve = 150.dp
+/** One multiple-choice option row height; spent rows become blank spacers on
+ *  reveal so the bottom section keeps a constant height. */
+private val ReadingOptionSlot = 52.dp
 
 /** Reading-quiz answer styles shown on the setup card. */
 private val READING_ANSWER_CHOICES = listOf(
@@ -720,19 +738,42 @@ private fun ReadingQuizRunning(
         onReadingResult(romajiOk == true && (!needMeaning || meaningOk == true))
     }
 
-    // The prompt column scrolls when it outgrows the height (small screens, or
-    // the keyboard up in typed mode). On reveal, bring the answer card into
-    // view — otherwise it can sit below the fold and the result looks missing
-    // (no-op when everything fits: maxValue is 0).
-    val promptScroll = rememberScrollState()
-    LaunchedEffect(quiz.index) { promptScroll.scrollTo(0) }
-    LaunchedEffect(quiz.revealed, quiz.index) {
-        if (quiz.revealed) {
-            // One frame so the reveal card is measured before reading maxValue.
-            withFrameNanos { }
-            promptScroll.animateScrollTo(promptScroll.maxValue)
+    // Typing ergonomics, mirroring the reading flashcard: the romaji field and
+    // its action share ONE bottom row, the soft keyboard stays open across
+    // items, and its Done key drives Check → Next so the whole run can be typed
+    // without reaching for a button. Marks force multiple choice (no romaji to
+    // type), so typing is suppressed for them (readingStyle is CHOICE there).
+    val typingReading = readingStyle == ReadingAnswerStyle.TYPE
+    // The typed field is on screen during the reading step and after the reveal
+    // (locked, driving Next); it yields to the multiple-choice buttons during
+    // the words-only meaning step.
+    val showTypingField = typingReading && (quiz.revealed || romajiOk == null)
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    // Keep the keyboard up whenever the field is shown and drop it when it isn't
+    // (meaning step, multiple choice, marks) so the choice buttons aren't hidden.
+    // Across a normal item the field is shown continuously (reading → reveal →
+    // next reading), so focus persists and the keyboard never blinks closed.
+    LaunchedEffect(showTypingField) {
+        if (showTypingField) runCatching { focusRequester.requestFocus() }
+        else focusManager.clearFocus()
+    }
+    // Bottom-row action: Next when revealed, Check with input, Skip when empty.
+    fun submitTyped() {
+        when {
+            quiz.revealed -> onAdvance()
+            typed.isNotBlank() -> {
+                romajiOk = RomajiMatch.matches(typed, readingAnswer)
+                if (!needMeaning) finish()
+            }
+            else -> onAdvance() // empty field acts as Skip
         }
     }
+
+    // Which step the item is on (drives both the reserve content and the pinned
+    // bottom answer section).
+    val readingStep = !quiz.revealed && romajiOk == null
+    val meaningStep = !quiz.revealed && romajiOk != null && needMeaning && meaningOk == null
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -752,121 +793,196 @@ private fun ReadingQuizRunning(
             QuizTimerChip(quiz)
         }
 
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .verticalScroll(promptScroll),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(horizontal = 24.dp),
         ) {
-            // The printed prompt — the real-world (gothic) form to recognize.
-            // PrintFontFamily swaps さ/き/り (only) to their connected printed
-            // forms; everything else falls back to the system font. Large so a
-            // recognition prompt reads clearly; AutoShrinkText scales a long word
-            // down to fit the width instead of overflowing (a single kana stays
-            // big — it fits easily at the base size).
-            AutoShrinkText(
-                text = current.answer,
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontFamily = PrintFontFamily,
-                    fontSize = 88.sp,
-                ),
-                minFontSize = 32.sp,
-                textAlign = TextAlign.Center,
-                // No fillMaxWidth: AutoShrinkText's inner Text is start-aligned in
-                // its box, so a full-width box would pin the glyph left. Letting
-                // the box wrap the (shrink-to-fit) text lets the centered parent
-                // column centre it. The parent still bounds maxWidth, so a long
-                // word shrinks correctly.
-                modifier = Modifier.padding(top = 20.dp),
-            )
-
-            // Pre-answer memory hint: the glyph is the visible prompt, so the
-            // dialog may show it; the keyword hints the hidden SOUND — that is
-            // the point of an opt-in, tap-to-open hint. Offered only when the
-            // learner enabled "Hints during the quiz" on the setup card (so a
-            // cold test is possible). Renders nothing when no unit has a
-            // mnemonic. Answers record normally either way.
-            if (!quiz.revealed && romajiOk == null && mnemonicsEnabled && quiz.showHints) {
-                MnemonicHintButton(
-                    unitCharacters = unitCharactersFor(current.answer),
-                    showGlyph = true,
-                    mnemonicChoices = mnemonicChoices,
-                    onChoose = onChooseMnemonic,
-                    customs = customMnemonics,
-                )
-            }
-
-            if (quiz.revealed) {
-                ReadingRevealCard(
-                    item = current,
-                    romajiOk = romajiOk == true,
-                    meaningOk = if (needMeaning) meaningOk == true else null,
-                    streakMessage = quiz.streakMessage,
-                    onSpeak = onSpeak,
-                    ttsStatus = ttsStatus,
-                    unitCharacters = unitCharactersFor(current.answer),
-                    mnemonicsEnabled = mnemonicsEnabled,
-                    kanjiHintsEnabled = kanjiHintsEnabled,
-                    mnemonicChoices = mnemonicChoices,
-                    onChooseMnemonic = onChooseMnemonic,
-                    customMnemonics = customMnemonics,
-                )
-            } else if (romajiOk == null) {
-                Text(
-                    text = if (markStyle) "What is this mark?" else "What's the reading?",
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                ReadingAnswerInput(
-                    style = readingStyle,
-                    options = romajiOptions,
-                    expected = readingAnswer,
-                    typed = typed,
-                    onTypedChange = { typed = it },
-                    onAnswered = { ok ->
-                        romajiOk = ok
-                        typed = ""
-                        if (!needMeaning) finish()
-                    },
-                )
-            } else {
-                // Romaji answered; if meaning is being tested, ask it (always as
-                // multiple choice — typing an English gloss would be too strict).
-                Text(
-                    text = "Reading: ${current.prompt}  ${if (romajiOk == true) "✓" else "✗"}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = if (romajiOk == true) {
-                        correctColor(LocalKanaColors.current.isDark)
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    },
-                )
-                if (needMeaning && meaningOk == null) {
-                    Text("What does it mean?", style = MaterialTheme.typography.titleSmall)
-                    ReadingAnswerInput(
-                        style = ReadingAnswerStyle.CHOICE,
-                        options = meaningOptions,
-                        expected = current.subtitle.orEmpty(),
-                        typed = "",
-                        onTypedChange = {},
-                        onAnswered = { ok -> meaningOk = ok; finish() },
+            val gap = if (maxHeight >= 320.dp) 12.dp else 8.dp
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // The printed prompt glyph — the real-world (gothic) form to
+                // recognize (print_forms swaps さ/き/り to their connected printed
+                // forms; everything else falls back to the system font). It fits
+                // its box (width, leftover height, and a cap) and, because the
+                // reserve below is a constant height, keeps the exact same size
+                // and position on reveal — nothing jumps.
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    FlashcardGlyph(
+                        glyph = current.answer,
+                        boxWidth = this.maxWidth,
+                        boxHeight = this.maxHeight,
                     )
+                }
+
+                // Fixed reveal/prompt reserve — reserved in every state so the
+                // glyph above never shifts. Holds the pre-answer prompt (+ hint),
+                // the meaning question, or the reveal; NEVER the answer input,
+                // which is pinned in the bottom section. verticalScroll is an
+                // extreme-font / small-screen safety only.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(ReadingRevealReserve)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(gap, Alignment.CenterVertically),
+                ) {
+                    when {
+                        quiz.revealed -> ReadingRevealContent(
+                            item = current,
+                            romajiOk = romajiOk == true,
+                            meaningOk = if (needMeaning) meaningOk == true else null,
+                            streakMessage = quiz.streakMessage,
+                            onSpeak = onSpeak,
+                            ttsStatus = ttsStatus,
+                            unitCharacters = unitCharactersFor(current.answer),
+                            mnemonicsEnabled = mnemonicsEnabled,
+                            kanjiHintsEnabled = kanjiHintsEnabled,
+                            mnemonicChoices = mnemonicChoices,
+                            onChooseMnemonic = onChooseMnemonic,
+                            customMnemonics = customMnemonics,
+                        )
+                        meaningStep -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    text = "Reading: ${current.prompt}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (romajiOk == true) {
+                                        correctColor(LocalKanaColors.current.isDark)
+                                    } else {
+                                        MaterialTheme.colorScheme.error
+                                    },
+                                )
+                                ReadingResultMark(romajiOk == true)
+                            }
+                            Text(
+                                text = "What does it mean?",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                        }
+                        else -> {
+                            Text(
+                                text = if (markStyle) "What is this mark?" else "What's the reading?",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            // Pre-answer memory hint (opt-in via the setup card):
+                            // the glyph is the visible prompt, so the dialog may
+                            // show it; the keyword hints the hidden sound. Renders
+                            // nothing when no unit has a mnemonic.
+                            if (mnemonicsEnabled && quiz.showHints) {
+                                MnemonicHintButton(
+                                    unitCharacters = unitCharactersFor(current.answer),
+                                    showGlyph = true,
+                                    mnemonicChoices = mnemonicChoices,
+                                    onChoose = onChooseMnemonic,
+                                    customs = customMnemonics,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.End,
+        // Bottom answer section — pinned, with fixed slot heights so it (hence
+        // the reserve and glyph above) stays a constant height across the
+        // question/answer/reveal states.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (quiz.revealed) {
-                Button(onClick = onAdvance) {
-                    Text(if (quiz.isLast) "Finish" else "Next")
+            when {
+                // Typing: the field + action share ONE row for the reading step
+                // AND the reveal, so the keyboard stays open across items and its
+                // Done key drives Check → Next. The field is never read-only —
+                // after reveal it just ignores keystrokes but keeps focus.
+                typingReading && (readingStep || quiz.revealed) -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = typed,
+                            onValueChange = { if (!quiz.revealed) typed = it },
+                            modifier = Modifier
+                                .weight(2f)
+                                .focusRequester(focusRequester),
+                            label = { Text("Type the romaji") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = {
+                                if (quiz.revealed || typed.isNotBlank()) submitTyped()
+                            }),
+                        )
+                        Button(
+                            onClick = { submitTyped() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp),
+                        ) {
+                            Text(
+                                text = when {
+                                    quiz.revealed -> if (quiz.isLast) "Finish" else "Next"
+                                    typed.isNotBlank() -> "Check"
+                                    else -> "Skip"
+                                },
+                                maxLines = 1,
+                            )
+                        }
+                    }
                 }
-            } else {
-                TextButton(onClick = onAdvance) { Text("Skip") }
+                // Multiple-choice reading options (fixed-height slots).
+                readingStep -> romajiOptions.forEach { option ->
+                    OutlinedButton(
+                        onClick = {
+                            romajiOk = option == readingAnswer
+                            if (!needMeaning) finish()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(ReadingOptionSlot),
+                    ) {
+                        Text(option)
+                    }
+                }
+                // Meaning step is always multiple choice (typing an English gloss
+                // would be too strict).
+                meaningStep -> meaningOptions.forEach { option ->
+                    OutlinedButton(
+                        onClick = { meaningOk = option == current.subtitle; finish() },
+                        modifier = Modifier.fillMaxWidth().height(ReadingOptionSlot),
+                    ) {
+                        Text(option)
+                    }
+                }
+                // Revealed on a multiple-choice run: Next fills the first slot and
+                // the spent option rows stay as blank spacers, so this section's
+                // height is unchanged from the answering state.
+                quiz.revealed -> {
+                    val slots = if (needMeaning) meaningOptions else romajiOptions
+                    Button(
+                        onClick = onAdvance,
+                        modifier = Modifier.fillMaxWidth().height(ReadingOptionSlot),
+                    ) {
+                        Text(if (quiz.isLast) "Finish" else "Next")
+                    }
+                    repeat((slots.size - 1).coerceAtLeast(0)) {
+                        Spacer(modifier = Modifier.fillMaxWidth().height(ReadingOptionSlot))
+                    }
+                }
             }
         }
     }
@@ -892,151 +1008,124 @@ private fun readingOptions(correct: String, pool: List<String>, seed: Int): List
     return (distractors + correct).shuffled(Random(seed.toLong() + 1))
 }
 
-/** One reading answer surface: a column of choice buttons, or a romaji text field + Check. */
+/**
+ * Post-answer reveal content, laid out INLINE (no Card) so it fits the fixed
+ * reveal reserve in [ReadingQuizRunning] without resizing the layout — the same
+ * compact, solid reveal the reading flashcard (Practice mode) uses. Shows the
+ * verdict, the reading (+ audio), the meaning, and the "looks different / how to
+ * remember" badges. The three badges share ONE row (the mnemonic chip goes
+ * icon-only when a divergence/special badge is also present) so the reveal stays
+ * within the reserve.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReadingAnswerInput(
-    style: ReadingAnswerStyle,
-    options: List<String>,
-    expected: String,
-    typed: String,
-    onTypedChange: (String) -> Unit,
-    onAnswered: (Boolean) -> Unit,
+private fun ReadingRevealContent(
+    item: com.hive.hiragana.presentation.viewmodels.QuizItem,
+    romajiOk: Boolean,
+    meaningOk: Boolean?,
+    streakMessage: String?,
+    onSpeak: (String) -> Unit,
+    ttsStatus: VoiceStatus,
+    unitCharacters: List<HiraganaCharacter>,
+    mnemonicsEnabled: Boolean,
+    kanjiHintsEnabled: Boolean,
+    mnemonicChoices: Map<String, String>,
+    onChooseMnemonic: (String, String?) -> Unit,
+    customMnemonics: CustomMnemonicStore,
 ) {
-    if (style == ReadingAnswerStyle.CHOICE) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+    val needMeaning = meaningOk != null
+    val allOk = romajiOk && (meaningOk != false)
+    val hasDivergence = unitCharacters.any { PrintDivergence.noteFor(it.character) != null }
+    val hasSpecial = unitCharacters.any { SpecialKana.noteFor(it.character) != null }
+    val hasAudio = !SpecialKana.isSilentMark(item.answer)
+
+    // The streak encouragement IS the headline (a green tier line when correct,
+    // a gentle red streak-broken line when wrong), falling back to the plain
+    // verdict when there is no streak message.
+    Text(
+        text = streakMessage ?: if (allOk) "Correct!" else "Not quite",
+        style = MaterialTheme.typography.titleMedium,
+        color = if (allOk) correctColor(LocalKanaColors.current.isDark) else MaterialTheme.colorScheme.error,
+    )
+    // Reading · audio · meaning on one line, each an unbreakable child so a
+    // squeezed part wraps whole to the next line rather than shredding. When
+    // meaning was tested, each part carries a ✓/✗ so the missed step is clear.
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            options.forEach { option ->
-                OutlinedButton(
-                    onClick = { onAnswered(option == expected) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(option)
-                }
+            if (needMeaning) ReadingResultMark(romajiOk)
+            // readingLabel gives a lone mark its role, not its placeholder romaji.
+            Text(
+                text = SpecialKana.readingLabel(item.answer) ?: item.prompt,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            if (hasAudio) {
+                PronunciationButton(glyph = item.answer, status = ttsStatus, onSpeak = onSpeak)
             }
         }
-    } else {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            OutlinedTextField(
-                value = typed,
-                onValueChange = onTypedChange,
-                singleLine = true,
-                label = { Text("Type the romaji") },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Button(
-                onClick = { onAnswered(RomajiMatch.matches(typed, expected)) },
-                enabled = typed.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
+        item.subtitle?.let { meaning ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
             ) {
-                Text("Check")
+                if (needMeaning) ReadingResultMark(meaningOk == true)
+                Text(
+                    text = if (needMeaning) meaning else "·  $meaning",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
             }
+        }
+    }
+    // All three badges share ONE row so the reveal stays compact. The quiz
+    // prompt was the printed form, so the divergence badge is labelled for the
+    // handwritten side; the mnemonic chip goes icon-only when another badge is
+    // present. Each renders nothing when it has no content.
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PrintDivergenceBadge(
+            unitCharacters = unitCharacters,
+            label = "Looks different in handwriting",
+        )
+        SpecialKanaBadge(unitCharacters = unitCharacters, iconOnly = hasDivergence)
+        // The word's kanji spelling, for reference (opt-in; renders nothing
+        // when off or the word has none). Informative only — never quizzed.
+        KanjiBadge(
+            kanji = item.kanji.takeIf { kanjiHintsEnabled },
+            reading = SpecialKana.readingLabel(item.answer) ?: item.prompt,
+            meaning = item.subtitle.orEmpty(),
+            kanjiUsage = item.kanjiUsage,
+            otherForms = item.otherKanjiForms,
+        )
+        if (mnemonicsEnabled) {
+            MnemonicBadge(
+                unitCharacters = unitCharacters,
+                iconOnly = hasDivergence || hasSpecial,
+                mnemonicChoices = mnemonicChoices,
+                onChoose = onChooseMnemonic,
+                customs = customMnemonics,
+            )
         }
     }
 }
 
-/** Post-answer reveal: correctness, the reading, the meaning, and an audio button. */
+/** A small ✓/✗ marking one answered step right or wrong on the reveal. */
 @Composable
-private fun ReadingRevealCard(
-    item: com.hive.hiragana.presentation.viewmodels.QuizItem,
-    romajiOk: Boolean,
-    meaningOk: Boolean?,
-    streakMessage: String? = null,
-    onSpeak: (String) -> Unit,
-    ttsStatus: VoiceStatus,
-    unitCharacters: List<HiraganaCharacter> = emptyList(),
-    mnemonicsEnabled: Boolean = true,
-    kanjiHintsEnabled: Boolean = false,
-    mnemonicChoices: Map<String, String> = emptyMap(),
-    onChooseMnemonic: (String, String?) -> Unit = { _, _ -> },
-    customMnemonics: CustomMnemonicStore = CustomMnemonicStore(),
-) {
-    val allOk = romajiOk && (meaningOk != false)
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // The streak encouragement IS the headline (a green tier line for a
-            // correct answer, a gentle red streak-broken line for a wrong one),
-            // falling back to the plain verdict if there is no streak message.
-            Text(
-                text = streakMessage ?: if (allOk) "Correct!" else "Not quite",
-                style = MaterialTheme.typography.titleMedium,
-                color = if (allOk) correctColor(LocalKanaColors.current.isDark) else MaterialTheme.colorScheme.error,
-            )
-            // Reading + audio, kept horizontally centered: the speaker adds width
-            // on the right, so a matching leading spacer balances it and the
-            // reading text sits at true centre (a silent mark has no speaker, so
-            // no spacer either). readingLabel gives a lone mark its role, not its
-            // placeholder romaji.
-            val hasAudio = !SpecialKana.isSilentMark(item.answer)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (hasAudio) Spacer(Modifier.width(38.dp))
-                Text(
-                    text = SpecialKana.readingLabel(item.answer) ?: item.prompt,
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center,
-                )
-                if (hasAudio) {
-                    PronunciationButton(
-                        glyph = item.answer,
-                        status = ttsStatus,
-                        onSpeak = onSpeak,
-                        modifier = Modifier.padding(start = 6.dp),
-                    )
-                }
-            }
-            item.subtitle?.let { meaning ->
-                Text(
-                    text = meaning,
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            // The quiz prompt was the printed form — flag kana whose
-            // handwritten form looks different (renders nothing otherwise).
-            PrintDivergenceBadge(
-                unitCharacters = unitCharacters,
-                label = "Looks different in handwriting",
-            )
-            // Note the special marks (ー, small tsu, small vowels, ん, を) that
-            // don't read like an ordinary syllable (renders nothing otherwise).
-            SpecialKanaBadge(unitCharacters = unitCharacters)
-            // The word's kanji spelling, for reference (opt-in; renders nothing
-            // when off or the word has none). Informative only — never quizzed.
-            KanjiBadge(
-                kanji = item.kanji.takeIf { kanjiHintsEnabled },
-                reading = SpecialKana.readingLabel(item.answer) ?: item.prompt,
-                meaning = item.subtitle.orEmpty(),
-                kanjiUsage = item.kanjiUsage,
-                otherForms = item.otherKanjiForms,
-            )
-            // Memory hint for the kana just answered — re-reading the story
-            // right after a recall attempt is when it encodes best. The "How to
-            // remember" chip shows here AFTER the result regardless of the setup
-            // "hints during the quiz" choice (that choice only gates the
-            // pre-answer Hint button). Renders nothing when no unit has a
-            // mnemonic.
-            if (mnemonicsEnabled) {
-                MnemonicBadge(
-                    unitCharacters = unitCharacters,
-                    mnemonicChoices = mnemonicChoices,
-                    onChoose = onChooseMnemonic,
-                    customs = customMnemonics,
-                )
-            }
-        }
-    }
+private fun ReadingResultMark(ok: Boolean) {
+    Text(
+        text = if (ok) "✓" else "✗",
+        style = MaterialTheme.typography.titleMedium,
+        color = if (ok) correctColor(LocalKanaColors.current.isDark) else MaterialTheme.colorScheme.error,
+    )
 }
 
 /**

@@ -165,6 +165,17 @@ private fun CharacterScoreSummary?.avgScore(): Int? = this?.avgForm ?: this?.avg
 private fun CharacterScoreSummary?.bestScore(): Int? = this?.bestForm ?: this?.bestFit
 
 /**
+ * Compact writing-score line for a word row ("Avg 82 · Best 90"), mirroring the
+ * reading-progress detail line so a word's numeric score is legible in the list
+ * and not just implied by the row's green tint.
+ */
+private fun wordScoreSubtitle(summary: CharacterScoreSummary?): String {
+    val avg = summary.avgScore() ?: return "Not practiced yet"
+    val best = summary.bestScore()
+    return if (best != null) "Avg $avg · Best $best" else "Avg $avg"
+}
+
+/**
  * Sort orders for the character/word lists. Writing mode uses AVG/BEST (from the
  * handwriting scorer); Reading mode uses AVG/MC/TYPE (the reading percentages).
  * DEFAULT is the incoming gojūon order.
@@ -230,7 +241,7 @@ private fun <T> List<T>.sortedByReading(
 private fun readingSubtitle(stat: ReadingProgress?): String {
     if (stat == null) return "Not quizzed yet"
     fun p(v: Int?) = v?.let { "$it%" } ?: "–"
-    return "MC ${p(stat.mcqPercent)} · Type ${p(stat.typePercent)} · Avg ${p(stat.colorPercent)}"
+    return "MC ${p(stat.mcqPercent)} · Typing ${p(stat.typePercent)} · Avg ${p(stat.colorPercent)}"
 }
 
 /**
@@ -546,18 +557,29 @@ fun LibraryScreen(
     // List-mode sort by scored history (both tabs share one order). Session-local
     // like the sets-manager sort; the chart/grid and tab counts stay unsorted.
     var listSort by remember { mutableStateOf(ItemSort.DEFAULT) }
-    val sortedCharacters = remember(filteredCharacters, listSort, scoreStats, readingStats, appMode) {
-        if (appMode == AppMode.READING) {
-            filteredCharacters.sortedByReading(listSort) { readingStats[it.character] }
-        } else {
-            filteredCharacters.sortedByScore(listSort) { scoreStats[it.character] }
+    // In the DEFAULT (unsorted) order, an active query is ranked by relevance so
+    // an exact/whole-word/prefix hit floats above an incidental substring hit
+    // ("hat" beats "that"/"what"); ties keep the deck's frequency order (stable
+    // sort). An explicit score/reading sort is the user's choice and wins over
+    // relevance.
+    val sortedCharacters = remember(filteredCharacters, listSort, scoreStats, readingStats, appMode, normalizedQuery) {
+        when {
+            listSort != ItemSort.DEFAULT && appMode == AppMode.READING ->
+                filteredCharacters.sortedByReading(listSort) { readingStats[it.character] }
+            listSort != ItemSort.DEFAULT ->
+                filteredCharacters.sortedByScore(listSort) { scoreStats[it.character] }
+            normalizedQuery.isEmpty() -> filteredCharacters
+            else -> filteredCharacters.sortedBy { it.relevance(normalizedQuery) }
         }
     }
-    val sortedWords = remember(filteredWords, listSort, scoreStats, readingStats, appMode) {
-        if (appMode == AppMode.READING) {
-            filteredWords.sortedByReading(listSort) { readingStats[it.kana] }
-        } else {
-            filteredWords.sortedByScore(listSort) { scoreStats[it.kana] }
+    val sortedWords = remember(filteredWords, listSort, scoreStats, readingStats, appMode, normalizedQuery, wordRomaji) {
+        when {
+            listSort != ItemSort.DEFAULT && appMode == AppMode.READING ->
+                filteredWords.sortedByReading(listSort) { readingStats[it.kana] }
+            listSort != ItemSort.DEFAULT ->
+                filteredWords.sortedByScore(listSort) { scoreStats[it.kana] }
+            normalizedQuery.isEmpty() -> filteredWords
+            else -> filteredWords.sortedBy { it.relevance(normalizedQuery, wordRomaji[it.kana].orEmpty()) }
         }
     }
     // Jump back to the top whenever the order changes, so the new first items are
@@ -814,10 +836,16 @@ fun LibraryScreen(
                                 onClick = { onPracticeWord(word) },
                                 glyph = word.kana,
                                 title = word.meaning,
-                                subtitle = if (appMode == AppMode.READING) {
+                                // The romaji reading is the primary subtitle in
+                                // both modes; the third line carries the score —
+                                // reading progress in Reading mode, the writing
+                                // avg/best in Writing mode — so the number is
+                                // visible, not just implied by the row's tint.
+                                subtitle = pronunciation(word),
+                                detail = if (appMode == AppMode.READING) {
                                     readingSubtitle(readingStats[word.kana])
                                 } else {
-                                    pronunciation(word)
+                                    wordScoreSubtitle(scoreStats[word.kana])
                                 },
                                 score = scoreStats[word.kana].avgScore(),
                                 showPronunciation = true,
@@ -2054,6 +2082,37 @@ private fun VocabularyWord.matches(query: String, romaji: String): Boolean =
         romaji.searchNormalize().contains(query)
 
 /**
+ * How well [field] matches [query] (already [searchNormalize]d): the lower the
+ * tier the stronger the match. This is what floats an exact hit above a mere
+ * substring hit so searching "hat" ranks the word "hat" above "that"/"what".
+ * [field] is the raw human string (it may carry spaces, e.g. a multi-word
+ * meaning "that over there" or space-separated romaji "bo u shi"); the
+ * whitespace-stripped comparison is what makes "boushi" and "bo u shi" both an
+ * exact match on that word's romaji.
+ */
+private fun matchTier(query: String, field: String): Int {
+    if (field.isEmpty()) return NO_MATCH
+    val norm = field.searchNormalize()
+    return when {
+        norm == query -> 0 // exact
+        field.lowercase().split(' ', '\t', '\n', '\r').any { it == query } -> 1 // whole word
+        norm.startsWith(query) -> 2 // prefix
+        norm.contains(query) -> 3 // substring
+        else -> NO_MATCH
+    }
+}
+
+private const val NO_MATCH = Int.MAX_VALUE
+
+/** Best (lowest) match tier across a character's searchable fields. */
+private fun HiraganaCharacter.relevance(query: String): Int =
+    minOf(matchTier(query, character), matchTier(query, romaji), matchTier(query, id))
+
+/** Best (lowest) match tier across a word's searchable fields. */
+private fun VocabularyWord.relevance(query: String, romaji: String): Int =
+    minOf(matchTier(query, kana), matchTier(query, meaning), matchTier(query, romaji))
+
+/**
  * A slim autofocused search field used by the practice-set screens (the set
  * builder's item list and the sets manager): a leading magnifier plus a trailing
  * clear that empties the query. Toggled open by a magnifier icon in each header.
@@ -2116,6 +2175,7 @@ private fun LibraryRow(
     subtitle: String,
     score: Int?,
     showPronunciation: Boolean = false,
+    detail: String? = null,
     onSpeak: (String) -> Unit = {},
     ttsStatus: VoiceStatus = VoiceStatus.UNAVAILABLE,
 ) {
@@ -2152,6 +2212,18 @@ private fun LibraryRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                // A muted third line for secondary info (e.g. reading-progress
+                // stats under a word's romaji in Reading mode), shown only when
+                // provided so Writing-mode rows keep their two-line shape.
+                if (detail != null) {
+                    Text(
+                        text = detail,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             if (showPronunciation) {
                 PronunciationButton(

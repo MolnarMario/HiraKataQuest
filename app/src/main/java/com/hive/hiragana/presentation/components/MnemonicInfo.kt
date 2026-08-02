@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -390,6 +391,37 @@ private fun MnemonicDialog(
     }
 }
 
+/**
+ * The mnemonic story with the kana's own romaji [reading] emphasized in bold,
+ * so the sound anchor ("...starts with **sa**.") pops for the learner. Matches
+ * are whole-word and case-insensitive, so "sa" in "Salsa" or "ka" in "Karate"
+ * stays plain and only the standalone reading is bolded.
+ *
+ * Single-letter vowel readings (あ = "a", い = "i" ...) collide with English
+ * words/articles ("with a stem", "two little i letters"), so for those ONLY
+ * the sound anchor is bolded — the copy rule guarantees the final sentence
+ * spells it out, so the LAST occurrence is the anchor. Multi-letter readings
+ * never collide, so every occurrence is bolded.
+ */
+private fun storyWithReadingBold(story: String, reading: String): AnnotatedString {
+    if (reading.isBlank()) return AnnotatedString(story)
+    val regex = Regex("(?<![A-Za-z])" + Regex.escape(reading) + "(?![A-Za-z])", RegexOption.IGNORE_CASE)
+    val matches = regex.findAll(story).toList()
+    if (matches.isEmpty()) return AnnotatedString(story)
+    val toBold = if (reading.length >= 2) matches else listOf(matches.last())
+    return buildAnnotatedString {
+        var idx = 0
+        toBold.forEach { m ->
+            if (m.range.first > idx) append(story.substring(idx, m.range.first))
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                append(m.value)
+            }
+            idx = m.range.last + 1
+        }
+        if (idx < story.length) append(story.substring(idx))
+    }
+}
+
 /** Square side of the glyph specimen (matches the divergence dialog's). */
 private val MnemonicSpecimenSize = 72.dp
 
@@ -466,7 +498,7 @@ private fun MnemonicSection(
             style = MaterialTheme.typography.titleMedium,
         )
         Text(
-            text = mnemonic.story,
+            text = storyWithReadingBold(mnemonic.story, character.romaji),
             style = MaterialTheme.typography.bodyMedium,
         )
 
@@ -541,7 +573,7 @@ private fun MnemonicSection(
                                 }
                             }
                             Text(
-                                text = candidate.story,
+                                text = storyWithReadingBold(candidate.story, character.romaji),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

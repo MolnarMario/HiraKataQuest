@@ -12,6 +12,26 @@ listed newest-first by milestone. Detailed provenance lives in
 
 ## [Unreleased]
 
+### 2026-08-02 — 0.3.3: Smarter Library search and visible scores
+
+#### Added
+- **Your writing score now shows on each word in the Library list.** Words in
+  the Characters/Words list already tinted green by score; now they also print
+  the number ("Avg 82 · Best 90", or "Not practiced yet"), matching the grid
+  view and the character rows.
+- **Reading progress keeps the romaji alongside it.** In Reading mode the word
+  list used to replace a word's romaji with its progress stats; it now shows the
+  romaji as usual and puts the progress on its own line, so you never lose the
+  reading.
+
+#### Changed
+- **Library search ranks results by relevance.** An exact match now floats to
+  the top instead of being buried under incidental substring hits, so searching
+  "hat" finds the word "hat" first rather than "that" and "what". Romaji search
+  works the same way, with or without spaces ("boushi" or "bo u shi").
+- The reading-progress line labels the typed-answer score **"Typing"** instead
+  of the terser "Type".
+
 ### 2026-07-31 — 0.3.1: Quiz polish and memory hints for every kana
 
 #### Added
