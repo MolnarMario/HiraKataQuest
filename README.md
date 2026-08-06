@@ -4,11 +4,12 @@
 tracks you pick from an opening screen**:
 
 - **Reading** — learn to recognize the **printed (gothic) kana** you meet on
-  signs, apps, and online. A reading **quiz** (see a printed character or word,
-  answer by multiple choice or by typing the romaji — with lenient matching;
-  words can optionally also test the English meaning) and a **flashcard** study
-  mode (flip a printed card to reveal its reading, audio, and meaning; a "Type
-  the reading" toggle adds a romaji field).
+  signs, apps, and online. A reading **quiz** that runs either way round (see a
+  printed character or word and give its reading, or see the reading and pick the
+  kana; answer by multiple choice or by typing; words can optionally also test the
+  English meaning) and a **flashcard** study mode (flip a printed card to reveal
+  its reading, audio, and meaning; a "Type the reading" toggle adds a romaji
+  field).
 - **Writing** — the handwriting practice: trace the **handwritten (kaisho)**
   stroke form over a ghost glyph, watch the stroke-order demo, and get advisory
   geometry + ML Kit scoring.
@@ -75,14 +76,21 @@ screen or from the **Reading | Writing** toggle in the Library's Study-scope
 sheet (which replaced the old Printed / Handwritten "Character style" option).
 
 - **Reading track** — study the printed gothic kana with a **reading quiz** and a
-  **flashcard** mode. In the quiz you see a printed character or word and answer
-  either by **multiple choice** or by **typing the romaji** (lenient matching, so
-  minor spelling slips still pass); for words you can optionally also be tested on
-  the **English meaning**. Flashcards flip from the printed front to reveal the
+  **flashcard** mode. The quiz runs **either way round**, picked on its setup card:
+  **Kana → romaji** shows a printed character or word and asks for its reading, and
+  **Romaji → kana** flips it into recall, showing the reading and asking which kana
+  spells it. Both directions answer either by **multiple choice** or by **typing**
+  (romaji matching is lenient, so minor spelling slips still pass; typing kana is
+  matched exactly, since which script you wrote is the point, and it needs a
+  Japanese keyboard on your phone, which the setup card warns about and links you
+  to the settings for). For words you can optionally also be tested on the
+  **English meaning**. Flashcards flip from the printed front to reveal the
   reading, audio, and meaning, with a **"Type the reading"** toggle that adds a
   romaji field. Reading accuracy is tracked per item as **two percentages** — a
   multiple-choice % and a typed % — and their average tints the Library (reading
-  is pass/fail, so there's no "best" score).
+  is pass/fail, so there's no "best" score). Both quiz directions feed the same
+  per-item percentages: recognising a kana and recalling it are two goes at the
+  same character.
 - **Writing track** — the handwriting practice below: it **opens into free
   practice**, picking up a random character (or word) from the section of the
   Library you last browsed, scoped to whatever you're studying, so you can start

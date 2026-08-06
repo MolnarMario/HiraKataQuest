@@ -92,6 +92,21 @@ enum class QuizKind { WRITING, READING }
 /** How the learner answers a READING quiz item. */
 enum class ReadingAnswerStyle { CHOICE, TYPE }
 
+/**
+ * Which way round a READING quiz asks its items.
+ *
+ * [KANA_TO_ROMAJI] is recognition (the original behaviour): the printed glyph or
+ * word is the prompt and the learner supplies its reading. [ROMAJI_TO_KANA]
+ * inverts it into recall: the reading is the prompt and the learner supplies the
+ * kana, either by picking it or by typing it with a Japanese keyboard.
+ *
+ * The two directions share one [QuizItem] — its `answer` is always the kana and
+ * its `prompt` always the reading — so only the UI and the typed-answer matcher
+ * differ ([RomajiMatch] forward, [KanaAnswerMatch] reverse). Both record into the
+ * same per-item reading tallies.
+ */
+enum class ReadingDirection { KANA_TO_ROMAJI, ROMAJI_TO_KANA }
+
 /** One reading flashcard: the printed glyph/word on the front, reading + meaning on the back. */
 data class ReadingCard(
     val glyph: String,
@@ -221,6 +236,10 @@ data class QuizState(
     // typing romaji; words optionally also test the English meaning.
     val kind: QuizKind = QuizKind.WRITING,
     val readingAnswerStyle: ReadingAnswerStyle = ReadingAnswerStyle.CHOICE,
+    // Which way round the reading quiz asks: see [ReadingDirection]. The default
+    // is the original kana-to-reading direction, so an unchanged setup card runs
+    // exactly the quiz it always did.
+    val readingDirection: ReadingDirection = ReadingDirection.KANA_TO_ROMAJI,
     val readingTestMeaning: Boolean = false,
     // Whether the pre-answer "Hint" (mnemonic) button is offered DURING an item
     // (reading OR writing quiz) — a per-quiz setup choice, so a learner can test
@@ -472,6 +491,20 @@ data class PracticeUiState(
      */
     fun quizSourceSize(setId: Long?): Int =
         practiceSet(setId)?.members?.size ?: activeScriptCharacters.size
+
+    /**
+     * Candidate answers the REVERSE reading quiz draws its multiple-choice
+     * distractors from — the same source the quiz pool itself is built from
+     * (see PracticeViewModel.buildQuizPool), which keeps the wrong options in
+     * the active script and inside the learner's kana opt-ins.
+     *
+     * It matters that this is the whole source rather than the quiz's own
+     * items: forward multiple choice can distract with the other items'
+     * readings, but a 5-item reverse run would then offer only 5 kana. Drawing
+     * from the source keeps the options plausible at any quiz length.
+     */
+    fun quizDistractorPool(setId: Long?): List<String> =
+        practiceSet(setId)?.members ?: activeScriptCharacters.map { it.character }
 
     val currentCharacter: HiraganaCharacter?
         get() = when (phase) {
@@ -1819,6 +1852,14 @@ class PracticeViewModel(
         }
     }
 
+    /** Reading-quiz setup: which way round to ask (see [ReadingDirection]). */
+    fun setReadingDirection(direction: ReadingDirection) {
+        _uiState.update { state ->
+            val quiz = state.quiz ?: return@update state
+            state.copy(quiz = quiz.copy(readingDirection = direction))
+        }
+    }
+
     /** Reading-quiz setup: also test the English meaning (word sources only). */
     fun setReadingTestMeaning(enabled: Boolean) {
         _uiState.update { state ->
@@ -1864,9 +1905,13 @@ class PracticeViewModel(
         // the permanent reading_progress tally for one question.
         if (quiz.stage != QuizStage.RUNNING || quiz.submitted) return
         val item = quiz.current ?: return
-        // Special marks are always answered by choice (no romaji to type), so
-        // their result belongs in the multiple-choice tally even if TYPE is the
-        // chosen style — mirrors the forced-choice UI in ReadingQuizRunning.
+        // Special marks are always answered by choice (no romaji to type, and
+        // nobody should be asked to type ー), so their result belongs in the
+        // multiple-choice tally even if TYPE is the chosen style — mirrors the
+        // forced-choice UI in ReadingQuizRunning. True in BOTH reading
+        // directions, hence no [ReadingDirection] term here; a reverse answer
+        // is recorded against the same item and the same two tallies, since
+        // recognising and recalling one kana are two goes at the same item.
         val markStyle = SpecialKana.readingLabel(item.answer) != null
         val typed = quiz.readingAnswerStyle == ReadingAnswerStyle.TYPE && !markStyle
         _uiState.update { state ->
