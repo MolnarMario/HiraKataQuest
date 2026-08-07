@@ -99,6 +99,29 @@ object SpecialKana {
         glyph == "ー" || glyph == "っ" || glyph == "ッ"
 
     /**
+     * The glyph to actually hand to text-to-speech for [glyph]. A lone small
+     * vowel (ぁぃぅぇぉ/ァィゥェォ) has no sound of its own to a real TTS engine
+     * when spoken in isolation, even though it carries the same bare vowel sound
+     * as its full-size counterpart, so it is substituted for that counterpart
+     * here. Every other glyph, including a WORD that merely contains a small
+     * vowel (e.g. "ファ"), passes through unchanged: KanaUnits already fused it
+     * into a real multi-character string there, which engines pronounce fine.
+     */
+    fun ttsGlyph(glyph: String): String = when (glyph) {
+        "ぁ" -> "あ"
+        "ぃ" -> "い"
+        "ぅ" -> "う"
+        "ぇ" -> "え"
+        "ぉ" -> "お"
+        "ァ" -> "ア"
+        "ィ" -> "イ"
+        "ゥ" -> "ウ"
+        "ェ" -> "エ"
+        "ォ" -> "オ"
+        else -> glyph
+    }
+
+    /**
      * A short, human-readable reading label for a lone mark whose stored romaji
      * is a placeholder that only makes sense inside a word (e.g. "ー" for the
      * long-vowel mark, "xtsu"/"xa" for the small kana). Shown in place of that

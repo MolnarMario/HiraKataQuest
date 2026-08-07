@@ -1,5 +1,9 @@
 package com.hive.hiragana.presentation.screens
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -87,6 +92,7 @@ import com.hive.hiragana.presentation.components.MnemonicBadge
 import com.hive.hiragana.presentation.components.MnemonicHintButton
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.fontScaleFraction
+import com.hive.hiragana.presentation.components.toNonScalingSp
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.SpecialKanaBadge
 import com.hive.hiragana.presentation.components.PrintFontFamily
@@ -99,12 +105,14 @@ import com.hive.hiragana.presentation.components.WordStrokePreview
 import com.hive.hiragana.presentation.theme.LocalKanaColors
 import com.hive.hiragana.presentation.theme.correctColor
 import kotlin.math.roundToInt
+import com.hive.hiragana.domain.model.KanaAnswerMatch
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.domain.model.SpecialKana
 import com.hive.hiragana.presentation.viewmodels.QuizKind
 import com.hive.hiragana.presentation.viewmodels.QuizStage
 import com.hive.hiragana.presentation.viewmodels.QuizState
 import com.hive.hiragana.presentation.viewmodels.ReadingAnswerStyle
+import com.hive.hiragana.presentation.viewmodels.ReadingDirection
 import com.hive.hiragana.presentation.viewmodels.WordQuizItem
 import kotlinx.coroutines.delay
 
@@ -158,6 +166,12 @@ fun QuizScreen(
     // Reading-quiz callbacks (ignored by writing quizzes).
     onReadingResult: (Boolean) -> Unit = {},
     onSetAnswerStyle: (ReadingAnswerStyle) -> Unit = {},
+    onSetReadingDirection: (ReadingDirection) -> Unit = {},
+    // Candidate answers the REVERSE reading quiz draws multiple-choice
+    // distractors from — the whole quiz source, not just the drawn items, so a
+    // short run still offers plausible wrong kana. See
+    // PracticeUiState.quizDistractorPool.
+    distractorPool: List<String> = emptyList(),
     onSetShowHints: (Boolean) -> Unit = {},
     onSetShowStrokeDemo: (Boolean) -> Unit = {},
     onSetTimerEnabled: (Boolean) -> Unit = {},
@@ -195,6 +209,7 @@ fun QuizScreen(
                 scoringMode = scoringMode,
                 onSetScoringMode = onSetScoringMode,
                 onSetAnswerStyle = onSetAnswerStyle,
+                onSetReadingDirection = onSetReadingDirection,
                 onSetTestMeaning = onSetTestMeaning,
                 onSetShowHints = onSetShowHints,
                 onSetShowStrokeDemo = onSetShowStrokeDemo,
@@ -208,6 +223,7 @@ fun QuizScreen(
                     onAdvance = onAdvance,
                     onBack = onBack,
                     onClose = onClose,
+                    distractorPool = distractorPool,
                     onSpeak = onSpeak,
                     ttsStatus = ttsStatus,
                     unitCharactersFor = unitCharactersFor,
@@ -278,6 +294,12 @@ private val READING_ANSWER_CHOICES = listOf(
     ReadingAnswerStyle.TYPE to "Type it",
 )
 
+/** Reading-quiz directions shown on the setup card (see [ReadingDirection]). */
+private val READING_DIRECTION_CHOICES = listOf(
+    ReadingDirection.KANA_TO_ROMAJI to "Kana → romaji",
+    ReadingDirection.ROMAJI_TO_KANA to "Romaji → kana",
+)
+
 /** Scoring-mode chips shown on the quiz setup card. */
 private val SCORING_CHOICES = listOf(
     ScoringMode.FORM to "Form",
@@ -344,6 +366,7 @@ private fun QuizSetup(
     scoringMode: ScoringMode,
     onSetScoringMode: (ScoringMode) -> Unit,
     onSetAnswerStyle: (ReadingAnswerStyle) -> Unit,
+    onSetReadingDirection: (ReadingDirection) -> Unit = {},
     onSetTestMeaning: (Boolean) -> Unit,
     onSetShowHints: (Boolean) -> Unit,
     onSetShowStrokeDemo: (Boolean) -> Unit = {},
@@ -354,6 +377,7 @@ private fun QuizSetup(
     val isWordSource = selectedSet?.type == PracticeSetType.WORDS
     val itemNoun = if (isWordSource) "words" else "characters"
     val reading = quiz.kind == QuizKind.READING
+    val reverse = quiz.readingDirection == ReadingDirection.ROMAJI_TO_KANA
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -387,17 +411,25 @@ private fun QuizSetup(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Text(
-                        text = if (reading) "Read from sight" else "Write from memory",
+                        text = when {
+                            reading && reverse -> "Recall the kana"
+                            reading -> "Read from sight"
+                            else -> "Write from memory"
+                        },
                         style = MaterialTheme.typography.titleLarge,
                     )
                     Text(
-                        text = if (reading) {
-                            "See the printed character or word and recall its " +
-                                "reading. Choose or type the romaji."
-                        } else {
-                            "Each item is prompted by its sound only, with no ghost " +
-                                "guide to trace. Write it, check the answer, see your " +
-                                "score."
+                        text = when {
+                            reading && reverse ->
+                                "See the reading and recall which character or " +
+                                    "word it spells. Choose or type the kana."
+                            reading ->
+                                "See the printed character or word and recall its " +
+                                    "reading. Choose or type the romaji."
+                            else ->
+                                "Each item is prompted by its sound only, with no ghost " +
+                                    "guide to trace. Write it, check the answer, see your " +
+                                    "score."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -471,6 +503,47 @@ private fun QuizSetup(
                         )
                     }
                     if (reading) {
+                        // Direction first: it decides what the item even asks,
+                        // which the answer-style control below then qualifies.
+                        // No icon param — the default selected-checkmark is the
+                        // whole cue here, and no core icon means "this way round".
+                        Text(
+                            text = "Which way round?",
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            READING_DIRECTION_CHOICES.forEachIndexed { index, (direction, label) ->
+                                SegmentedButton(
+                                    selected = direction == quiz.readingDirection,
+                                    onClick = { onSetReadingDirection(direction) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = READING_DIRECTION_CHOICES.size,
+                                    ),
+                                    label = {
+                                        Text(
+                                            text = label,
+                                            fontWeight = if (direction == quiz.readingDirection) {
+                                                FontWeight.Bold
+                                            } else {
+                                                FontWeight.Normal
+                                            },
+                                            maxLines = 1,
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                        Text(
+                            text = if (reverse) {
+                                "You'll see the reading and answer with the kana. " +
+                                    "That's recall, the harder way round."
+                            } else {
+                                "You'll see the kana and answer with its reading."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         Text(
                             text = "How would you like to answer?",
                             style = MaterialTheme.typography.titleSmall,
@@ -521,17 +594,33 @@ private fun QuizSetup(
                             }
                         }
                         Text(
-                            text = when (quiz.readingAnswerStyle) {
-                                ReadingAnswerStyle.CHOICE ->
+                            text = when {
+                                reverse && quiz.readingAnswerStyle == ReadingAnswerStyle.CHOICE ->
+                                    "Pick the correct kana from a few options. " +
+                                        "Tap “Type it” to write it yourself instead."
+                                reverse ->
+                                    "Type the kana yourself. " +
+                                        "Tap “Multiple choice” to pick from options instead."
+                                quiz.readingAnswerStyle == ReadingAnswerStyle.CHOICE ->
                                     "Pick the correct reading from a few options. " +
                                         "Tap “Type it” to enter the romaji yourself instead."
-                                ReadingAnswerStyle.TYPE ->
+                                else ->
                                     "Type the romaji reading yourself. " +
                                         "Tap “Multiple choice” to pick from options instead."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        // Typing kana needs a Japanese IME, which the app can
+                        // neither detect nor install. So this warns rather than
+                        // blocks: the mode stays selectable (plenty of learners
+                        // already have the keyboard), and the button opens the
+                        // system settings where one is added — the same
+                        // learner-fixes-a-device-gap route PronunciationButton
+                        // uses for the missing TTS voice.
+                        if (reverse && quiz.readingAnswerStyle == ReadingAnswerStyle.TYPE) {
+                            JapaneseKeyboardWarning()
+                        }
                         // Only meaningful when memory hints are globally on; the
                         // pre-answer Hint button is gated on both.
                         if (mnemonicsEnabled) {
@@ -677,12 +766,86 @@ private fun QuizSetup(
 }
 
 /**
- * The READING quiz's running screen: show the printed (gothic) glyph/word and
- * have the learner recall its reading — by picking or typing the romaji, and
- * optionally the English meaning for words. No canvas. On answering, the item
- * reveals (correctness + reading + meaning + audio) via [onReadingResult]; Next
- * advances. The prompt is [QuizItem.answer] (the glyph) — the inverse of the
- * writing quiz, whose prompt is the romaji.
+ * Setup-card notice for the one combination the device may not support: typing
+ * kana requires a Japanese keyboard, and there is no API to ask whether the
+ * learner has one or to install it for them. It is styled as a warning, not an
+ * error, and never disables anything — a learner who does have the keyboard
+ * should read past it, and one who doesn't can either tap through to the
+ * keyboard settings or switch to multiple choice.
+ */
+@Composable
+private fun JapaneseKeyboardWarning() {
+    val context = LocalContext.current
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = "Needs a Japanese keyboard",
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                text = "Typing kana only works if your phone's keyboard has " +
+                    "Japanese installed. If it doesn't, add it below or use " +
+                    "multiple choice instead.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(
+                onClick = { openKeyboardSettings(context) },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Text("Keyboard settings")
+            }
+        }
+    }
+}
+
+/**
+ * Opens the system input-method settings, where a Japanese keyboard is enabled
+ * or downloaded. Mirrors PronunciationButtons.installVoiceData: try the precise
+ * screen, fall back to the general settings, and stay a silent no-op if neither
+ * resolves rather than crashing on an unusual device.
+ */
+private fun openKeyboardSettings(context: Context) {
+    val languageSettings = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        context.startActivity(languageSettings)
+        return
+    } catch (_: ActivityNotFoundException) {
+        // no input-method screen — fall through to general settings
+    }
+    try {
+        context.startActivity(
+            Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    } catch (_: ActivityNotFoundException) {
+        // Nothing to open — leave the button as a no-op on this device.
+    }
+}
+
+/**
+ * The READING quiz's running screen, in both directions ([ReadingDirection]).
+ *
+ * Forward (KANA_TO_ROMAJI) shows the printed (gothic) glyph/word and has the
+ * learner recall its reading — by picking or typing the romaji, and optionally
+ * the English meaning for words. Reverse (ROMAJI_TO_KANA) swaps the two: the
+ * reading is the prompt and the kana is the answer, picked from [distractorPool]
+ * or typed with a Japanese keyboard. Either way there is no canvas, answering
+ * reveals the item (correctness + reading + meaning + audio) via
+ * [onReadingResult], and Next advances.
+ *
+ * The layout is identical in both directions and deliberately rigid: the prompt
+ * takes the leftover height above a FIXED reveal reserve, and the answer input is
+ * pinned in a fixed-height bottom section, so revealing fills reserved space in
+ * place. In reverse the prompt box swaps romaji for the answer glyph on reveal —
+ * same box, same constraints, so the size and position still don't move.
  */
 @Composable
 private fun ReadingQuizRunning(
@@ -691,6 +854,7 @@ private fun ReadingQuizRunning(
     onAdvance: () -> Unit,
     onBack: () -> Unit,
     onClose: () -> Unit,
+    distractorPool: List<String>,
     onSpeak: (String) -> Unit,
     ttsStatus: VoiceStatus,
     unitCharactersFor: (String) -> List<HiraganaCharacter>,
@@ -707,28 +871,40 @@ private fun ReadingQuizRunning(
     // closeQuiz with no prompt). Composed after the parent, so LIFO wins here.
     BackHandler { showExitConfirm = true }
     val needMeaning = quiz.readingTestMeaning && current.subtitle != null
-    // A special mark (ー, small tsu, small vowels) has no romaji to type, so it
-    // is tested by its role ("long vowel", "small tsu") and always by choice —
-    // still quizzed, just on knowing what the mark is. ん/を read normally, so
-    // markStyle is false for them and they keep the chosen answer style.
+    val reverse = quiz.readingDirection == ReadingDirection.ROMAJI_TO_KANA
+    // A special mark (ー, small tsu, small vowels) has no romaji, so it is
+    // tested by its role ("long vowel", "small tsu") and always by choice —
+    // still quizzed, just on knowing what the mark is. That holds in BOTH
+    // directions: forward there is nothing to type, and reverse shouldn't ask
+    // anyone to find ー on a keyboard. ん/を read normally, so markStyle is
+    // false for them and they keep the chosen answer style.
     val readingAnswer = SpecialKana.readingLabel(current.answer) ?: current.prompt
     val markStyle = SpecialKana.readingLabel(current.answer) != null
     val readingStyle = if (markStyle) ReadingAnswerStyle.CHOICE else quiz.readingAnswerStyle
 
-    // Per-item answer state; resets when the index changes.
+    // Per-item answer state; resets when the index changes. [romajiOk] is the
+    // reading step's verdict in either direction — reverse just grades the kana
+    // rather than the romaji.
     var romajiOk by remember(quiz.index) { mutableStateOf<Boolean?>(null) }
     var meaningOk by remember(quiz.index) { mutableStateOf<Boolean?>(null) }
     var typed by remember(quiz.index) { mutableStateOf("") }
 
-    val romajiOptions = remember(quiz.index) {
-        // Correct answer + pool both use each item's readable reading (a role
-        // label for marks, romaji otherwise) so no placeholder like "xtsu" leaks
-        // into the options.
-        readingOptions(
-            readingAnswer,
-            quiz.items.map { SpecialKana.readingLabel(it.answer) ?: it.prompt },
-            quiz.index,
-        )
+    val romajiOptions = remember(quiz.index, reverse, distractorPool) {
+        if (reverse) {
+            // Reverse options are kana, drawn from the whole quiz SOURCE rather
+            // than the drawn items — otherwise a 5-item run would only ever
+            // offer those 5 kana as wrong answers.
+            readingOptions(current.answer, distractorPool, quiz.index)
+        } else {
+            // Correct answer + pool both use each item's readable reading (a role
+            // label for marks, romaji otherwise) so no placeholder like "xtsu" leaks
+            // into the options.
+            readingOptions(
+                readingAnswer,
+                quiz.items.map { SpecialKana.readingLabel(it.answer) ?: it.prompt },
+                quiz.index,
+            )
+        }
     }
     val meaningOptions = remember(quiz.index) {
         readingOptions(current.subtitle.orEmpty(), quiz.items.mapNotNull { it.subtitle }, quiz.index + 7)
@@ -738,10 +914,10 @@ private fun ReadingQuizRunning(
         onReadingResult(romajiOk == true && (!needMeaning || meaningOk == true))
     }
 
-    // Typing ergonomics, mirroring the reading flashcard: the romaji field and
+    // Typing ergonomics, mirroring the reading flashcard: the answer field and
     // its action share ONE bottom row, the soft keyboard stays open across
     // items, and its Done key drives Check → Next so the whole run can be typed
-    // without reaching for a button. Marks force multiple choice (no romaji to
+    // without reaching for a button. Marks force multiple choice (nothing to
     // type), so typing is suppressed for them (readingStyle is CHOICE there).
     val typingReading = readingStyle == ReadingAnswerStyle.TYPE
     // The typed field is on screen during the reading step and after the reveal
@@ -763,7 +939,13 @@ private fun ReadingQuizRunning(
         when {
             quiz.revealed -> onAdvance()
             typed.isNotBlank() -> {
-                romajiOk = RomajiMatch.matches(typed, readingAnswer)
+                // Reverse grades the typed KANA (exact after IME normalization);
+                // forward grades typed romaji (lenient across romanizations).
+                romajiOk = if (reverse) {
+                    KanaAnswerMatch.matches(typed, current.answer)
+                } else {
+                    RomajiMatch.matches(typed, readingAnswer)
+                }
                 if (!needMeaning) finish()
             }
             else -> onAdvance() // empty field acts as Skip
@@ -785,7 +967,8 @@ private fun ReadingQuizRunning(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous")
             }
             Text(
-                text = "Read ${quiz.index + 1}/${quiz.items.size}",
+                text = "${if (reverse) "Recall" else "Read"} " +
+                    "${quiz.index + 1}/${quiz.items.size}",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(start = 4.dp),
             )
@@ -804,23 +987,49 @@ private fun ReadingQuizRunning(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // The printed prompt glyph — the real-world (gothic) form to
-                // recognize (print_forms swaps さ/き/り to their connected printed
-                // forms; everything else falls back to the system font). It fits
-                // its box (width, leftover height, and a cap) and, because the
-                // reserve below is a constant height, keeps the exact same size
-                // and position on reveal — nothing jumps.
+                // The headline box. Forward it holds the printed prompt glyph —
+                // the real-world (gothic) form to recognize (print_forms swaps
+                // さ/き/り to their connected printed forms; everything else falls
+                // back to the system font). Reverse it holds the READING as the
+                // prompt, and swaps to that same glyph on reveal, which is the
+                // one moment the hidden answer should be shown large.
+                //
+                // Either way it fits its box (width, leftover height, and a cap)
+                // and, because the reserve below is a constant height, keeps the
+                // exact same size and position on reveal — nothing jumps.
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
                     contentAlignment = Alignment.Center,
                 ) {
-                    FlashcardGlyph(
-                        glyph = current.answer,
-                        boxWidth = this.maxWidth,
-                        boxHeight = this.maxHeight,
-                    )
+                    if (reverse && !quiz.revealed) {
+                        // Sized to its box rather than to the type scale, so the
+                        // reading is the headline the glyph is in the other
+                        // direction instead of a caption adrift in white space.
+                        // That makes it font-scale-independent for the same
+                        // reason FlashcardGlyph is: it is already as large as the
+                        // space allows. AutoShrinkText then shrinks a long word's
+                        // spaced reading ("ko o hi i") to one line, and the
+                        // parent Box centres whatever width it settles on (its
+                        // own textAlign can't — the inner Text wraps content).
+                        val promptSize = (this@BoxWithConstraints.maxHeight * 0.34f)
+                            .coerceIn(28.dp, 96.dp)
+                        AutoShrinkText(
+                            text = readingAnswer,
+                            style = MaterialTheme.typography.displayMedium.copy(
+                                fontSize = promptSize.toNonScalingSp(),
+                                lineHeight = (promptSize * 1.2f).toNonScalingSp(),
+                            ),
+                            textAlign = TextAlign.Center,
+                        )
+                    } else {
+                        FlashcardGlyph(
+                            glyph = current.answer,
+                            boxWidth = this.maxWidth,
+                            boxHeight = this.maxHeight,
+                        )
+                    }
                 }
 
                 // Fixed reveal/prompt reserve — reserved in every state so the
@@ -874,17 +1083,27 @@ private fun ReadingQuizRunning(
                         }
                         else -> {
                             Text(
-                                text = if (markStyle) "What is this mark?" else "What's the reading?",
+                                text = when {
+                                    markStyle && reverse -> "Which mark is this?"
+                                    markStyle -> "What is this mark?"
+                                    reverse && current is WordQuizItem -> "Which word is this?"
+                                    reverse -> "Which kana is this?"
+                                    else -> "What's the reading?"
+                                },
                                 style = MaterialTheme.typography.titleMedium,
                             )
-                            // Pre-answer memory hint (opt-in via the setup card):
-                            // the glyph is the visible prompt, so the dialog may
-                            // show it; the keyword hints the hidden sound. Renders
-                            // nothing when no unit has a mnemonic.
+                            // Pre-answer memory hint (opt-in via the setup card).
+                            // Forward the glyph is the visible prompt, so the
+                            // dialog may show it and the keyword hints the hidden
+                            // sound. REVERSE inverts that: the glyph IS the hidden
+                            // answer, so this takes the writing quiz's text-only
+                            // variant (the stories are already pinned never to
+                            // contain kana). Renders nothing when no unit has a
+                            // mnemonic.
                             if (mnemonicsEnabled && quiz.showHints) {
                                 MnemonicHintButton(
                                     unitCharacters = unitCharactersFor(current.answer),
-                                    showGlyph = true,
+                                    showGlyph = !reverse,
                                     mnemonicChoices = mnemonicChoices,
                                     onChoose = onChooseMnemonic,
                                     customs = customMnemonics,
@@ -922,8 +1141,11 @@ private fun ReadingQuizRunning(
                             modifier = Modifier
                                 .weight(2f)
                                 .focusRequester(focusRequester),
-                            label = { Text("Type the romaji") },
+                            label = { Text(if (reverse) "Type the kana" else "Type the romaji") },
                             singleLine = true,
+                            // Only the IME action is constrained: forcing a
+                            // keyboard type here (Ascii, Text …) can suppress the
+                            // learner's Japanese IME, which reverse mode needs.
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = {
                                 if (quiz.revealed || typed.isNotBlank()) submitTyped()
@@ -946,16 +1168,30 @@ private fun ReadingQuizRunning(
                         }
                     }
                 }
-                // Multiple-choice reading options (fixed-height slots).
+                // Multiple-choice options (fixed-height slots). Forward they are
+                // readings; reverse they are kana, set in the print font at a
+                // readable size — the option IS the character being judged, so it
+                // has to be legible enough to tell き from ぎ.
                 readingStep -> romajiOptions.forEach { option ->
+                    val correctOption = if (reverse) current.answer else readingAnswer
                     OutlinedButton(
                         onClick = {
-                            romajiOk = option == readingAnswer
+                            romajiOk = option == correctOption
                             if (!needMeaning) finish()
                         },
                         modifier = Modifier.fillMaxWidth().height(ReadingOptionSlot),
                     ) {
-                        Text(option)
+                        if (reverse) {
+                            Text(
+                                text = option,
+                                fontFamily = PrintFontFamily,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        } else {
+                            Text(option)
+                        }
                     }
                 }
                 // Meaning step is always multiple choice (typing an English gloss

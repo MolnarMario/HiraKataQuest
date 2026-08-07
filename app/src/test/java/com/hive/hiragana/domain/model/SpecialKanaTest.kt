@@ -69,6 +69,27 @@ class SpecialKanaTest {
     }
 
     @Test
+    fun `lone small vowels are spoken as their base vowel`() {
+        assertEquals("あ", SpecialKana.ttsGlyph("ぁ"))
+        assertEquals("い", SpecialKana.ttsGlyph("ぃ"))
+        assertEquals("う", SpecialKana.ttsGlyph("ぅ"))
+        assertEquals("え", SpecialKana.ttsGlyph("ぇ"))
+        assertEquals("お", SpecialKana.ttsGlyph("ぉ"))
+        assertEquals("ア", SpecialKana.ttsGlyph("ァ"))
+        assertEquals("イ", SpecialKana.ttsGlyph("ィ"))
+        assertEquals("ウ", SpecialKana.ttsGlyph("ゥ"))
+        assertEquals("エ", SpecialKana.ttsGlyph("ェ"))
+        assertEquals("オ", SpecialKana.ttsGlyph("ォ"))
+    }
+
+    @Test
+    fun `ttsGlyph passes through everything else, including words containing a small vowel`() {
+        listOf("あ", "か", "ん", "を", "ー", "っ", "ファ", "ソファ", "コーヒー").forEach {
+            assertEquals(it, SpecialKana.ttsGlyph(it))
+        }
+    }
+
+    @Test
     fun `placeholder-romaji marks get a readable display label`() {
         assertEquals("long vowel", SpecialKana.readingLabel("ー"))
         assertEquals("small tsu", SpecialKana.readingLabel("っ"))

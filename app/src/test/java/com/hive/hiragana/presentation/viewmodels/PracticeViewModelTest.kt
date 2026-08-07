@@ -821,6 +821,122 @@ class PracticeViewModelTest {
     }
 
     /**
+     * A reading quiz opens in the original recognition direction, so an
+     * untouched setup card runs exactly the quiz it always did.
+     */
+    @Test
+    fun `reading quiz defaults to the kana-to-romaji direction`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.openQuiz(kind = QuizKind.READING)
+
+        assertEquals(ReadingDirection.KANA_TO_ROMAJI, vm.uiState.value.quiz!!.readingDirection)
+    }
+
+    /** The setup card's direction toggle flips the quiz round. */
+    @Test
+    fun `setReadingDirection switches the quiz to reverse`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.openQuiz(kind = QuizKind.READING)
+
+        vm.setReadingDirection(ReadingDirection.ROMAJI_TO_KANA)
+
+        assertEquals(ReadingDirection.ROMAJI_TO_KANA, vm.uiState.value.quiz!!.readingDirection)
+    }
+
+    /**
+     * A reverse answer is recorded against the same item and the same two
+     * tallies as a forward one — recognising and recalling a kana are two goes
+     * at the same item, so they share its reading score (no schema split).
+     * Typed reverse answers land in the TYPED tally, not the multiple-choice one.
+     */
+    @Test
+    fun `a typed reverse answer records into the typed tally`() = runTest(dispatcher) {
+        val reading = FakeReadingProgressRepository()
+        val vm = buildViewModel(
+            characters = listOf(character("a", "あ", 1)),
+            readingProgressRepository = reading,
+        )
+        advanceUntilIdle()
+
+        vm.openQuiz(kind = QuizKind.READING)
+        vm.setReadingDirection(ReadingDirection.ROMAJI_TO_KANA)
+        vm.setReadingAnswerStyle(ReadingAnswerStyle.TYPE)
+        vm.startQuiz()
+        advanceUntilIdle()
+
+        vm.readingResult(correct = true)
+        advanceUntilIdle()
+
+        // Keyed by the kana, which is the item's identity in either direction.
+        assertEquals(listOf(RecordedReading("あ", typed = true, correct = true)), reading.recorded)
+    }
+
+    /**
+     * A retake keeps the direction. Without this the learner would be bounced
+     * back to recognition halfway through drilling recall.
+     */
+    @Test
+    fun `retryWrong preserves the reading direction`() = runTest(dispatcher) {
+        val vm = buildViewModel(
+            characters = listOf(character("a", "あ", 1), character("i", "い", 2)),
+        )
+        advanceUntilIdle()
+
+        vm.openQuiz(kind = QuizKind.READING)
+        vm.setReadingDirection(ReadingDirection.ROMAJI_TO_KANA)
+        vm.startQuiz()
+        advanceUntilIdle()
+        vm.readingResult(correct = false)
+        vm.quizAdvance()
+        vm.readingResult(correct = false)
+        vm.quizAdvance()
+        advanceUntilIdle()
+        assertEquals(QuizStage.SUMMARY, vm.uiState.value.quiz!!.stage)
+
+        vm.retryWrong()
+        advanceUntilIdle()
+
+        val quiz = vm.uiState.value.quiz!!
+        assertEquals(QuizStage.RUNNING, quiz.stage)
+        assertEquals(ReadingDirection.ROMAJI_TO_KANA, quiz.readingDirection)
+    }
+
+    /**
+     * Reverse multiple-choice distractors come from the whole quiz SOURCE, not
+     * the drawn items — otherwise a short run could only ever offer its own few
+     * kana as wrong answers. The pool is script-scoped for free, because it is
+     * the same scoped deck the quiz pool itself is built from.
+     */
+    @Test
+    fun `the distractor pool is the scoped deck for the default source`() = runTest(dispatcher) {
+        val vm = buildViewModel(
+            characters = listOf(
+                character("a", "あ", 1),
+                character("i", "い", 2),
+                character("u", "う", 3),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf("あ", "い", "う"), vm.uiState.value.quizDistractorPool(null))
+    }
+
+    /** A set-sourced quiz distracts with that set's own members. */
+    @Test
+    fun `the distractor pool is the set members for a set source`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.savePracticeSet("Vowels", PracticeSetType.CHARACTERS, Script.HIRAGANA, listOf("あ", "い"))
+        advanceUntilIdle()
+        val id = vm.uiState.value.practiceSets.first { it.name == "Vowels" }.id
+
+        assertEquals(listOf("あ", "い"), vm.uiState.value.quizDistractorPool(id))
+    }
+
+    /**
      * From the writing-quiz summary, [PracticeViewModel.retryBelowScore] restarts
      * the quiz with only the items whose score was below the given cutoff. Scored
      * items count; genuinely-skipped items (no result) are excluded — they have no
@@ -1371,12 +1487,24 @@ class PracticeViewModelTest {
         override fun install(apk: java.io.File) {}
     }
 
-    /** In-memory practice sets, backing a [MutableStateFlow] for observation. */
+    /** One captured [ReadingProgressRepository.record] call. */
+    private data class RecordedReading(
+        val itemKey: String,
+        val typed: Boolean,
+        val correct: Boolean,
+    )
+
+    /** Observes canned progress and captures what the ViewModel records. */
     private class FakeReadingProgressRepository(
         private val progress: List<ReadingProgress> = emptyList(),
     ) : ReadingProgressRepository {
+        val recorded = mutableListOf<RecordedReading>()
+
         override fun observe(): Flow<List<ReadingProgress>> = MutableStateFlow(progress)
-        override suspend fun record(itemKey: String, typed: Boolean, correct: Boolean) {}
+
+        override suspend fun record(itemKey: String, typed: Boolean, correct: Boolean) {
+            recorded += RecordedReading(itemKey, typed, correct)
+        }
     }
 
     private class FakePracticeSetRepository : PracticeSetRepository {

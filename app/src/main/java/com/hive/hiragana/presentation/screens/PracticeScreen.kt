@@ -258,6 +258,8 @@ fun PracticeScreen(
                     glyphStrokesFor = uiState::ghostStrokesFor,
                     onReadingResult = viewModel::readingResult,
                     onSetAnswerStyle = viewModel::setReadingAnswerStyle,
+                    onSetReadingDirection = viewModel::setReadingDirection,
+                    distractorPool = uiState.quizDistractorPool(uiState.quiz?.selectedSetId),
                     onSetTestMeaning = viewModel::setReadingTestMeaning,
                     onSetShowHints = viewModel::setShowHints,
                     onSetShowStrokeDemo = viewModel::setShowStrokeDemo,
