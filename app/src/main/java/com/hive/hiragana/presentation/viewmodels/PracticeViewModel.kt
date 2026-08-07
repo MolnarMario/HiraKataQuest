@@ -785,7 +785,7 @@ class PracticeViewModel(
         // stumble, so it is never spoken — including by auto-narration. A word
         // that contains one is a normal glyph string and speaks fine.
         if (SpecialKana.isSilentMark(glyph)) return
-        ttsPlayer.play(glyph)
+        ttsPlayer.play(SpecialKana.ttsGlyph(glyph))
     }
 
     /**
