@@ -78,6 +78,7 @@ import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.domain.model.PrintDivergence
+import com.hive.hiragana.domain.model.StreakEncouragement
 import com.hive.hiragana.domain.scoring.CharacterScore
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.scoring.WordUnitScore
@@ -1912,8 +1913,25 @@ private fun QuizSummary(
                     } else {
                         listOf("Correct" to correct, "Skipped" to skipped, "Wrong" to wrong)
                     }
-                    TextButton(onClick = { wrongFirst = !wrongFirst }) {
-                        Text(if (wrongFirst) "Sorted: needs work first" else "Sorted: correct first")
+                    // A "needs work first" sort is meaningless with nothing to
+                    // review, so a mistake-free set swaps the toggle for a hype
+                    // line instead (scaled by how many were gotten right, the
+                    // same escalating-tier idea as the live streak lines).
+                    if (wrong.isEmpty()) {
+                        if (correct.isNotEmpty()) {
+                            val perfectMessage = remember(correct.size) {
+                                StreakEncouragement.perfectSetMessage(correct.size)
+                            }
+                            Text(
+                                text = perfectMessage,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = correctColor(LocalKanaColors.current.isDark),
+                            )
+                        }
+                    } else {
+                        TextButton(onClick = { wrongFirst = !wrongFirst }) {
+                            Text(if (wrongFirst) "Sorted: needs work first" else "Sorted: correct first")
+                        }
                     }
                     groups.forEach { (label, items) ->
                         if (items.isNotEmpty()) {

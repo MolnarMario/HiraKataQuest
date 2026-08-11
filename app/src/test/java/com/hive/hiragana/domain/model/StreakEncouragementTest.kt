@@ -62,7 +62,28 @@ class StreakEncouragementTest {
     fun `no encouragement copy uses an em or en dash`() {
         val all = StreakEncouragement.TIERS.flatMap { it.second } +
             StreakEncouragement.MILESTONES.values +
-            StreakEncouragement.STREAK_BROKEN
+            StreakEncouragement.STREAK_BROKEN +
+            StreakEncouragement.PERFECT_TIERS.flatMap { it.second }
         all.forEach { assertTrue("dash in: $it", '—' !in it && '–' !in it) }
+    }
+
+    @Test
+    fun `perfect-set tier boundaries map to the right pool`() {
+        assertEquals(StreakEncouragement.PERFECT_TIER_1, StreakEncouragement.perfectSetTierMessages(1))
+        assertEquals(StreakEncouragement.PERFECT_TIER_2, StreakEncouragement.perfectSetTierMessages(2))
+        assertEquals(StreakEncouragement.PERFECT_TIER_3, StreakEncouragement.perfectSetTierMessages(4))
+        assertEquals(StreakEncouragement.PERFECT_TIER_4, StreakEncouragement.perfectSetTierMessages(6))
+        assertEquals(StreakEncouragement.PERFECT_TIER_5, StreakEncouragement.perfectSetTierMessages(10))
+        assertEquals(StreakEncouragement.PERFECT_TIER_6, StreakEncouragement.perfectSetTierMessages(15))
+        assertEquals(StreakEncouragement.PERFECT_TIER_7, StreakEncouragement.perfectSetTierMessages(25))
+        assertEquals(StreakEncouragement.PERFECT_TIER_8, StreakEncouragement.perfectSetTierMessages(50))
+    }
+
+    @Test
+    fun `perfectSetMessage stays within the matching tier pool`() {
+        repeat(20) { seed ->
+            val m = StreakEncouragement.perfectSetMessage(7, random = Random(seed.toLong()))
+            assertTrue("$m not in PERFECT_TIER_4", m in StreakEncouragement.PERFECT_TIER_4)
+        }
     }
 }
