@@ -78,6 +78,7 @@ import com.hive.hiragana.domain.model.PracticeLayout
 import com.hive.hiragana.domain.model.PracticeSet
 import com.hive.hiragana.domain.model.PracticeSetType
 import com.hive.hiragana.domain.model.PrintDivergence
+import com.hive.hiragana.domain.model.StreakEncouragement
 import com.hive.hiragana.domain.scoring.CharacterScore
 import com.hive.hiragana.domain.scoring.ScoringMode
 import com.hive.hiragana.domain.scoring.WordUnitScore
@@ -167,11 +168,13 @@ fun QuizScreen(
     onReadingResult: (Boolean) -> Unit = {},
     onSetAnswerStyle: (ReadingAnswerStyle) -> Unit = {},
     onSetReadingDirection: (ReadingDirection) -> Unit = {},
-    // Candidate answers the REVERSE reading quiz draws multiple-choice
-    // distractors from — the whole quiz source, not just the drawn items, so a
-    // short run still offers plausible wrong kana. See
-    // PracticeUiState.quizDistractorPool.
+    // Candidate answers the reading quiz draws multiple-choice distractors from
+    // — the whole quiz source, not just the drawn items, so a short run (or a
+    // retake of one missed item) still offers plausible wrong answers. Kana for
+    // the reverse direction, readings for the forward one. See
+    // PracticeUiState.quizDistractorPool / quizReadingPool.
     distractorPool: List<String> = emptyList(),
+    readingPool: List<String> = emptyList(),
     onSetShowHints: (Boolean) -> Unit = {},
     onSetShowStrokeDemo: (Boolean) -> Unit = {},
     onSetTimerEnabled: (Boolean) -> Unit = {},
@@ -224,6 +227,7 @@ fun QuizScreen(
                     onBack = onBack,
                     onClose = onClose,
                     distractorPool = distractorPool,
+                    readingPool = readingPool,
                     onSpeak = onSpeak,
                     ttsStatus = ttsStatus,
                     unitCharactersFor = unitCharactersFor,
@@ -855,6 +859,7 @@ private fun ReadingQuizRunning(
     onBack: () -> Unit,
     onClose: () -> Unit,
     distractorPool: List<String>,
+    readingPool: List<String>,
     onSpeak: (String) -> Unit,
     ttsStatus: VoiceStatus,
     unitCharactersFor: (String) -> List<HiraganaCharacter>,
@@ -889,19 +894,22 @@ private fun ReadingQuizRunning(
     var meaningOk by remember(quiz.index) { mutableStateOf<Boolean?>(null) }
     var typed by remember(quiz.index) { mutableStateOf("") }
 
-    val romajiOptions = remember(quiz.index, reverse, distractorPool) {
+    val romajiOptions = remember(quiz.index, reverse, distractorPool, readingPool) {
         if (reverse) {
             // Reverse options are kana, drawn from the whole quiz SOURCE rather
             // than the drawn items — otherwise a 5-item run would only ever
             // offer those 5 kana as wrong answers.
             readingOptions(current.answer, distractorPool, quiz.index)
         } else {
-            // Correct answer + pool both use each item's readable reading (a role
-            // label for marks, romaji otherwise) so no placeholder like "xtsu" leaks
-            // into the options.
+            // Forward options are readings, drawn from the SOURCE for the same
+            // reason: the drawn items shrink on a retake, and one missed item
+            // left exactly one option to tap. Correct answer + pool both use the
+            // readable reading (a role label for marks, romaji otherwise) so no
+            // placeholder like "xtsu" leaks into the options. The items are the
+            // fallback for callers that pass no pool (previews/tests).
             readingOptions(
                 readingAnswer,
-                quiz.items.map { SpecialKana.readingLabel(it.answer) ?: it.prompt },
+                readingPool.ifEmpty { quiz.items.map { SpecialKana.readingLabel(it.answer) ?: it.prompt } },
                 quiz.index,
             )
         }
@@ -1912,8 +1920,25 @@ private fun QuizSummary(
                     } else {
                         listOf("Correct" to correct, "Skipped" to skipped, "Wrong" to wrong)
                     }
-                    TextButton(onClick = { wrongFirst = !wrongFirst }) {
-                        Text(if (wrongFirst) "Sorted: needs work first" else "Sorted: correct first")
+                    // A "needs work first" sort is meaningless with nothing to
+                    // review, so a mistake-free set swaps the toggle for a hype
+                    // line instead (scaled by how many were gotten right, the
+                    // same escalating-tier idea as the live streak lines).
+                    if (wrong.isEmpty()) {
+                        if (correct.isNotEmpty()) {
+                            val perfectMessage = remember(correct.size) {
+                                StreakEncouragement.perfectSetMessage(correct.size)
+                            }
+                            Text(
+                                text = perfectMessage,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = correctColor(LocalKanaColors.current.isDark),
+                            )
+                        }
+                    } else {
+                        TextButton(onClick = { wrongFirst = !wrongFirst }) {
+                            Text(if (wrongFirst) "Sorted: needs work first" else "Sorted: correct first")
+                        }
                     }
                     groups.forEach { (label, items) ->
                         if (items.isNotEmpty()) {

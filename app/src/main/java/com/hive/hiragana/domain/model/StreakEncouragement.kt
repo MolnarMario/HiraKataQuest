@@ -73,6 +73,66 @@ object StreakEncouragement {
         "Shake it off.",
     )
 
+    // Perfect-set completion lines for the reading-quiz summary: shown once,
+    // at the end, when every answered item in the set was correct (no
+    // per-item wrong answers to review). Scales with the set size using the
+    // same range boundaries as [TIERS], but phrased for "you cleared the
+    // whole set" rather than "you're mid-streak".
+    val PERFECT_TIER_1 = listOf(
+        "All correct!", "Perfect!", "Nailed it!",
+    )
+    val PERFECT_TIER_2 = listOf(
+        "Clean sweep!", "Not one mistake!", "Flawless!",
+    )
+    val PERFECT_TIER_3 = listOf(
+        "Every single one right!", "Immaculate run!", "You nailed the whole set!",
+    )
+    val PERFECT_TIER_4 = listOf(
+        "Flawless victory!", "Not a single slip!", "That's mastery right there!",
+    )
+    val PERFECT_TIER_5 = listOf(
+        "A perfect set that size is no accident!", "Outstanding, zero mistakes!",
+        "You're on another level!",
+    )
+    val PERFECT_TIER_6 = listOf(
+        "Incredible, a flawless run that long!", "Total mastery!",
+        "You crushed every single one!",
+    )
+    val PERFECT_TIER_7 = listOf(
+        "Legendary. Not one wrong answer!", "That's a hall of fame set!",
+        "Absolutely dominant!",
+    )
+    val PERFECT_TIER_8 = listOf(
+        "Superhuman. Perfect, every time!", "That's an unbelievable perfect run!",
+        "Are you even human?!",
+    )
+
+    /** (set-size range -> message pool), lowest range first. */
+    val PERFECT_TIERS: List<Pair<IntRange, List<String>>> = listOf(
+        1..1 to PERFECT_TIER_1,
+        2..3 to PERFECT_TIER_2,
+        4..5 to PERFECT_TIER_3,
+        6..9 to PERFECT_TIER_4,
+        10..14 to PERFECT_TIER_5,
+        15..24 to PERFECT_TIER_6,
+        25..49 to PERFECT_TIER_7,
+        50..Int.MAX_VALUE to PERFECT_TIER_8,
+    )
+
+    /** The perfect-set pool for [count] correct answers. */
+    fun perfectSetTierMessages(count: Int): List<String> =
+        PERFECT_TIERS.firstOrNull { count in it.first }?.second ?: PERFECT_TIER_1
+
+    /**
+     * A hype line for a reading-quiz summary where every answered item was
+     * correct, scaled by [count] (how many were gotten right) the same way a
+     * live streak escalates. Random within the matching pool.
+     */
+    fun perfectSetMessage(count: Int, random: Random = Random.Default): String {
+        val pool = perfectSetTierMessages(count)
+        return pool[random.nextInt(pool.size)]
+    }
+
     /** The tier pool for [streak] (milestones are not considered here). */
     fun tierMessages(streak: Int): List<String> =
         TIERS.firstOrNull { streak in it.first }?.second ?: TIER_1

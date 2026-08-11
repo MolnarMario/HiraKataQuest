@@ -499,12 +499,39 @@ data class PracticeUiState(
      * the active script and inside the learner's kana opt-ins.
      *
      * It matters that this is the whole source rather than the quiz's own
-     * items: forward multiple choice can distract with the other items'
-     * readings, but a 5-item reverse run would then offer only 5 kana. Drawing
-     * from the source keeps the options plausible at any quiz length.
+     * items: a 5-item reverse run would otherwise only ever offer those 5 kana.
+     * Drawing from the source keeps the options plausible at any quiz length.
      */
     fun quizDistractorPool(setId: Long?): List<String> =
         practiceSet(setId)?.members ?: activeScriptCharacters.map { it.character }
+
+    /**
+     * The FORWARD reading quiz's multiple-choice distractor pool: the readable
+     * reading of every item in the quiz SOURCE (a mark's role label, a word's
+     * spaced romaji, a character's romaji). The mirror of [quizDistractorPool],
+     * and drawn from the source for the same reason.
+     *
+     * Forward options used to come from the DRAWN items, which shrinks with the
+     * run: "Retake the ones I missed" on a single missed item left the pool at
+     * one reading, so the learner was shown exactly ONE option to tap
+     * (device-found 2026-08-11). A short quiz had the same problem more mildly:
+     * a 3-item run only ever offered 3 readings.
+     */
+    fun quizReadingPool(setId: Long?): List<String> {
+        val set = practiceSet(setId)
+        return when {
+            set == null -> activeScriptCharacters.map { readingOf(it) }
+            set.type == PracticeSetType.WORDS ->
+                set.members
+                    .mapNotNull { kana -> allWords.firstOrNull { it.kana == kana } }
+                    .map { pronunciationOf(it) }
+            else -> set.members.mapNotNull { characterByGlyph[it] }.map { readingOf(it) }
+        }
+    }
+
+    /** How a character's reading reads on study surfaces (marks by role, not placeholder romaji). */
+    private fun readingOf(character: HiraganaCharacter): String =
+        SpecialKana.readingLabel(character.character) ?: character.romaji
 
     val currentCharacter: HiraganaCharacter?
         get() = when (phase) {

@@ -937,6 +937,51 @@ class PracticeViewModelTest {
     }
 
     /**
+     * Forward multiple choice draws its readings from the SOURCE too. Before
+     * this, options came from the drawn items, so "Retake the ones I missed" on
+     * one missed item offered exactly one option to tap.
+     */
+    @Test
+    fun `the reading pool is the scoped deck readings for the default source`() = runTest(dispatcher) {
+        val vm = buildViewModel(
+            characters = listOf(
+                character("a", "あ", 1),
+                character("i", "い", 2),
+                character("u", "う", 3),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf("a", "i", "u"), vm.uiState.value.quizReadingPool(null))
+    }
+
+    /** A character set's reading pool is its own members' readings. */
+    @Test
+    fun `the reading pool is the set members readings for a character set`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.savePracticeSet("Vowels", PracticeSetType.CHARACTERS, Script.HIRAGANA, listOf("あ", "い"))
+        advanceUntilIdle()
+        val id = vm.uiState.value.practiceSets.first { it.name == "Vowels" }.id
+
+        assertEquals(listOf("a", "i"), vm.uiState.value.quizReadingPool(id))
+    }
+
+    /** A word set's reading pool is its words' spaced romaji, matching the prompts. */
+    @Test
+    fun `the reading pool is the spaced romaji for a word set`() = runTest(dispatcher) {
+        val vm = buildViewModel(
+            words = listOf(VocabularyWord.fromKana("あい", "love")),
+        )
+        advanceUntilIdle()
+        vm.savePracticeSet("Words", PracticeSetType.WORDS, Script.HIRAGANA, listOf("あい"))
+        advanceUntilIdle()
+        val id = vm.uiState.value.practiceSets.first { it.name == "Words" }.id
+
+        assertEquals(listOf("a i"), vm.uiState.value.quizReadingPool(id))
+    }
+
+    /**
      * From the writing-quiz summary, [PracticeViewModel.retryBelowScore] restarts
      * the quiz with only the items whose score was below the given cutoff. Scored
      * items count; genuinely-skipped items (no result) are excluded — they have no
