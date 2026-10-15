@@ -890,9 +890,9 @@ private fun ReadingQuizRunning(
     // Per-item answer state; resets when the index changes. [romajiOk] is the
     // reading step's verdict in either direction — reverse just grades the kana
     // rather than the romaji.
-    var romajiOk by remember(quiz.index) { mutableStateOf<Boolean?>(null) }
-    var meaningOk by remember(quiz.index) { mutableStateOf<Boolean?>(null) }
-    var typed by remember(quiz.index) { mutableStateOf("") }
+    var romajiOk by rememberSaveable(quiz.index) { mutableStateOf<Boolean?>(null) }
+    var meaningOk by rememberSaveable(quiz.index) { mutableStateOf<Boolean?>(null) }
+    var typed by rememberSaveable(quiz.index) { mutableStateOf("") }
 
     val romajiOptions = remember(quiz.index, reverse, distractorPool, readingPool) {
         if (reverse) {
@@ -1339,6 +1339,7 @@ private fun ReadingRevealContent(
         PrintDivergenceBadge(
             unitCharacters = unitCharacters,
             label = "Looks different in handwriting",
+            modifier = Modifier.weight(1f, fill = false),
         )
         SpecialKanaBadge(unitCharacters = unitCharacters, iconOnly = hasDivergence)
         // The word's kanji spelling, for reference (opt-in; renders nothing

@@ -8,11 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 private val CompactPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
@@ -143,12 +141,9 @@ private fun RowScope.UndoButton(canUndo: Boolean, onUndo: () -> Unit) {
     }
 }
 
+// Shrinks to fit its button. TextOverflow.Visible used to let a large-font
+// label draw past the button edge ("Undo" and "Clear" touched it at 2.0x).
 @Composable
 private fun BarLabel(text: String) {
-    Text(
-        text = text,
-        maxLines = 1,
-        softWrap = false,
-        overflow = TextOverflow.Visible,
-    )
+    AutoShrinkText(text = text)
 }

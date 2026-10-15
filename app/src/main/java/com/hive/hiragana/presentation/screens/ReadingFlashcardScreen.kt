@@ -178,12 +178,12 @@ fun ReadingFlashcardScreen(
     // state.serial, NOT state.index: a 1-card deck wraps index 0→0 on Next, so
     // an index key would never reset and the card would re-reveal forever off
     // its stale answer (see ReadingFlashcardState.serial).
-    var typed by remember(state.serial) { mutableStateOf("") }
-    var readingOk by remember(state.serial) { mutableStateOf<Boolean?>(null) }
+    var typed by rememberSaveable(state.serial) { mutableStateOf("") }
+    var readingOk by rememberSaveable(state.serial) { mutableStateOf<Boolean?>(null) }
     // Meaning answer + result — used only when meaning practice is on and the
     // card is a word (characters have no meaning).
-    var meaningTyped by remember(state.serial) { mutableStateOf("") }
-    var meaningOk by remember(state.serial) { mutableStateOf<Boolean?>(null) }
+    var meaningTyped by rememberSaveable(state.serial) { mutableStateOf("") }
+    var meaningOk by rememberSaveable(state.serial) { mutableStateOf<Boolean?>(null) }
 
     // Meaning practice is words-only; the toggle is hidden for a character deck.
     val isWordDeck = state.cards.any { it.meaning != null }
@@ -520,6 +520,7 @@ fun ReadingFlashcardScreen(
                                     PrintDivergenceBadge(
                                         unitCharacters = cardUnits,
                                         label = "Looks different in handwriting",
+                                        modifier = Modifier.weight(1f, fill = false),
                                     )
                                     SpecialKanaBadge(
                                         unitCharacters = cardUnits,

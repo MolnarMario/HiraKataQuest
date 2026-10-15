@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
@@ -139,26 +140,51 @@ fun rememberUniformTextScale(
     availableWidth: Dp,
     reservedPerItem: Dp = 0.dp,
     minScale: Float = 0.55f,
+    // Each item is at least this wide however short its label, e.g. a
+    // button's 48dp minimum touch target (plus the row spacing).
+    minItemWidth: Dp = 0.dp,
 ): Float {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    return remember(labels, style, availableWidth, reservedPerItem, minScale, density) {
+    return remember(labels, style, availableWidth, reservedPerItem, minScale, minItemWidth, density) {
         with(density) {
             val availablePx = availableWidth.toPx()
-            val reservedPx = reservedPerItem.toPx() * labels.size
-            val textPx = labels.sumOf { label ->
-                measurer.measure(
-                    text = label,
-                    style = style,
-                    softWrap = false,
-                    maxLines = 1,
-                ).size.width.toDouble()
-            }.toFloat()
-            if (textPx <= 0f) return@with 1f
-            ((availablePx - reservedPx) / textPx).coerceIn(minScale, 1f)
+            val reservedPx = reservedPerItem.toPx()
+            val minItemPx = minItemWidth.toPx()
+            largestFittingScale(minScale) { scale ->
+                labels.sumOf { label ->
+                    maxOf(measurer.labelWidth(label, style, scale) + reservedPx, minItemPx).toDouble()
+                } <= availablePx
+            }
         }
     }
 }
+
+/**
+ * The largest scale in [minScale]..1 for which [fits] holds, or [minScale]
+ * when none does. A binary search over real measurements rather than one
+ * width ratio: Android 14+ scales fonts nonlinearly, so at a 2.0 font scale
+ * halving a 14sp label's sp shrinks it by well under half, and a ratio-based
+ * factor still overflowed ("Dele", "Charact…" at 360dp).
+ */
+private fun largestFittingScale(minScale: Float, fits: (Float) -> Boolean): Float {
+    if (fits(1f)) return 1f
+    var lo = minScale
+    var hi = 1f
+    repeat(8) {
+        val mid = (lo + hi) / 2f
+        if (fits(mid)) lo = mid else hi = mid
+    }
+    return lo
+}
+
+private fun TextMeasurer.labelWidth(label: String, style: TextStyle, scale: Float): Int =
+    measure(
+        text = label,
+        style = style.copy(fontSize = style.fontSize * scale),
+        softWrap = false,
+        maxLines = 1,
+    ).size.width
 
 /**
  * One shared shrink factor (1 down to [minScale]) for labels laid out in
@@ -183,16 +209,10 @@ fun rememberEqualShareTextScale(
         with(density) {
             if (labels.isEmpty()) return@with 1f
             val sharePx = availableWidth.toPx() / labels.size - reservedPerItem.toPx()
-            val widestPx = labels.maxOf { label ->
-                measurer.measure(
-                    text = label,
-                    style = style,
-                    softWrap = false,
-                    maxLines = 1,
-                ).size.width
-            }.toFloat()
-            if (widestPx <= 0f || sharePx <= 0f) return@with 1f
-            (sharePx / widestPx).coerceIn(minScale, 1f)
+            if (sharePx <= 0f) return@with 1f
+            largestFittingScale(minScale) { scale ->
+                labels.maxOf { label -> measurer.labelWidth(label, style, scale) } <= sharePx
+            }
         }
     }
 }

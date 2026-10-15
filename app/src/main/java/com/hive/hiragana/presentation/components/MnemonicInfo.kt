@@ -9,15 +9,18 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,7 +51,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusEvent
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -283,7 +285,8 @@ private fun rememberMnemonicEntries(
  * soft keyboard, so the Description field and Save sat trapped behind it,
  * untappable (device-found). Here the dialog window is made edge-to-edge
  * ([WindowCompat.setDecorFitsSystemWindows] false) so the IME inset reaches
- * it, and [imePadding] lifts the card into the space above the keyboard while
+ * it, and a safeDrawing inset lifts the card into the space above the keyboard
+ * (and clear of the system bars and any cutout) while
  * the body scrolls — so both fields stay visible and tappable, and a longer
  * description is never hidden. The card keeps the AlertDialog look
  * ([AlertDialogDefaults] shape/color/elevation).
@@ -304,21 +307,26 @@ private fun MnemonicDialog(
         if (window != null) {
             SideEffect { WindowCompat.setDecorFitsSystemWindows(window, false) }
         }
-        // Cap the card so it uses the vertical space generously without going
-        // edge-to-edge; it centers in whatever room the keyboard leaves.
-        val maxCardHeight = (LocalConfiguration.current.screenHeightDp * 0.92f).dp
         val scrimInteraction = remember { MutableInteractionSource() }
         val cardInteraction = remember { MutableInteractionSource() }
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 // Tapping the dim scrim dismisses (AlertDialog behavior); no
-                // ripple. imePadding shrinks this box to the space above the
-                // keyboard so the centered card sits above it.
+                // ripple.
                 .clickable(interactionSource = scrimInteraction, indication = null) { onDismiss() }
-                .imePadding(),
+                // The window is edge-to-edge, so the box must keep clear of
+                // the status bar, a notch or punch-hole, the nav bar AND the
+                // keyboard itself. imePadding alone let a tall card slide
+                // under the status bar with the keyboard up.
+                .windowInsetsPadding(WindowInsets.safeDrawing),
             contentAlignment = Alignment.Center,
         ) {
+            // Cap the card so it uses the vertical space generously without
+            // touching the edges; it centers in whatever room is left. Sized
+            // from the inset box, not Configuration.screenHeightDp, which
+            // counts the system bars once targetSdk reaches 35.
+            val maxCardHeight = maxHeight * 0.92f
             Surface(
                 shape = AlertDialogDefaults.shape,
                 color = AlertDialogDefaults.containerColor,

@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.hive.hiragana.R
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PrintDivergence
@@ -118,10 +119,14 @@ fun PrintDivergenceBadge(
                     contentDescription = null,
                     modifier = Modifier.size(14.dp),
                 )
-                Text(
+                // Shrinks rather than clips: at a 2.0 font scale on a 360dp
+                // phone a plain one-line Text dropped "print" with no ellipsis.
+                // Callers give the chip weight(1f, fill = false) so the
+                // icon-only badges beside it measure first.
+                AutoShrinkText(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
+                    minFontSize = 8.sp,
                 )
             }
         }
