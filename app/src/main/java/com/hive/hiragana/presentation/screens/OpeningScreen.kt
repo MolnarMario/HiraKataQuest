@@ -341,7 +341,12 @@ private fun BeginnerModeRow(
         Switch(
             checked = beginnerMode,
             onCheckedChange = onSetBeginnerMode,
-            modifier = Modifier.scale(switchScale),
+            // scale() is visual only, so below scale 1 the shrink leaves a
+            // gap. At a large font scale the switch is full size and the
+            // label ran straight into it; the padding keeps a gap there too.
+            modifier = Modifier
+                .padding(start = 6.dp)
+                .scale(switchScale),
         )
     }
 }
