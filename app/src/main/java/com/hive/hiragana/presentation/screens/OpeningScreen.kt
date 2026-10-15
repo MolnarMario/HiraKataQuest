@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -13,10 +14,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +44,7 @@ import androidx.compose.ui.semantics.invisibleToUser
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -56,6 +61,15 @@ import com.hive.hiragana.presentation.components.PrintFontFamily
 private const val KANA_WALL_TEXT =
     "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん" +
         "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン"
+
+/**
+ * Below this height, the title + cards region tightens its title gap (44dp to
+ * 24dp) and vertical padding (28dp to 16dp). At 360dp wide the content needs
+ * ~468dp with the normal spacing but only ~424dp tight, so a 360x640dp phone
+ * (a ~433dp region) fits without scrolling. Anything still too tall, e.g. a
+ * large font scale, scrolls rather than clipping.
+ */
+private val ShortRegionHeight: Dp = 480.dp
 
 /**
  * The app's home / launcher: pick a track — Reading (recognize the printed
@@ -83,53 +97,69 @@ fun OpeningScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 // The title sits right above the cards (a small fixed gap, like
                 // the internal card spacing) and that whole group sits at the
-                // BOTTOM of this region, right above the footer. A single
-                // flexible weight(1f) spacer ABOVE the title absorbs whatever
-                // room is left, so the proportions stay consistent across any
-                // screen height — more of the kana wall shows through on a tall
-                // phone, less on a short one — rather than a fixed dp gap that
-                // would only look right on one device (user-requested
+                // BOTTOM of this region, right above the footer. The leftover
+                // room goes ABOVE the title, so the proportions stay consistent
+                // across any screen height — more of the kana wall shows through
+                // on a tall phone, less on a short one — rather than a fixed dp
+                // gap that would only look right on one device (user-requested
                 // 2026-08-08).
-                Column(
+                //
+                // The region scrolls instead of squeezing: it is at least the
+                // viewport tall (Arrangement.Bottom keeps the bottom anchoring)
+                // and grows past it when the content doesn't fit. The old
+                // non-scrolling Column handed the LAST card whatever height was
+                // left, which clipped the Writing card's subtitle mid-line on a
+                // 360x640dp phone (emulator-found 2026-10-15).
+                BoxWithConstraints(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 25.dp, vertical = 28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        .fillMaxWidth(),
                 ) {
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    TitleBlock()
-
-                    Spacer(modifier = Modifier.height(44.dp))
-
-                    ModeCard(
-                        title = "Reading",
-                        subtitle = "Recognize the printed kana you meet on signs, apps, and online.",
-                        onClick = { onPick(AppMode.READING) },
+                    // Short screens give up spacing first, so a 640dp phone
+                    // still fits without scrolling.
+                    val compact = maxHeight < ShortRegionHeight
+                    val titleGap = if (compact) 24.dp else 44.dp
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .heightIn(min = maxHeight)
+                            .padding(horizontal = 25.dp, vertical = if (compact) 16.dp else 28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom,
                     ) {
-                        Text(
-                            text = "あ",
-                            fontFamily = PrintFontFamily,
-                            fontSize = 52.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ModeCard(
-                        title = "Writing",
-                        subtitle = "Trace the stroke-order form and get instant feedback on your shape.",
-                        onClick = { onPick(AppMode.WRITING) },
-                    ) {
-                        StrokeGuideCross()
-                        Text(
-                            text = "ア",
-                            fontFamily = PrintFontFamily,
-                            fontSize = 52.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
+                        TitleBlock()
+
+                        Spacer(modifier = Modifier.height(titleGap))
+
+                        ModeCard(
+                            title = "Reading",
+                            subtitle = "Recognize the printed kana you meet on signs, apps, and online.",
+                            onClick = { onPick(AppMode.READING) },
+                        ) {
+                            Text(
+                                text = "あ",
+                                fontFamily = PrintFontFamily,
+                                fontSize = 52.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ModeCard(
+                            title = "Writing",
+                            subtitle = "Trace the stroke-order form and get instant feedback on your shape.",
+                            onClick = { onPick(AppMode.WRITING) },
+                        ) {
+                            StrokeGuideCross()
+                            Text(
+                                text = "ア",
+                                fontFamily = PrintFontFamily,
+                                fontSize = 52.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                 }
 
