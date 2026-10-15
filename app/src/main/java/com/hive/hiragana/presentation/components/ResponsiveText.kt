@@ -55,14 +55,23 @@ fun Dp.toNonScalingSp(): TextUnit = with(LocalDensity.current) { toSp() }
 fun fontScaleFraction(cap: Float = 2f): Float =
     LocalDensity.current.fontScale.coerceIn(1f, cap)
 
+// Line height for wrapped AutoShrinkText, as a multiple of the font size.
+private const val WRAPPED_LINE_HEIGHT = 1.25f
+
 /**
- * A single-line [Text] that shrinks its font size (binary search, measured
- * with a [rememberTextMeasurer] before layout — no visible reflow) until the
- * text fits the incoming max width, bottoming out at [minFontSize] where it
- * ellipsizes instead. Line height shrinks proportionally.
+ * A [Text] of at most [maxLines] lines that shrinks its font size (binary
+ * search, measured with a [rememberTextMeasurer] before layout — no visible
+ * reflow) until the text fits the incoming max width, bottoming out at
+ * [minFontSize] where it ellipsizes instead. Line height shrinks
+ * proportionally.
+ *
+ * With [maxLines] > 1 the text wraps, and it must also fit the incoming max
+ * HEIGHT — for a fixed-height slot (an answer pill) that may take two lines
+ * before it has to shrink. Wrapped text also caps its line height at
+ * [WRAPPED_LINE_HEIGHT] x the font size.
  *
  * The starting size is [style]'s font size, so at font scale 1 an
- * already-fitting label renders identically to a plain [Text].
+ * already-fitting single-line label renders identically to a plain [Text].
  */
 @Composable
 fun AutoShrinkText(
@@ -72,25 +81,52 @@ fun AutoShrinkText(
     minFontSize: TextUnit = 9.sp,
     color: Color = Color.Unspecified,
     textAlign: TextAlign? = null,
+    maxLines: Int = 1,
 ) {
     BoxWithConstraints(modifier) {
         val measurer = rememberTextMeasurer()
         val density = LocalDensity.current
         val maxWidthPx = constraints.maxWidth
-        val fittedStyle = remember(text, style, minFontSize, maxWidthPx, density) {
+        val maxHeightPx = constraints.maxHeight
+        val wraps = maxLines > 1
+        val fittedStyle = remember(text, style, minFontSize, maxWidthPx, maxHeightPx, maxLines, density) {
             val baseSize = if (style.fontSize.isSp) style.fontSize.value else 14f
             val floor = if (minFontSize.isSp) minFontSize.value else 9f
             if (maxWidthPx == Constraints.Infinity) return@remember style
 
+            fun sizedStyle(sizeSp: Float): TextStyle {
+                var lineHeightSp = if (style.lineHeight.isSp) {
+                    style.lineHeight.value * sizeSp / baseSize
+                } else {
+                    Float.NaN
+                }
+                // Wrapped labels take a tighter line height (1.25x the font,
+                // vs Material's ~1.5x): at a 2.0 font scale two lines at the
+                // default spacing overflowed a 72dp answer pill even at the
+                // size floor.
+                if (wraps) {
+                    val tight = sizeSp * WRAPPED_LINE_HEIGHT
+                    lineHeightSp = if (lineHeightSp.isNaN()) tight else minOf(lineHeightSp, tight)
+                }
+                return style.copy(
+                    fontSize = sizeSp.sp,
+                    lineHeight = if (lineHeightSp.isNaN()) style.lineHeight else lineHeightSp.sp,
+                )
+            }
+
             fun fits(sizeSp: Float): Boolean {
+                val sized = sizedStyle(sizeSp)
                 val result = measurer.measure(
                     text = text,
-                    style = style.copy(fontSize = sizeSp.sp),
-                    softWrap = false,
-                    maxLines = 1,
-                    constraints = Constraints(maxWidth = maxWidthPx),
+                    style = sized,
+                    softWrap = wraps,
+                    maxLines = maxLines,
+                    constraints = Constraints(
+                        maxWidth = maxWidthPx,
+                        maxHeight = if (wraps) maxHeightPx else Constraints.Infinity,
+                    ),
                 )
-                return !result.didOverflowWidth
+                return !result.didOverflowWidth && !(wraps && result.didOverflowHeight)
             }
 
             var size = baseSize
@@ -103,21 +139,13 @@ fun AutoShrinkText(
                 }
                 size = lo
             }
-            val scale = size / baseSize
-            style.copy(
-                fontSize = size.sp,
-                lineHeight = if (style.lineHeight.isSp) {
-                    (style.lineHeight.value * scale).sp
-                } else {
-                    style.lineHeight
-                },
-            )
+            sizedStyle(size)
         }
         Text(
             text = text,
             style = fittedStyle,
-            maxLines = 1,
-            softWrap = false,
+            maxLines = maxLines,
+            softWrap = wraps,
             overflow = TextOverflow.Ellipsis,
             color = color,
             textAlign = textAlign,

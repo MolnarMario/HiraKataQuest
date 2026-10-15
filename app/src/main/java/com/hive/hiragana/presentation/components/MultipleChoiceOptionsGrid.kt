@@ -2,17 +2,18 @@ package com.hive.hiragana.presentation.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Row height for one line of [MultipleChoiceOptionsGrid]. Callers that need
@@ -34,6 +35,12 @@ val MultipleChoiceRowHeight: Dp = 72.dp
 private val MultipleChoiceColumnGap = 10.dp
 private val MultipleChoiceRowGap = 10.dp
 
+// Half the button's default 24dp side padding: a half-width pill on a 360dp
+// phone has ~110dp of text width at the default, too little for a meaning
+// like "convenience store". The slimmer vertical padding lets two lines of
+// titleMedium fit the fixed row height.
+private val MultipleChoicePillPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+
 /**
  * Multiple-choice answer pills laid out two per row instead of one per row.
  * A single stacked column left each pill the full card width but only
@@ -42,6 +49,11 @@ private val MultipleChoiceRowGap = 10.dp
  * halves the width but frees up the height each pill can claim, so the label
  * renders larger and reads better. A trailing odd option fills its row alone
  * rather than sitting half-width next to blank space.
+ *
+ * Half a row is narrow for an English meaning (46 shipped meanings run past
+ * 17 characters, e.g. "that over there (before noun)"), and an ellipsized
+ * option is an unreadable answer. So the default label wraps onto a second
+ * line, and only shrinks when two lines still don't fit the pill.
  */
 @Composable
 fun MultipleChoiceOptionsGrid(
@@ -49,11 +61,14 @@ fun MultipleChoiceOptionsGrid(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
     optionContent: @Composable (String) -> Unit = { option ->
-        Text(
+        AutoShrinkText(
             text = option,
             style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            // Low on purpose: 9sp still renders ~18dp tall at a 2.0 font
+            // scale, and a whole answer beats a truncated one.
+            minFontSize = 9.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
         )
     },
 ) {
@@ -67,6 +82,7 @@ fun MultipleChoiceOptionsGrid(
                     OutlinedButton(
                         onClick = { onSelect(option) },
                         modifier = Modifier.weight(1f).height(MultipleChoiceRowHeight),
+                        contentPadding = MultipleChoicePillPadding,
                     ) {
                         optionContent(option)
                     }
