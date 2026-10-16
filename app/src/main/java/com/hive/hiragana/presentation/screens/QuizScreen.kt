@@ -44,9 +44,6 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -87,6 +84,7 @@ import com.hive.hiragana.drawing.canvas.CanvasState
 import com.hive.hiragana.domain.audio.VoiceStatus
 import com.hive.hiragana.presentation.components.AnimatedStrokePreview
 import com.hive.hiragana.presentation.components.AutoShrinkText
+import com.hive.hiragana.presentation.components.ChoiceRow
 import com.hive.hiragana.presentation.components.CustomMnemonicStore
 import com.hive.hiragana.presentation.components.KanjiBadge
 import com.hive.hiragana.presentation.components.MnemonicBadge
@@ -457,29 +455,12 @@ private fun QuizSetup(
                         text = "How many $itemNoun?",
                         style = MaterialTheme.typography.titleSmall,
                     )
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        val options = quizCountOptions(deckSize)
-                        options.forEachIndexed { index, option ->
-                            SegmentedButton(
-                                selected = option == quiz.requestedCount,
-                                onClick = { onSetCount(option) },
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = options.size,
-                                ),
-                                label = {
-                                    Text(
-                                        text = if (option == deckSize) "All" else "$option",
-                                        fontWeight = if (option == quiz.requestedCount) {
-                                            FontWeight.Bold
-                                        } else {
-                                            FontWeight.Normal
-                                        },
-                                    )
-                                },
-                            )
-                        }
-                    }
+                    val countOptions = quizCountOptions(deckSize)
+                    ChoiceRow(
+                        labels = countOptions.map { if (it == deckSize) "All" else "$it" },
+                        selectedIndex = countOptions.indexOf(quiz.requestedCount),
+                        onSelect = { onSetCount(countOptions[it]) },
+                    )
                     QuizCountEditor(
                         count = quiz.requestedCount,
                         deckSize = deckSize,
@@ -515,29 +496,12 @@ private fun QuizSetup(
                             text = "Which way round?",
                             style = MaterialTheme.typography.titleSmall,
                         )
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            READING_DIRECTION_CHOICES.forEachIndexed { index, (direction, label) ->
-                                SegmentedButton(
-                                    selected = direction == quiz.readingDirection,
-                                    onClick = { onSetReadingDirection(direction) },
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = READING_DIRECTION_CHOICES.size,
-                                    ),
-                                    label = {
-                                        Text(
-                                            text = label,
-                                            fontWeight = if (direction == quiz.readingDirection) {
-                                                FontWeight.Bold
-                                            } else {
-                                                FontWeight.Normal
-                                            },
-                                            maxLines = 1,
-                                        )
-                                    },
-                                )
-                            }
-                        }
+                        ChoiceRow(
+                            labels = READING_DIRECTION_CHOICES.map { it.second },
+                            selectedIndex = READING_DIRECTION_CHOICES
+                                .indexOfFirst { it.first == quiz.readingDirection },
+                            onSelect = { onSetReadingDirection(READING_DIRECTION_CHOICES[it].first) },
+                        )
                         Text(
                             text = if (reverse) {
                                 "You'll see the reading and answer with the kana. " +
@@ -555,48 +519,20 @@ private fun QuizSetup(
                         // Two clearly-labelled, icon-tagged modes so it reads as a
                         // pick-one toggle, not a static label. A caption under it
                         // spells out the selected mode (and, by contrast, the other).
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            READING_ANSWER_CHOICES.forEachIndexed { index, (style, label) ->
-                                SegmentedButton(
-                                    selected = style == quiz.readingAnswerStyle,
-                                    onClick = { onSetAnswerStyle(style) },
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = READING_ANSWER_CHOICES.size,
-                                    ),
-                                    icon = {
-                                        // Checkmark when selected (the clear "active"
-                                        // cue); the mode's own icon when not.
-                                        SegmentedButtonDefaults.Icon(
-                                            active = style == quiz.readingAnswerStyle,
-                                            inactiveContent = {
-                                                Icon(
-                                                    imageVector = when (style) {
-                                                        ReadingAnswerStyle.CHOICE ->
-                                                            Icons.AutoMirrored.Filled.List
-                                                        ReadingAnswerStyle.TYPE ->
-                                                            Icons.Filled.Create
-                                                    },
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
-                                                )
-                                            },
-                                        )
-                                    },
-                                    label = {
-                                        Text(
-                                            text = label,
-                                            fontWeight = if (style == quiz.readingAnswerStyle) {
-                                                FontWeight.Bold
-                                            } else {
-                                                FontWeight.Normal
-                                            },
-                                            maxLines = 1,
-                                        )
-                                    },
-                                )
-                            }
-                        }
+                        // Checkmark when selected (the clear "active" cue); the
+                        // mode's own icon when not.
+                        ChoiceRow(
+                            labels = READING_ANSWER_CHOICES.map { it.second },
+                            selectedIndex = READING_ANSWER_CHOICES
+                                .indexOfFirst { it.first == quiz.readingAnswerStyle },
+                            onSelect = { onSetAnswerStyle(READING_ANSWER_CHOICES[it].first) },
+                            icons = READING_ANSWER_CHOICES.map { (style, _) ->
+                                when (style) {
+                                    ReadingAnswerStyle.CHOICE -> Icons.AutoMirrored.Filled.List
+                                    ReadingAnswerStyle.TYPE -> Icons.Filled.Create
+                                }
+                            },
+                        )
                         Text(
                             text = when {
                                 reverse && quiz.readingAnswerStyle == ReadingAnswerStyle.CHOICE ->
@@ -734,28 +670,11 @@ private fun QuizSetup(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            SCORING_CHOICES.forEachIndexed { index, (mode, label) ->
-                                SegmentedButton(
-                                    selected = mode == scoringMode,
-                                    onClick = { onSetScoringMode(mode) },
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = SCORING_CHOICES.size,
-                                    ),
-                                    label = {
-                                        Text(
-                                            text = label,
-                                            fontWeight = if (mode == scoringMode) {
-                                                FontWeight.Bold
-                                            } else {
-                                                FontWeight.Normal
-                                            },
-                                        )
-                                    },
-                                )
-                            }
-                        }
+                        ChoiceRow(
+                            labels = SCORING_CHOICES.map { it.second },
+                            selectedIndex = SCORING_CHOICES.indexOfFirst { it.first == scoringMode },
+                            onSelect = { onSetScoringMode(SCORING_CHOICES[it].first) },
+                        )
                     }
                     Button(
                         onClick = onStart,

@@ -46,9 +46,6 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
@@ -116,6 +113,7 @@ import com.hive.hiragana.domain.model.ScriptScope
 import com.hive.hiragana.presentation.components.AutoShrinkText
 import com.hive.hiragana.presentation.components.CategoryFilter
 import com.hive.hiragana.presentation.components.ConceptInfo
+import com.hive.hiragana.presentation.components.ChoiceRow
 import com.hive.hiragana.presentation.components.ConceptInfoIcon
 import com.hive.hiragana.presentation.components.KanaConcepts
 import com.hive.hiragana.presentation.components.PrintFontFamily
@@ -1226,44 +1224,28 @@ private fun ScopeSheetContent(
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            Script.entries.forEachIndexed { index, script ->
-                SegmentedButton(
-                    selected = script == activeScript,
-                    onClick = { onSelectScript(script) },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = Script.entries.size,
-                    ),
-                    label = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = script.displayLabel,
-                                fontWeight = if (script == activeScript) {
-                                    FontWeight.Bold
-                                } else {
-                                    FontWeight.Normal
-                                },
-                            )
-                            // The ⓘ rides the SELECTED segment only. Its own
-                            // click is consumed, so tapping it opens the
-                            // explainer without re-selecting the segment; to
-                            // read about the other script you first select it
-                            // (its icon then appears), then tap the icon.
-                            if (script == activeScript && beginnerMode) {
-                                ConceptInfoIcon(
-                                    concept = when (script) {
-                                        Script.HIRAGANA -> KanaConcepts.hiragana
-                                        Script.KATAKANA -> KanaConcepts.katakana
-                                    },
-                                    modifier = Modifier.padding(start = 4.dp),
-                                )
-                            }
-                        }
-                    },
-                )
-            }
-        }
+        ChoiceRow(
+            labels = Script.entries.map { it.displayLabel },
+            selectedIndex = Script.entries.indexOf(activeScript),
+            onSelect = { onSelectScript(Script.entries[it]) },
+            // The ⓘ (24dp + 4dp gap) rides the SELECTED segment only. Its own
+            // click is consumed, so tapping it opens the explainer without
+            // re-selecting the segment; to read about the other script you
+            // first select it (its icon then appears), then tap the icon.
+            trailingWidth = if (beginnerMode) 28.dp else 0.dp,
+            trailing = { index ->
+                val script = Script.entries[index]
+                if (script == activeScript && beginnerMode) {
+                    ConceptInfoIcon(
+                        concept = when (script) {
+                            Script.HIRAGANA -> KanaConcepts.hiragana
+                            Script.KATAKANA -> KanaConcepts.katakana
+                        },
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
+                }
+            },
+        )
 
         ScopeToggleRow(
             checked = includeDiacritics,
@@ -1302,28 +1284,11 @@ private fun ScopeSheetContent(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            AppMode.entries.forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = mode == appMode,
-                    onClick = { onSetAppMode(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = AppMode.entries.size,
-                    ),
-                    label = {
-                        Text(
-                            text = mode.displayLabel,
-                            fontWeight = if (mode == appMode) {
-                                FontWeight.Bold
-                            } else {
-                                FontWeight.Normal
-                            },
-                        )
-                    },
-                )
-            }
-        }
+        ChoiceRow(
+            labels = AppMode.entries.map { it.displayLabel },
+            selectedIndex = AppMode.entries.indexOf(appMode),
+            onSelect = { onSetAppMode(AppMode.entries[it]) },
+        )
 
         // Scoring is a Writing-only concern; hidden in Reading mode.
         if (appMode == AppMode.WRITING) {
@@ -1343,28 +1308,11 @@ private fun ScopeSheetContent(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SCORING_CHOICES.forEachIndexed { index, (scoreMode, label) ->
-                    SegmentedButton(
-                        selected = scoreMode == scoringMode,
-                        onClick = { onSetScoringMode(scoreMode) },
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = SCORING_CHOICES.size,
-                        ),
-                        label = {
-                            Text(
-                                text = label,
-                                fontWeight = if (scoreMode == scoringMode) {
-                                    FontWeight.Bold
-                                } else {
-                                    FontWeight.Normal
-                                },
-                            )
-                        },
-                    )
-                }
-            }
+            ChoiceRow(
+                labels = SCORING_CHOICES.map { it.second },
+                selectedIndex = SCORING_CHOICES.indexOfFirst { it.first == scoringMode },
+                onSelect = { onSetScoringMode(SCORING_CHOICES[it].first) },
+            )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
@@ -1526,28 +1474,11 @@ private fun ScopeSheetContent(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            AppearanceMode.entries.forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = mode == appearance,
-                    onClick = { onSetAppearance(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = AppearanceMode.entries.size,
-                    ),
-                    label = {
-                        Text(
-                            text = mode.displayLabel,
-                            fontWeight = if (mode == appearance) {
-                                FontWeight.Bold
-                            } else {
-                                FontWeight.Normal
-                            },
-                        )
-                    },
-                )
-            }
-        }
+        ChoiceRow(
+            labels = AppearanceMode.entries.map { it.displayLabel },
+            selectedIndex = AppearanceMode.entries.indexOf(appearance),
+            onSelect = { onSetAppearance(AppearanceMode.entries[it]) },
+        )
     }
 }
 

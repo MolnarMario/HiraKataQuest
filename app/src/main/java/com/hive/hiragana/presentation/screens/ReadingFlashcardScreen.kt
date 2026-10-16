@@ -30,9 +30,6 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import com.hive.hiragana.presentation.theme.LocalKanaColors
@@ -70,6 +67,7 @@ import com.hive.hiragana.domain.model.MeaningMatch
 import com.hive.hiragana.domain.model.PrintDivergence
 import com.hive.hiragana.domain.model.RomajiMatch
 import com.hive.hiragana.domain.model.SpecialKana
+import com.hive.hiragana.presentation.components.ChoiceRow
 import com.hive.hiragana.presentation.components.CustomMnemonicStore
 import com.hive.hiragana.presentation.components.KanjiBadge
 import com.hive.hiragana.presentation.components.MnemonicBadge
@@ -303,62 +301,15 @@ fun ReadingFlashcardScreen(
             // Two EQUAL study methods, so a segmented control — not an on/off
             // switch, which would frame one as the default and the other as an
             // "enabled" extra. The selected half is filled; neither is subordinate.
-            SingleChoiceSegmentedButtonRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-            ) {
-                SegmentedButton(
-                    selected = typingMode,
-                    onClick = { typingMode = true },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                    icon = {
-                        // Checkmark when active (clear "selected" cue); the mode's
-                        // own icon when not.
-                        SegmentedButtonDefaults.Icon(
-                            active = typingMode,
-                            inactiveContent = {
-                                Icon(
-                                    imageVector = Icons.Filled.Create,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
-                                )
-                            },
-                        )
-                    },
-                    label = {
-                        Text(
-                            "Typing",
-                            fontWeight = if (typingMode) FontWeight.Bold else FontWeight.Normal,
-                            maxLines = 1,
-                        )
-                    },
-                )
-                SegmentedButton(
-                    selected = !typingMode,
-                    onClick = { typingMode = false },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                    icon = {
-                        SegmentedButtonDefaults.Icon(
-                            active = !typingMode,
-                            inactiveContent = {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.List,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
-                                )
-                            },
-                        )
-                    },
-                    label = {
-                        Text(
-                            "Multiple choice",
-                            fontWeight = if (!typingMode) FontWeight.Bold else FontWeight.Normal,
-                            maxLines = 1,
-                        )
-                    },
-                )
-            }
+            // Checkmark when active (clear "selected" cue); the mode's own
+            // icon when not.
+            ChoiceRow(
+                labels = listOf("Typing", "Multiple choice"),
+                selectedIndex = if (typingMode) 0 else 1,
+                onSelect = { typingMode = it == 0 },
+                icons = listOf(Icons.Filled.Create, Icons.AutoMirrored.Filled.List),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
 
             // Card area. The glyph and the result/meaning region get FIXED
             // shares of the card height, so the word stays exactly the same
