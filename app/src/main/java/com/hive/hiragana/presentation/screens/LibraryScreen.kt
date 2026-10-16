@@ -59,6 +59,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -151,8 +152,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import kotlin.math.roundToInt
@@ -838,7 +844,7 @@ fun LibraryScreen(
                             item { NoMatchesMessage(trimmedQuery, "characters") }
                         }
                     } else {
-                        items(sortedWords, key = { "${it.kana} ${it.meaning}" }) { word ->
+                        items(sortedWords, key = { "${it.kana}\u0000${it.meaning}" }) { word ->
                             LibraryRow(
                                 onClick = { onPracticeWord(word) },
                                 glyph = word.kana,
@@ -1968,7 +1974,7 @@ private fun WordGrid(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        gridItems(words, key = { "${it.kana} ${it.meaning}" }, contentType = { "wordCard" }) { word ->
+        gridItems(words, key = { "${it.kana}\u0000${it.meaning}" }, contentType = { "wordCard" }) { word ->
             WordCard(
                 kana = word.kana,
                 meaning = word.meaning,
@@ -2324,6 +2330,18 @@ private fun SelectionModeContent(
         if (normalizedQuery.isEmpty()) rows
         else rows.filter { it.search.contains(normalizedQuery) }
     }
+    // The chart grid (Characters only) needs the actual HiraganaCharacters, not
+    // the flattened SelectionRows, to feed KanaChartBuilder — filtered by the
+    // same query so search behaves identically in both grid layouts.
+    val filteredCharacters = remember(characters, normalizedQuery) {
+        if (normalizedQuery.isEmpty()) {
+            characters
+        } else {
+            characters.filter {
+                "${it.character} ${it.romaji} ${it.id}".searchNormalize().contains(normalizedQuery)
+            }
+        }
+    }
 
     // List-mode sort by scored history (session-local); grid mode keeps deck order.
     var selectionSort by remember { mutableStateOf(ItemSort.DEFAULT) }
@@ -2540,6 +2558,12 @@ private fun SelectionModeContent(
         HorizontalDivider()
         when {
             filteredRows.isEmpty() -> NoMatchesMessage(query.trim(), noun)
+            // Characters get the gojūon chart layout (same as the Library's
+            // browse grid) so a letter is as easy to find here as it is there;
+            // words keep the adaptive card grid — there's no table for them.
+            gridView && type == PracticeSetType.CHARACTERS -> SelectableCharacterChart(
+                filteredCharacters, selectedSet, onToggle, onSetSelected,
+            )
             gridView -> SelectableGrid(filteredRows, selectedSet, onToggle, onSetSelected)
             else -> SelectableList(sortedRows, selectedSet, scoreStats, onToggle, onSetSelected)
         }
@@ -2714,7 +2738,7 @@ private fun SelectableList(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(rows, key = { "${it.value} ${it.label}" }) { row ->
+        items(rows, key = { "${it.value}\u0000${it.label}" }) { row ->
             SelectableRow(
                 glyph = row.glyph,
                 label = row.label,
@@ -2816,7 +2840,7 @@ private fun SelectableGrid(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        gridItems(rows, key = { "${it.value} ${it.label}" }) { row ->
+        gridItems(rows, key = { "${it.value}\u0000${it.label}" }) { row ->
             SelectableGridCell(
                 glyph = row.glyph,
                 label = row.label,
@@ -2872,6 +2896,233 @@ private fun SelectableGridCell(
                 fontSize = 10.dp.toNonScalingSp(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(2.dp)
+                    .size(16.dp),
+            )
+        }
+    }
+}
+
+/**
+ * The Characters grid for selection mode: the SAME gojūon cheat-sheet layout as
+ * the Library's browse chart ([CharacterChart] / [KanaChartBuilder]) — aligned
+ * vowel columns and consonant rows, with Voiced/Combined(yōon)/Extended
+ * sections — instead of a plain wrapping grid, so a character is exactly as
+ * easy to find while building a set as it is while browsing. Word sets keep
+ * [SelectableGrid] (adaptive cards); there's no table layout for words to
+ * align to.
+ *
+ * Tap toggles a cell. A drag sweeps a range: since this isn't a single
+ * [LazyVerticalGrid] (the chart mixes fixed-column table rows and wrapping
+ * flow rows), cells are hit-tested by their own reported window bounds
+ * (`cellBounds`) rather than a grid index.
+ */
+@Composable
+private fun SelectableCharacterChart(
+    characters: List<HiraganaCharacter>,
+    selectedSet: Set<String>,
+    onToggle: (String) -> Unit,
+    onSetSelected: (String, Boolean) -> Unit,
+) {
+    val chart = remember(characters) { KanaChartBuilder.build(characters) }
+    // pointerInput is keyed only on `chart`, so read the live selection through
+    // rememberUpdatedState — the same stale-closure guard as SelectableGrid.
+    val liveSelected by rememberUpdatedState(selectedSet)
+    val cellBounds = remember { mutableStateMapOf<String, Rect>() }
+    var dragTarget by remember { mutableStateOf(true) }
+    var containerCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+    fun valueAt(windowPosition: Offset): String? =
+        cellBounds.entries.firstOrNull { (_, bounds) -> bounds.contains(windowPosition) }?.key
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { containerCoords = it }
+            .pointerInput(chart) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val coords = containerCoords ?: return@detectDragGestures
+                        val value = valueAt(coords.localToWindow(offset)) ?: return@detectDragGestures
+                        dragTarget = value !in liveSelected
+                        onSetSelected(value, dragTarget)
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        val coords = containerCoords ?: return@detectDragGestures
+                        valueAt(coords.localToWindow(change.position))?.let { onSetSelected(it, dragTarget) }
+                    },
+                    onDragEnd = {},
+                    onDragCancel = {},
+                )
+            },
+    ) {
+        // Same uniform cell-size derivation as the browse CharacterChart, so
+        // selection mode and browsing read as the same chart.
+        val cellSize = ((maxWidth - 32.dp - ChartRowLabelWidth - 20.dp) / 5)
+            .coerceIn(40.dp, 72.dp)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            chart.sections.forEach { section ->
+                section.title?.let { title -> item { ChartSectionHeader(title) } }
+                when (section) {
+                    is TableSection -> {
+                        item { ChartColumnLabels(section.columnLabels, cellSize) }
+                        items(section.rows) { row ->
+                            SelectableChartTableRow(
+                                row = row,
+                                cellSize = cellSize,
+                                selectedSet = selectedSet,
+                                onToggle = onToggle,
+                                cellBounds = cellBounds,
+                            )
+                        }
+                    }
+                    is FlowSection -> item {
+                        SelectableChartCellFlow(
+                            cells = section.cells,
+                            cellSize = cellSize,
+                            selectedSet = selectedSet,
+                            onToggle = onToggle,
+                            cellBounds = cellBounds,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectableChartTableRow(
+    row: TableRow,
+    cellSize: Dp,
+    selectedSet: Set<String>,
+    onToggle: (String) -> Unit,
+    cellBounds: MutableMap<String, Rect>,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = row.rowLabel,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.dp.toNonScalingSp(),
+                lineHeight = 16.dp.toNonScalingSp(),
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(ChartRowLabelWidth),
+        )
+        row.cells.forEach { character ->
+            if (character != null) {
+                SelectableChartCell(
+                    character = character,
+                    selected = character.character in selectedSet,
+                    onClick = { onToggle(character.character) },
+                    modifier = Modifier.size(cellSize),
+                    cellBounds = cellBounds,
+                )
+            } else {
+                Spacer(Modifier.size(cellSize))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SelectableChartCellFlow(
+    cells: List<HiraganaCharacter>,
+    cellSize: Dp,
+    selectedSet: Set<String>,
+    onToggle: (String) -> Unit,
+    cellBounds: MutableMap<String, Rect>,
+) {
+    FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = ChartRowLabelWidth + 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        cells.forEach { character ->
+            SelectableChartCell(
+                character = character,
+                selected = character.character in selectedSet,
+                onClick = { onToggle(character.character) },
+                modifier = Modifier.size(cellSize),
+                cellBounds = cellBounds,
+            )
+        }
+    }
+}
+
+/** One chart cell in selection mode: [ChartCell]'s layout, tinted + checked when selected. */
+@Composable
+private fun SelectableChartCell(
+    character: HiraganaCharacter,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    cellBounds: MutableMap<String, Rect>,
+) {
+    // Drop this cell's hit-test rect when it leaves composition (scrolled out,
+    // or filtered away by the search). A stale rect would overlap whichever
+    // cell moved into its old spot and let a drag select an unseen character.
+    DisposableEffect(character.character, cellBounds) {
+        val value = character.character
+        onDispose { cellBounds.remove(value) }
+    }
+    val container = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    Box(
+        modifier = modifier
+            .onGloballyPositioned { cellBounds[character.character] = it.boundsInWindow() }
+            .clip(RoundedCornerShape(8.dp))
+            .background(container)
+            .clickable(onClick = onClick),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 3.dp, vertical = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = character.character,
+                fontFamily = PrintFontFamily,
+                fontSize = if (character.character.length > 1) {
+                    16.dp.toNonScalingSp()
+                } else {
+                    22.dp.toNonScalingSp()
+                },
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = character.romaji,
+                fontSize = 11.dp.toNonScalingSp(),
+                maxLines = 1,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

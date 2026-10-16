@@ -91,6 +91,9 @@ import com.hive.hiragana.presentation.components.CustomMnemonicStore
 import com.hive.hiragana.presentation.components.KanjiBadge
 import com.hive.hiragana.presentation.components.MnemonicBadge
 import com.hive.hiragana.presentation.components.MnemonicHintButton
+import com.hive.hiragana.presentation.components.MultipleChoiceOptionsGrid
+import com.hive.hiragana.presentation.components.MultipleChoiceRowHeight
+import com.hive.hiragana.presentation.components.mcqGridRows
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.fontScaleFraction
 import com.hive.hiragana.presentation.components.toNonScalingSp
@@ -288,9 +291,6 @@ fun QuizScreen(
 // never moves and nothing scrolls.
 /** Height reserved for the reveal/prompt region, sized to hold the reveal. */
 private val ReadingRevealReserve = 150.dp
-/** One multiple-choice option row height; spent rows become blank spacers on
- *  reveal so the bottom section keeps a constant height. */
-private val ReadingOptionSlot = 52.dp
 
 /** Reading-quiz answer styles shown on the setup card. */
 private val READING_ANSWER_CHOICES = listOf(
@@ -1044,14 +1044,19 @@ private fun ReadingQuizRunning(
                 // glyph above never shifts. Holds the pre-answer prompt (+ hint),
                 // the meaning question, or the reveal; NEVER the answer input,
                 // which is pinned in the bottom section. verticalScroll is an
-                // extreme-font / small-screen safety only.
+                // extreme-font / small-screen safety only. Content is BOTTOM-
+                // aligned (was centered) so the short pre-answer prompt sits
+                // right above the answer pills instead of floating in the
+                // middle of the reserve with a dead gap below it (device
+                // feedback, 2026-08-22) — the reserve's own box is unaffected,
+                // so the glyph above never moves.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(ReadingRevealReserve)
                         .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(gap, Alignment.CenterVertically),
+                    verticalArrangement = Arrangement.spacedBy(gap, Alignment.Bottom),
                 ) {
                     when {
                         quiz.revealed -> ReadingRevealContent(
@@ -1125,11 +1130,14 @@ private fun ReadingQuizRunning(
 
         // Bottom answer section — pinned, with fixed slot heights so it (hence
         // the reserve and glyph above) stays a constant height across the
-        // question/answer/reveal states.
+        // question/answer/reveal states. Extra bottom margin (vs. the 16dp top)
+        // lifts the pills off the physical screen edge for easier one-handed
+        // reach (device feedback, 2026-08-22) — same reasoning as
+        // MultipleChoiceRowHeight above.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             when {
@@ -1176,42 +1184,44 @@ private fun ReadingQuizRunning(
                         }
                     }
                 }
-                // Multiple-choice options (fixed-height slots). Forward they are
-                // readings; reverse they are kana, set in the print font at a
-                // readable size — the option IS the character being judged, so it
-                // has to be legible enough to tell き from ぎ.
-                readingStep -> romajiOptions.forEach { option ->
+                // Multiple-choice options, two pills per row (fixed-height slots).
+                // Forward they are readings; reverse they are kana, set in the
+                // print font at a readable size — the option IS the character
+                // being judged, so it has to be legible enough to tell き from ぎ.
+                // A half-width pill can't hold a long answer on one line (the
+                // longest, よろしくおねがいします, overflows even at font scale 1),
+                // so the label wraps to two lines and then shrinks, the same as
+                // the grid's default label. An ellipsized answer can't be judged.
+                readingStep -> {
                     val correctOption = if (reverse) current.answer else readingAnswer
-                    OutlinedButton(
-                        onClick = {
+                    val optionStyle = if (reverse) {
+                        MaterialTheme.typography.titleLarge.copy(fontFamily = PrintFontFamily)
+                    } else {
+                        MaterialTheme.typography.titleLarge
+                    }
+                    MultipleChoiceOptionsGrid(
+                        options = romajiOptions,
+                        onSelect = { option ->
                             romajiOk = option == correctOption
                             if (!needMeaning) finish()
                         },
-                        modifier = Modifier.fillMaxWidth().height(ReadingOptionSlot),
-                    ) {
-                        if (reverse) {
-                            Text(
+                        optionContent = { option ->
+                            AutoShrinkText(
                                 text = option,
-                                fontFamily = PrintFontFamily,
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                                style = optionStyle,
+                                minFontSize = 9.sp,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
                             )
-                        } else {
-                            Text(option)
-                        }
-                    }
+                        },
+                    )
                 }
                 // Meaning step is always multiple choice (typing an English gloss
                 // would be too strict).
-                meaningStep -> meaningOptions.forEach { option ->
-                    OutlinedButton(
-                        onClick = { meaningOk = option == current.subtitle; finish() },
-                        modifier = Modifier.fillMaxWidth().height(ReadingOptionSlot),
-                    ) {
-                        Text(option)
-                    }
-                }
+                meaningStep -> MultipleChoiceOptionsGrid(
+                    options = meaningOptions,
+                    onSelect = { option -> meaningOk = option == current.subtitle; finish() },
+                )
                 // Revealed on a multiple-choice run: Next fills the first slot and
                 // the spent option rows stay as blank spacers, so this section's
                 // height is unchanged from the answering state.
@@ -1219,12 +1229,12 @@ private fun ReadingQuizRunning(
                     val slots = if (needMeaning) meaningOptions else romajiOptions
                     Button(
                         onClick = onAdvance,
-                        modifier = Modifier.fillMaxWidth().height(ReadingOptionSlot),
+                        modifier = Modifier.fillMaxWidth().height(MultipleChoiceRowHeight),
                     ) {
                         Text(if (quiz.isLast) "Finish" else "Next")
                     }
-                    repeat((slots.size - 1).coerceAtLeast(0)) {
-                        Spacer(modifier = Modifier.fillMaxWidth().height(ReadingOptionSlot))
+                    repeat((mcqGridRows(slots.size) - 1).coerceAtLeast(0)) {
+                        Spacer(modifier = Modifier.fillMaxWidth().height(MultipleChoiceRowHeight))
                     }
                 }
             }

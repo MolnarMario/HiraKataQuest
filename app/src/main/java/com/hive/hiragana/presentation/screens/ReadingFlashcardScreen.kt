@@ -28,7 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SegmentedButton
@@ -75,6 +74,9 @@ import com.hive.hiragana.presentation.components.CustomMnemonicStore
 import com.hive.hiragana.presentation.components.KanjiBadge
 import com.hive.hiragana.presentation.components.MnemonicBadge
 import com.hive.hiragana.presentation.components.MnemonicHintButton
+import com.hive.hiragana.presentation.components.MultipleChoiceOptionsGrid
+import com.hive.hiragana.presentation.components.MultipleChoiceRowHeight
+import com.hive.hiragana.presentation.components.mcqGridRows
 import com.hive.hiragana.presentation.components.PrintDivergenceBadge
 import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.SpecialKanaBadge
@@ -97,11 +99,11 @@ import kotlin.random.Random
 // (2026-07-26); the verticalScroll on the reveal is only an extreme-font safety.
 private val RevealReserve = 132.dp
 
-// A single answer-option row height. Every bottom-section slot uses it so the
-// section is the same height whether it shows the options or just Next (with
-// blank spacers for the spent slots) — that constant height keeps the card
-// above from resizing, so the glyph doesn't jump on reveal.
-private val OptionSlotHeight = 52.dp
+// Every bottom-section slot uses MultipleChoiceRowHeight so the section is
+// the same height whether it shows the two-pill-per-row options or just Next
+// (with blank spacers for the spent rows, sized via mcqGridRows) — that
+// constant height keeps the card above from resizing, so the glyph doesn't
+// jump on reveal.
 
 /**
  * Reading-track flashcard study: flip through the scoped deck/words. The front
@@ -128,7 +130,7 @@ private val OptionSlotHeight = 52.dp
  *
  * Layout: the glyph and the result/meaning region get FIXED shares of the card
  * ([GLYPH_SHARE]/[REVEAL_SHARE]) and the bottom section reserves a constant
- * height ([OptionSlotHeight] per slot), so the card never resizes and the glyph
+ * height (a [MultipleChoiceRowHeight] row per two options), so the card never resizes and the glyph
  * stays the same size AND position before and after the result shows — nothing
  * jumps on reveal. The reveal gets the larger share, sized to hold all its rows
  * (result + reading + the "Looks different" badge + the "How to remember" chip)
@@ -423,14 +425,19 @@ fun ReadingFlashcardScreen(
                             // height (see its doc for the sizing rule + the ⚠️
                             // warning), reserved in both states so the glyph above
                             // never moves. verticalScroll is an extreme-font safety
-                            // only; at normal sizes nothing scrolls.
+                            // only; at normal sizes nothing scrolls. Content is
+                            // BOTTOM-aligned (was centered) so the short pre-answer
+                            // prompt sits right above the answer pills instead of
+                            // floating mid-reserve with a dead gap below it (device
+                            // feedback, 2026-08-22) — the reserve's own box is
+                            // unaffected, so the glyph above never moves.
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(RevealReserve)
                                     .verticalScroll(rememberScrollState()),
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(gap, Alignment.CenterVertically),
+                                verticalArrangement = Arrangement.spacedBy(gap, Alignment.Bottom),
                             ) {
                                 if (state.revealed) {
                                 Text(
@@ -597,11 +604,14 @@ fun ReadingFlashcardScreen(
             }
 
             // Bottom section: the answer input for the current step (reading,
-            // then meaning if enabled).
+            // then meaning if enabled). Extra bottom margin (vs. the 16dp top)
+            // lifts it off the physical screen edge for easier one-handed
+            // reach (device feedback, 2026-08-22) — same reasoning as
+            // MultipleChoiceRowHeight.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (effectiveTyping) {
@@ -659,15 +669,15 @@ fun ReadingFlashcardScreen(
                     }
                 } else {
                     // Multiple choice: tap the reading, then (if testing meaning)
-                    // tap the meaning, then Next advances.
-                    // Every slot is a FIXED height so this bottom section is the
-                    // same height whether it shows the answer options or just
-                    // Next — which keeps the CARD above a constant height, so the
-                    // glyph never resizes/jumps on reveal (the card's fixed
-                    // glyph/reveal split depends on this constant height). The
-                    // reveal state reserves the spent option rows as BLANK spacers
-                    // (not disabled pills — those read as broken buttons; the
-                    // learner just sees clean space below Next).
+                    // tap the meaning, then Next advances. Two pills per row so
+                    // each one has room for a larger label. Every row is a FIXED
+                    // height so this bottom section is the same height whether it
+                    // shows the answer grid or just Next — which keeps the CARD
+                    // above a constant height, so the glyph never resizes/jumps on
+                    // reveal (the card's fixed glyph/reveal split depends on this
+                    // constant height). The reveal state reserves the spent option
+                    // rows as BLANK spacers (not disabled pills — those read as
+                    // broken buttons; the learner just sees clean space below Next).
                     //
                     // ⚠️ Do NOT collapse the reveal state to Next-only: that
                     // shrinks the bottom, grows the card, and makes the glyph jump.
@@ -676,32 +686,22 @@ fun ReadingFlashcardScreen(
                             val slots = if (needMeaning) meaningOptions else readingOptions
                             Button(
                                 onClick = onNext,
-                                modifier = Modifier.fillMaxWidth().height(OptionSlotHeight),
+                                modifier = Modifier.fillMaxWidth().height(MultipleChoiceRowHeight),
                             ) {
                                 Text("Next")
                             }
-                            repeat((slots.size - 1).coerceAtLeast(0)) {
-                                Spacer(modifier = Modifier.fillMaxWidth().height(OptionSlotHeight))
+                            repeat((mcqGridRows(slots.size) - 1).coerceAtLeast(0)) {
+                                Spacer(modifier = Modifier.fillMaxWidth().height(MultipleChoiceRowHeight))
                             }
                         }
-                        inMeaningPhase ->
-                            meaningOptions.forEach { option ->
-                                OutlinedButton(
-                                    onClick = { answerMeaning(option == card.meaning) },
-                                    modifier = Modifier.fillMaxWidth().height(OptionSlotHeight),
-                                ) {
-                                    Text(option)
-                                }
-                            }
-                        else ->
-                            readingOptions.forEach { option ->
-                                OutlinedButton(
-                                    onClick = { answerReading(option == readingAnswer) },
-                                    modifier = Modifier.fillMaxWidth().height(OptionSlotHeight),
-                                ) {
-                                    Text(option)
-                                }
-                            }
+                        inMeaningPhase -> MultipleChoiceOptionsGrid(
+                            options = meaningOptions,
+                            onSelect = { option -> answerMeaning(option == card.meaning) },
+                        )
+                        else -> MultipleChoiceOptionsGrid(
+                            options = readingOptions,
+                            onSelect = { option -> answerReading(option == readingAnswer) },
+                        )
                     }
                 }
             }

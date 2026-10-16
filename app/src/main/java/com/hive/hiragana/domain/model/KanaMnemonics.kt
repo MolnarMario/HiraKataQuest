@@ -773,10 +773,10 @@ object KanaMnemonics {
         ),
         "ひ" to listOf(
             KanaMnemonic(
-                keyword = "HEE-HEE",
+                keyword = "HI-HI",
                 story = "A wide mouth grins from ear to ear: it dips deep in the " +
                     "middle, rises at both corners, and flicks out at the end. " +
-                    "Say hee-hee: it begins with hi.",
+                    "Say hi-hi: it begins with hi.",
             ),
             KanaMnemonic(
                 keyword = "HEEL",
