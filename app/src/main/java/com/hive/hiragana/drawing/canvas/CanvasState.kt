@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import com.hive.hiragana.domain.scoring.CellRect
 import com.hive.hiragana.drawing.stroke.DrawingSession
@@ -137,6 +138,53 @@ class CanvasState {
         if (completedPaths.isEmpty()) return
         completedPaths.removeAt(completedPaths.lastIndex)
         currentSession.strokes.removeLastOrNull()
+    }
+
+    /**
+     * The writing cells (canvas px) the stored ink is positioned against: the
+     * ones the canvas last reported through [fitToSheet].
+     */
+    private var sheetCells: List<Rect> = emptyList()
+
+    /**
+     * Called by the canvas on every draw pass with its current writing cells,
+     * after it has published [brushBaseWidthPx]. Ink is stored in canvas px,
+     * so when the cells have moved since the last pass (the canvas was
+     * resized: a font-size change, a fold, a multi-window resize, or the
+     * Activity coming back after a configuration change) each stroke is
+     * mapped from its old cell to the cell with the same index and its
+     * ribbon rebuilt at the new brush width. That keeps ink lined up with the
+     * grid and the raw points right for scoring.
+     *
+     * A different cell COUNT means a different sheet (another word, another
+     * layout); the ViewModel's clear key is about to wipe it anyway, so the
+     * ink is dropped here rather than drawn into the wrong cells for a frame.
+     */
+    fun fitToSheet(cells: List<Rect>) {
+        val old = sheetCells
+        sheetCells = cells
+        if (old.isEmpty() || old == cells) return
+        if (currentSession.strokes.isEmpty() && activeStroke == null) return
+        if (old.size != cells.size) {
+            clear()
+            return
+        }
+        fun remap(stroke: UserStroke) {
+            val start = stroke.points.firstOrNull() ?: return
+            val index = nearestCellIndex(start.x, start.y, old)
+            if (index < 0) return
+            for (i in stroke.points.indices) {
+                stroke.points[i] = remapPoint(stroke.points[i], old[index], cells[index])
+            }
+        }
+        currentSession.strokes.forEachIndexed { i, stroke ->
+            remap(stroke)
+            if (i < completedPaths.size) completedPaths[i] = buildActivePath(stroke)
+        }
+        activeStroke?.let { stroke ->
+            remap(stroke)
+            activePath = buildActivePath(stroke)
+        }
     }
 
     private fun buildActivePath(stroke: UserStroke): Path =
