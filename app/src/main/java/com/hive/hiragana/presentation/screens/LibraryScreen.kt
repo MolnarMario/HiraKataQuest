@@ -984,7 +984,7 @@ private fun LibraryTopBar(
             IconButton(onClick = onClose, modifier = Modifier.offset(x = BackArrowNudge)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Close library",
+                    contentDescription = "Back to start screen",
                 )
             }
         },

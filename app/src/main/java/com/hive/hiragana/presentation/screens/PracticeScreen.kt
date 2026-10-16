@@ -298,9 +298,10 @@ fun PracticeScreen(
 
             uiState.appMode == AppMode.READING || uiState.isLibraryOpen -> {
                 // The Library is the shared hub: Reading always lands here;
-                // Writing opens it on demand. Hardware Back goes to the opening
-                // "home" screen (home → Back → exit). The in-app Back arrow
-                // returns to writing practice via onClose.
+                // Writing opens it on demand. Hardware Back and the in-app Back
+                // arrow both go to the opening "home" screen (home → Back → exit),
+                // in either track. The arrow used to drop Writing onto the
+                // tracing canvas underneath, which read as a broken Back.
                 BackHandler { viewModel.goToOpening() }
                 LibraryScreen(
                     characters = uiState.characters,
@@ -340,15 +341,7 @@ fun PracticeScreen(
                             },
                         )
                     },
-                    onClose = {
-                        // Reading has no underlying tracing screen to return to,
-                        // so its Library closes to the opening "home".
-                        if (uiState.appMode == AppMode.READING) {
-                            viewModel.goToOpening()
-                        } else {
-                            viewModel.closeLibrary()
-                        }
-                    },
+                    onClose = viewModel::goToOpening,
                     isGridView = uiState.isLibraryGridView,
                     onSetGridView = viewModel::setLibraryGridView,
                     appMode = uiState.appMode ?: AppMode.WRITING,
