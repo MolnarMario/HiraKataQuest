@@ -202,17 +202,32 @@ fun rememberEqualShareTextScale(
     availableWidth: Dp,
     reservedPerItem: Dp = 0.dp,
     minScale: Float = 0.7f,
-): Float {
+): Float = rememberEqualShareFit(labels, style, availableWidth, reservedPerItem, minScale) ?: minScale
+
+/**
+ * [rememberEqualShareTextScale] that admits failure: null when even
+ * [minScale] doesn't fit the widest label into its share, so the caller can
+ * switch to a layout with more room per label instead of clipping.
+ */
+@Composable
+fun rememberEqualShareFit(
+    labels: List<String>,
+    style: TextStyle,
+    availableWidth: Dp,
+    reservedPerItem: Dp = 0.dp,
+    minScale: Float = 0.7f,
+): Float? {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     return remember(labels, style, availableWidth, reservedPerItem, minScale, density) {
         with(density) {
             if (labels.isEmpty()) return@with 1f
             val sharePx = availableWidth.toPx() / labels.size - reservedPerItem.toPx()
-            if (sharePx <= 0f) return@with 1f
-            largestFittingScale(minScale) { scale ->
+            if (sharePx <= 0f) return@with null
+            val fits = { scale: Float ->
                 labels.maxOf { label -> measurer.labelWidth(label, style, scale) } <= sharePx
             }
+            largestFittingScale(minScale, fits).takeIf(fits)
         }
     }
 }
