@@ -29,6 +29,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -38,10 +39,14 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
@@ -277,6 +282,31 @@ private val ToggleWidth = 44.dp
 /** Gap between neighbouring controls in [PanelControlsRow]. */
 private val ControlGap = 10.dp
 
+/** The Library button's label never takes more than this; it shrinks instead. */
+private val LibraryLabelMax = 96.dp
+
+/** Library button without its label: 12dp padding, 18dp icon, 12dp padding. */
+private val LibraryIconOnlyWidth = 12.dp + 18.dp + 12.dp
+
+/**
+ * Width a size-picker segment spends outside its label: M3's 12dp padding
+ * each side. No checkmark slot, since the picker passes an empty icon
+ * (measured on the A17 emulator: the label starts 12dp in). No extra slack:
+ * the A17 at font scale 1 leaves ~40dp segments for a ~14dp "XL", and that
+ * layout already fits.
+ */
+private val SegmentPadding = 12.dp + 12.dp
+
+/** Size-picker label sizes, in dp (chrome text, see the ResponsiveText policy). */
+private val FullSizeLabel = 12.dp
+private val CompactSizeLabel = 10.dp
+
+@Composable
+private fun sizeLabelStyle(size: Dp): TextStyle = MaterialTheme.typography.labelMedium.copy(
+    fontSize = size.toNonScalingSp(),
+    lineHeight = 16.dp.toNonScalingSp(),
+)
+
 /**
  * Full-width strip along the panel's bottom edge: Library entry on the
  * left; the XL/L/M sheet-size picker, the grid toggle, and the
@@ -304,11 +334,32 @@ private fun PanelControlsRow(
         .fillMaxWidth()
         .padding(top = 8.dp),
 ) {
-    // On compact widths (a 360dp device leaves this strip ~320dp) the
-    // labelled Library button starved the layout picker until its segments
-    // clipped to "1x 2x 3x" — below the threshold it collapses to icon-only,
-    // which more than pays for the picker's full labels.
-    val compact = maxWidth < 350.dp
+    // The labelled Library button can starve the layout picker until its
+    // segments clip ("XL" read as "X"). That happens on narrow phones, and
+    // also on a 411dp phone at font scale 2.0, where "Library" grows to
+    // ~78dp while the picker's labels stay dp-sized. A fixed width threshold
+    // only caught the first case, so measure instead: collapse the button to
+    // icon-only whenever its label would leave a segment less room than the
+    // widest size label needs.
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val libraryStyle = MaterialTheme.typography.labelLarge
+    val fullLabelStyle = sizeLabelStyle(FullSizeLabel)
+    val hasLibrary = onOpenLibrary != null
+    val hasPicker = onSelectLayout != null
+    val toggles = listOfNotNull(onToggleGrid, onToggleGhost).size
+    val compact = remember(maxWidth, libraryStyle, fullLabelStyle, density, hasLibrary, hasPicker, toggles) {
+        if (!hasLibrary || !hasPicker) return@remember false
+        fun widthOf(text: String, style: TextStyle): Dp =
+            with(density) { measurer.measure(text, style, softWrap = false).size.width.toDp() }
+        val libraryLabel = widthOf("Library", libraryStyle).coerceAtMost(LibraryLabelMax)
+        val labelledLibrary = LibraryIconOnlyWidth + ButtonDefaults.IconSpacing + libraryLabel
+        // One gap after the Library button, one after the picker per toggle.
+        val gaps = ControlGap * (1 + toggles)
+        val pickerRoom = maxWidth - labelledLibrary - ToggleWidth * toggles - gaps
+        val widestLabel = PracticeLayout.entries.maxOf { widthOf(it.sizeLabel, fullLabelStyle) }
+        pickerRoom / PracticeLayout.entries.size < SegmentPadding + widestLabel
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -331,7 +382,7 @@ private fun PanelControlsRow(
                     // width the layout picker needs (see ResponsiveText policy).
                     AutoShrinkText(
                         text = "Library",
-                        modifier = Modifier.widthIn(max = 96.dp),
+                        modifier = Modifier.widthIn(max = LibraryLabelMax),
                         style = MaterialTheme.typography.labelLarge,
                         minFontSize = 11.sp,
                     )
@@ -366,11 +417,11 @@ private fun PanelControlsRow(
                             // SubcomposeLayout" (crashed on device).
                             Text(
                                 text = option.sizeLabel,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = (if (compact) 10.dp else 12.dp)
-                                        .toNonScalingSp(),
-                                    lineHeight = 16.dp.toNonScalingSp(),
-                                ),
+                                style = if (compact) {
+                                    sizeLabelStyle(CompactSizeLabel)
+                                } else {
+                                    fullLabelStyle
+                                },
                                 maxLines = 1,
                                 softWrap = false,
                             )
