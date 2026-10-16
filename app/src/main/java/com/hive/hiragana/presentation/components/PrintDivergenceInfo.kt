@@ -38,7 +38,6 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.hive.hiragana.R
 import com.hive.hiragana.domain.model.HiraganaCharacter
 import com.hive.hiragana.domain.model.PrintDivergence
@@ -122,11 +121,14 @@ fun PrintDivergenceBadge(
                 // Shrinks rather than clips: at a 2.0 font scale on a 360dp
                 // phone a plain one-line Text dropped "print" with no ellipsis.
                 // Callers give the chip weight(1f, fill = false) so the
-                // icon-only badges beside it measure first.
+                // icon-only badges beside it measure first. The floor is
+                // non-scaling: an 8sp floor still rendered ~14dp at font 2.0,
+                // so "Looks different in handwriting" ellipsized on the S26.
+                // 10dp is about the label's size at font scale 1.
                 AutoShrinkText(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    minFontSize = 8.sp,
+                    minFontSize = 10.dp.toNonScalingSp(),
                 )
             }
         }
