@@ -1404,6 +1404,7 @@ private fun ScopeSheetContent(
             }
             val ink = Color(activeInk)
             val outline = MaterialTheme.colorScheme.outline
+            Spacer(Modifier.width(ScopeValueGap))
             Canvas(modifier = Modifier.size(28.dp)) {
                 drawCircle(ink)
                 drawCircle(outline, style = Stroke(1.dp.toPx()))
@@ -1443,10 +1444,15 @@ private fun ScopeSheetContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Spacer(Modifier.width(ScopeValueGap))
+            // Capped and right-aligned so a long name ("Fountain pen") wraps at
+            // large font sizes instead of starving the hint text beside it.
             Text(
                 text = brushEffect.displayLabel,
+                modifier = Modifier.widthIn(max = 120.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.End,
             )
         }
         if (showEffectPicker) {
@@ -1635,6 +1641,9 @@ private fun DrawScope.drawGridViewGlyph(color: Color) {
 // ---- Chart (grid) view -------------------------------------------------
 
 /** Gutter width reserved for the consonant row label, kept aligned with the header. */
+/** Gap between a Study-scope row's text and its value or swatch on the right. */
+private val ScopeValueGap = 16.dp
+
 private val ChartRowLabelWidth = 22.dp
 
 /**
