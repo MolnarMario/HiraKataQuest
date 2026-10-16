@@ -97,6 +97,33 @@ import kotlin.random.Random
 // (2026-07-26); the verticalScroll on the reveal is only an extreme-font safety.
 private val RevealReserve = 132.dp
 
+/**
+ * [RevealReserve] grown by however much the reveal's three text rows grow at
+ * the current font scale: the result line (titleMedium), the reading line
+ * (headlineSmall) and the badge chips (labelSmall). 132dp holds them at font
+ * scale 1, but at 2.0 the rows grow ~45dp and the badges row fell out of the
+ * reserve, visible only by scrolling (S26 emulator, 2026-10-16).
+ *
+ * Still a constant for a given font scale, reserved in both the question and
+ * answer states, so the glyph never jumps on reveal; it just gets a little
+ * smaller at large font sizes. Font scale 1 is unchanged. Sp-to-dp goes
+ * through [Density], which applies Android 14's nonlinear font scaling.
+ */
+@Composable
+private fun rememberRevealReserve(): Dp {
+    val density = LocalDensity.current
+    val typography = MaterialTheme.typography
+    return remember(density, typography) {
+        val growth = listOf(typography.titleMedium, typography.headlineSmall, typography.labelSmall)
+            .map { style ->
+                val line = style.lineHeight
+                if (!line.isSp) 0.dp else (with(density) { line.toDp() } - line.value.dp).coerceAtLeast(0.dp)
+            }
+            .fold(0.dp) { sum, d -> sum + d }
+        RevealReserve + growth
+    }
+}
+
 // Every bottom-section slot uses MultipleChoiceRowHeight so the section is
 // the same height whether it shows the two-pill-per-row options or just Next
 // (with blank spacers for the spent rows, sized via mcqGridRows) — that
@@ -328,6 +355,7 @@ fun ReadingFlashcardScreen(
                     avail >= 240.dp -> 20.dp
                     else -> 10.dp
                 }
+                val revealReserve = rememberRevealReserve()
                 val gap = when {
                     avail >= 320.dp -> 16.dp
                     avail >= 240.dp -> 10.dp
@@ -385,7 +413,7 @@ fun ReadingFlashcardScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(RevealReserve)
+                                    .height(revealReserve)
                                     .verticalScroll(rememberScrollState()),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(gap, Alignment.Bottom),
