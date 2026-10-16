@@ -584,8 +584,8 @@ class PracticeViewModelTest {
     /**
      * Entering the Writing track lands on the Library (so the learner picks what
      * to practice) rather than dropping straight onto a random character. A
-     * free-practice item is still set up underneath so closing the Library has a
-     * valid sheet to fall back to.
+     * free-practice item is still set up underneath so a Library tap flows
+     * straight into practice.
      */
     @Test
     fun `entering writing lands on the library`() = runTest(dispatcher) {
@@ -598,6 +598,28 @@ class PracticeViewModelTest {
         assertTrue(state.isLibraryOpen)
         assertEquals(SessionPhase.FREE, state.phase)
         assertNotNull(state.currentCharacter)
+    }
+
+    /**
+     * Leaving the Writing Library (Back or its arrow, both [goToOpening]) shows
+     * the opening screen, not the tracing sheet set up underneath. Picking
+     * Writing again lands on the Library once more.
+     */
+    @Test
+    fun `leaving the writing library returns to the opening screen`() = runTest(dispatcher) {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.setAppMode(AppMode.WRITING)
+
+        vm.goToOpening()
+
+        assertNull(vm.uiState.value.appMode)
+        assertFalse(vm.uiState.value.isLibraryOpen)
+
+        vm.setAppMode(AppMode.WRITING)
+
+        assertEquals(AppMode.WRITING, vm.uiState.value.appMode)
+        assertTrue(vm.uiState.value.isLibraryOpen)
     }
 
     /**

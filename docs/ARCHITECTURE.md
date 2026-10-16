@@ -383,10 +383,12 @@ LIBRARY (available from the guide panel's "Library" button)
                    ALSO the FREE screen's hardware/gesture Back target (2026-07-05):
                    the Library is treated as "home", so Back from practice opens it
                    rather than exiting the app.
-  closeLibrary() → isLibraryOpen = false (wired only to the in-app Back arrow's
-                   onClose; the Library has NO BackHandler, so a hardware Back from
-                   the Library falls through to the system and exits the app —
-                   giving the chain Practice → Back → Library → Back → exit)
+  goToOpening()  → appMode = null, isLibraryOpen = false. Wired to BOTH the
+                   Library's BackHandler and its in-app Back arrow (onClose), in
+                   either track, giving the chain Practice → Back → Library →
+                   Back → opening screen → Back → exit. (closeLibrary(), which
+                   dropped the Writing arrow onto the canvas, was removed
+                   2026-10-16.)
   practiceCharacter(char) → FREE over the WHOLE deck, currentIndex at the pick
   practiceWord(word)      → FREE over the word's kana in order, freeWord = word
   (both close the overlay, bump canvasClearKey; record PracticeSource.FREE
@@ -944,7 +946,7 @@ than added to the counted `domain`/`data`/`presentation` core tables below.
 | `presentation/theme/Color.kt` | Palette: brand vermilion, fixed "paper" canvas colors, grade button colors including Phase 3's `GradeAgainContainer`/`GradeAgainContent`. |
 | `presentation/theme/Type.kt` | `HiraganaTypography` (76.sp `displayLarge` for the guide glyph, etc.). |
 | `presentation/theme/Theme.kt` | `HiraganaTheme` Material 3 wrapper; light + dark color schemes via `isSystemInDarkTheme()`. |
-| `presentation/viewmodels/PracticeViewModel.kt` | Phase 3 session state machine (`SessionPhase`, `PracticeUiState` via `StateFlow`): generates/walks a `StudySession`, routes grading through `SrsScheduler`, persists progress/unlocks, companion `Factory`. Post-Phase-3 API: `startNextSession()`, `openLibrary()`/`closeLibrary()`, `practiceCharacter(char)`, `practiceWord(word)`, `retrySession()`. FREE two-step: `freeSubmit()` / `freeRetry()` / `advanceToNextCharacter()`. Private scoring pass `recordAttempt` (single glyph, gated to a 1×1 cell) / `recordWordAttempt` (per-kana via `StrokeAttribution`); both skip persistence when scoring is `OFF`. Practice sets: observes `observeSets()` into `practiceSets`; `savePracticeSet`/`updatePracticeSetMembers`/`renamePracticeSet`/`deletePracticeSet`, `practiceSet(id)` (FREE over a set, WORDS sets driving `freeWords`), `openQuiz(setId?)`/`setQuizSource(setId?)`/`buildQuizPool` (word-or-character `QuizItem` pool); `closeQuiz()` raises the `pendingOpenSetsManager` one-shot for set-launched quizzes, cleared by `consumeOpenSetsManager()`. |
+| `presentation/viewmodels/PracticeViewModel.kt` | Phase 3 session state machine (`SessionPhase`, `PracticeUiState` via `StateFlow`): generates/walks a `StudySession`, routes grading through `SrsScheduler`, persists progress/unlocks, companion `Factory`. Post-Phase-3 API: `startNextSession()`, `openLibrary()`/`goToOpening()`, `practiceCharacter(char)`, `practiceWord(word)`, `retrySession()`. FREE two-step: `freeSubmit()` / `freeRetry()` / `advanceToNextCharacter()`. Private scoring pass `recordAttempt` (single glyph, gated to a 1×1 cell) / `recordWordAttempt` (per-kana via `StrokeAttribution`); both skip persistence when scoring is `OFF`. Practice sets: observes `observeSets()` into `practiceSets`; `savePracticeSet`/`updatePracticeSetMembers`/`renamePracticeSet`/`deletePracticeSet`, `practiceSet(id)` (FREE over a set, WORDS sets driving `freeWords`), `openQuiz(setId?)`/`setQuizSource(setId?)`/`buildQuizPool` (word-or-character `QuizItem` pool); `closeQuiz()` raises the `pendingOpenSetsManager` one-shot for set-launched quizzes, cleared by `consumeOpenSetsManager()`. |
 | `presentation/components/TracingCanvas.kt` | Drawing surface: render order grid→ghost→completed→active; publishes `brushBaseWidthPx` (20.dp × cell-proportional `brushScale(cellSide, referenceSide)` — linear below the single-char 2×2 reference cell, half-slope above it) to `CanvasState` every draw pass and fills the brush-ribbon `Path`s plain (width baked into geometry — the old 9dp × `widthScale` stroke math is gone); `pointerInteropFilter` input. |
 | `presentation/components/StrokeOrderDiagram.kt` | Static diagram: Compose `PathParser` per stroke, viewBox scaling, numbered badges at each first `MoveTo`. Fallback when a character has no `strokeAnimations`. |
 | `presentation/components/AnimatedStrokePreview.kt` | Phase 2 animated demo: shared `StrokeCanvas` (guide → completed → active → pen dot) + `PlaybackControls` (play/pause, replay, speed cycle, auto-repeat; now takes a `List<StrokeAnimationEngine>` and broadcasts); engine per character; static-diagram fallback. Also hosts `WordStrokePreview` — one engine per word unit sharing one controls row. |

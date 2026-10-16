@@ -1313,9 +1313,9 @@ class PracticeViewModel(
      * Enters the Writing track on the Library hub rather than dropping straight
      * onto a random character: the learner picks what to practice, mirroring the
      * Reading track (which always lands on the Library). A free-practice item is
-     * still set up underneath so closing the Library (the in-app Back arrow →
-     * [closeLibrary]) has a valid sheet to fall back to, and so a Library
-     * character/word tap flows into free practice exactly as before.
+     * still set up underneath so a Library character/word tap flows into free
+     * practice exactly as before. Leaving the Library (Back or its arrow) goes to
+     * the opening screen via [goToOpening], never down onto that sheet.
      */
     private fun enterWritingLibrary() {
         enterFreePracticeFromLastSection()
@@ -1606,11 +1606,6 @@ class PracticeViewModel(
     /** Opens the character/word library overlay (any phase; purely visual). */
     fun openLibrary() {
         _uiState.update { it.copy(isLibraryOpen = true) }
-    }
-
-    /** Back/close from the library without changing the underlying phase. */
-    fun closeLibrary() {
-        _uiState.update { it.copy(isLibraryOpen = false) }
     }
 
     /**
