@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -113,6 +114,12 @@ fun TracingCanvas(
     footer: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     val strokeCapture = remember(canvasState) { StrokeCapture(canvasState) }
+    // CanvasState outlives this canvas across an Activity recreation. A
+    // finger that was down when the old window went away never sends its
+    // ACTION_UP, so commit what it drew instead of leaving a stroke open.
+    DisposableEffect(canvasState) {
+        onDispose { canvasState.finishStroke() }
+    }
     // The canvas ("paper") palette for the active appearance (light or dark).
     val kanaColors = LocalKanaColors.current
     // Keyed on the theme's ghost color so a light/dark flip rebuilds the
@@ -291,10 +298,11 @@ fun TracingCanvas(
 
             // Brush geometry is built in pixels at input time, so the ink
             // width must be published before the next stroke starts — every
-            // draw pass refreshes it (cheap plain-field write). Anything
-            // that changes the cell size (advance, layout switch) also
-            // clears the sheet via canvasClearKey, so committed ink never
-            // outlives the scale it was built with.
+            // draw pass refreshes it (cheap plain-field write). A ViewModel
+            // change of sheet (advance, layout switch) clears the ink via
+            // canvasClearKey; a resize of the SAME sheet (font size, fold,
+            // window resize, Activity recreation) is handled by fitToSheet
+            // below, which moves the ink to the new cells.
             //
             // Ink width is the SAME fraction of the glyph the stroke-order demo
             // uses ([BrushWidthFraction]), so the user's brush reads as the same
@@ -309,6 +317,9 @@ fun TracingCanvas(
             // Publish the current brush effect the same way, before the next
             // stroke starts, so its geometry is baked at the chosen effect.
             canvasState.brushEffect = brushEffect
+            // After the brush width: a remap rebuilds ribbons at it. A copy,
+            // because inkBounds is refilled in place every pass.
+            canvasState.fitToSheet(inkBounds.toList())
 
             // 3 + 4. completed strokes, then the active one — filled brush
             // ribbons, width baked in. Each stroke is clipped to the SINGLE

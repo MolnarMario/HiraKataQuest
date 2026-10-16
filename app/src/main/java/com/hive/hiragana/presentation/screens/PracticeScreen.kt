@@ -35,10 +35,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModel
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hive.hiragana.domain.model.AppMode
 import com.hive.hiragana.domain.model.CharacterForm
 import com.hive.hiragana.domain.model.KanaMnemonics
@@ -78,7 +80,11 @@ fun PracticeScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val canvasState = remember { CanvasState() }
+    // Activity-scoped, so the user's ink survives a configuration change
+    // (font size, system dark mode, display size, locale) instead of
+    // vanishing with the recreated composition.
+    val canvasHolder = viewModel { CanvasStateHolder() }
+    val canvasState = canvasHolder.canvasState
 
     // The ink for the ACTIVE theme: dark mode has its own persisted ink
     // (default chalk) because a charcoal picked for white paper vanishes
@@ -169,9 +175,14 @@ fun PracticeScreen(
 
     // Start from a blank sheet on every advance — each review, each
     // practice rep, each word, and every phase change bump this
-    // monotonic counter (see PracticeUiState.canvasClearKey).
+    // monotonic counter (see PracticeUiState.canvasClearKey). The effect
+    // also re-runs when the Activity is recreated; the holder remembers
+    // which key it last cleared for, so that doesn't wipe the kept ink.
     LaunchedEffect(uiState.canvasClearKey) {
-        canvasState.clear()
+        if (canvasHolder.clearedForKey != uiState.canvasClearKey) {
+            canvasState.clear()
+            canvasHolder.clearedForKey = uiState.canvasClearKey
+        }
     }
 
     Surface(
@@ -759,4 +770,17 @@ private fun UpdateDialog(
         UpdateState.Installing,
         UpdateState.UpToDate -> Unit
     }
+}
+
+/**
+ * Keeps the drawing state alive across Activity recreation. It holds no deck
+ * or session state (that's [PracticeViewModel]'s); it only outlives the
+ * composition, which is what [CanvasState] needs. Process death still drops
+ * the ink, as it drops the current character.
+ */
+private class CanvasStateHolder : ViewModel() {
+    val canvasState = CanvasState()
+
+    /** The canvasClearKey this holder last cleared for, or null if none yet. */
+    var clearedForKey: Int? = null
 }
