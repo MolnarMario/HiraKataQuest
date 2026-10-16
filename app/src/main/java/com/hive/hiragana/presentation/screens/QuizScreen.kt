@@ -1188,8 +1188,17 @@ private fun ReadingQuizRunning(
                 // Forward they are readings; reverse they are kana, set in the
                 // print font at a readable size — the option IS the character
                 // being judged, so it has to be legible enough to tell き from ぎ.
+                // A half-width pill can't hold a long answer on one line (the
+                // longest, よろしくおねがいします, overflows even at font scale 1),
+                // so the label wraps to two lines and then shrinks, the same as
+                // the grid's default label. An ellipsized answer can't be judged.
                 readingStep -> {
                     val correctOption = if (reverse) current.answer else readingAnswer
+                    val optionStyle = if (reverse) {
+                        MaterialTheme.typography.titleLarge.copy(fontFamily = PrintFontFamily)
+                    } else {
+                        MaterialTheme.typography.titleLarge
+                    }
                     MultipleChoiceOptionsGrid(
                         options = romajiOptions,
                         onSelect = { option ->
@@ -1197,22 +1206,13 @@ private fun ReadingQuizRunning(
                             if (!needMeaning) finish()
                         },
                         optionContent = { option ->
-                            if (reverse) {
-                                Text(
-                                    text = option,
-                                    fontFamily = PrintFontFamily,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            } else {
-                                Text(
-                                    text = option,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                            AutoShrinkText(
+                                text = option,
+                                style = optionStyle,
+                                minFontSize = 9.sp,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                            )
                         },
                     )
                 }
