@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.hive.hiragana.presentation.components.fontScaleFraction
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -607,7 +609,10 @@ private fun PracticeContent(
                                     compact = hasDivergence || hasSpecial,
                                 )
                             }
-                            PrintDivergenceBadge(unitCharacters = footerUnits)
+                            PrintDivergenceBadge(
+                                unitCharacters = footerUnits,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
                         }
                     }
                 },
@@ -690,7 +695,12 @@ private fun UpdateDialog(
             onDismissRequest = onLater,
             title = { Text("Update available") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Release notes come from GitHub with no length limit, and an
+                // AlertDialog's text slot clips rather than scrolls.
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Text("Version ${state.info.versionName} is ready to install.")
                     if (state.info.notes.isNotBlank()) {
                         Text(

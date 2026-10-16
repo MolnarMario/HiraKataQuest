@@ -687,20 +687,38 @@ fun LibraryScreen(
             // BoxWithConstraints is the PARENT of the row (safe, unlike a
             // shrink-measuring child inside a Tab).
             BoxWithConstraints {
-                val tabLabels = listOf(
+                val countedLabels = listOf(
                     "Characters (${filteredCharacters.size})",
                     "Words (${filteredWords.size})",
                     "Sets (${filteredSets.size})",
                 )
                 val tabStyle = MaterialTheme.typography.titleSmall
-                val tabScale = rememberEqualShareTextScale(
+                // Material Tab reserves 16dp horizontal text padding per side.
+                val tabReserve = 32.dp
+                // The live counts are the first thing to go: at 360dp with a
+                // 1.3 font scale "Characters (46)" needs ~0.63 of its size,
+                // below a readable floor, and ellipsized to "Characters (4…".
+                // Unscaled raw factor (minScale 0) decides; the counts stay
+                // whenever they fit at 0.7 or more.
+                val countedScale = rememberEqualShareTextScale(
+                    labels = countedLabels,
+                    style = tabStyle,
+                    availableWidth = maxWidth,
+                    reservedPerItem = tabReserve,
+                    minScale = 0f,
+                )
+                val dropCounts = countedScale < 0.7f
+                val tabLabels = if (dropCounts) listOf("Characters", "Words", "Sets") else countedLabels
+                val shortScale = rememberEqualShareTextScale(
                     labels = tabLabels,
                     style = tabStyle,
                     availableWidth = maxWidth,
-                    // Material Tab reserves 16dp horizontal text padding per side.
-                    reservedPerItem = 32.dp,
-                    minScale = 0.7f,
+                    reservedPerItem = tabReserve,
+                    // "Characters" alone needs ~0.55 of its size in a 360dp
+                    // third at a 2.0 font scale.
+                    minScale = 0.5f,
                 )
+                val tabScale = if (dropCounts) shortScale else countedScale
                 val tabLabelStyle = tabStyle.copy(
                     fontSize = tabStyle.fontSize * tabScale,
                     lineHeight = if (tabStyle.lineHeight.isSp) {
@@ -1043,7 +1061,9 @@ private fun LibraryTopBar(
                 AutoShrinkText(
                     text = "Library",
                     style = LocalTextStyle.current,
-                    minFontSize = 15.sp,
+                    // A fixed 12dp floor: a 15sp floor itself doubled at a 2.0
+                    // font scale and still didn't fit, so the title showed "…".
+                    minFontSize = 12.dp.toNonScalingSp(),
                     modifier = Modifier.offset(x = TitleNudge),
                 )
             }
@@ -1135,7 +1155,13 @@ private fun LibraryTopBar(
                             modifier = Modifier.size(ButtonDefaults.IconSize),
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text("Quiz me!")
+                        // Grows with the font only up to 1.3x. Past that the
+                        // button took the whole bar at a 2.0 font scale on a
+                        // 360dp phone and squeezed the "Library" title to "…".
+                        Text(
+                            "Quiz me!",
+                            fontSize = (14.dp * fontScaleFraction(1.3f)).toNonScalingSp(),
+                        )
                     }
                 }
             }
@@ -2023,19 +2049,22 @@ private fun WordCard(
                 .align(Alignment.CenterStart)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            Text(
+            // Kana and romaji shrink to the card instead of clipping: the
+            // column minimum only grows to 1.6x, so at a 2.0 font scale a word
+            // like ありがとう was wider than its card. The meaning keeps its
+            // ellipsis (it's the longest line and the least needed at a glance).
+            AutoShrinkText(
                 text = kana,
-                style = MaterialTheme.typography.titleMedium,
-                fontFamily = PrintFontFamily,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = PrintFontFamily,
+                    fontWeight = FontWeight.Medium,
+                ),
                 color = MaterialTheme.colorScheme.onSurface,
             )
             // Reading between the kana and the meaning (e.g. かう / ka u / to buy).
-            Text(
+            AutoShrinkText(
                 text = romaji,
                 style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
@@ -3522,8 +3551,16 @@ private fun SetManagerRow(
                         labels = actions.map { it.first },
                         style = actionStyle,
                         availableWidth = maxWidth,
-                        // 12dp content padding + the row's 4dp spacing share.
-                        reservedPerItem = 15.dp,
+                        // 12dp content padding + the row's 4dp spacing = 16dp
+                        // per button, plus 2dp of slack for per-label pixel
+                        // rounding. At exactly 15dp the row came out ~4dp too
+                        // wide and clipped "Delete" to "Dele" (360dp, font 1.3).
+                        reservedPerItem = 18.dp,
+                        // A clickable Surface keeps a 48dp minimum touch
+                        // target, so "Quiz" and "Edit" each take 48dp (+4dp
+                        // spacing) however small their text shrinks. Leaving
+                        // that out is what clipped "Delete" at large fonts.
+                        minItemWidth = 52.dp,
                     )
                     val shrunkStyle = actionStyle.copy(
                         fontSize = actionStyle.fontSize * scale,
