@@ -80,6 +80,12 @@ import com.hive.hiragana.presentation.components.PronunciationButton
 import com.hive.hiragana.presentation.components.SpecialKanaBadge
 import com.hive.hiragana.presentation.viewmodels.ReadingFlashcardState
 import kotlin.random.Random
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.LocalTextStyle
+import com.hive.hiragana.presentation.components.AutoShrinkText
+import com.hive.hiragana.presentation.components.toNonScalingSp
 
 // The reveal region's FIXED reserved height. It is reserved in every state
 // (blank/Hint before answering, the result after) and the glyph takes the
@@ -123,6 +129,12 @@ private fun rememberRevealReserve(): Dp {
         RevealReserve + growth
     }
 }
+
+/** Vertical padding inside the flashcard card, around the glyph and reveal. */
+private val CardInnerPad = 12.dp
+
+/** Height the glyph keeps when the card is too short for the full reveal reserve. */
+private val MinGlyphShare = 48.dp
 
 // Every bottom-section slot uses MultipleChoiceRowHeight so the section is
 // the same height whether it shows the two-pill-per-row options or just Next
@@ -355,7 +367,16 @@ fun ReadingFlashcardScreen(
                     avail >= 240.dp -> 20.dp
                     else -> 10.dp
                 }
+                // The card's inner height is constant across the question and
+                // answer states, so capping against it keeps the reserve
+                // constant too. The cap only bites when the card is tiny (S26 at
+                // font 2.0 with the keyboard up: ~95dp, less than the reserve),
+                // where it used to squeeze the glyph to a sliver. The glyph is
+                // what the learner is answering about, so it keeps at least
+                // MinGlyphShare or half the card, whichever is smaller.
+                val cardInner = (avail - vPad * 2 - CardInnerPad * 2).coerceAtLeast(0.dp)
                 val revealReserve = rememberRevealReserve()
+                    .coerceAtMost(maxOf(cardInner - MinGlyphShare, cardInner / 2))
                 val gap = when {
                     avail >= 320.dp -> 16.dp
                     avail >= 240.dp -> 10.dp
@@ -375,7 +396,7 @@ fun ReadingFlashcardScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                                .padding(horizontal = 20.dp, vertical = CardInnerPad),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             // The glyph takes the LEFTOVER above the reveal's fixed
@@ -587,11 +608,17 @@ fun ReadingFlashcardScreen(
             // then meaning if enabled). Extra bottom margin (vs. the 16dp top)
             // lifts it off the physical screen edge for easier one-handed
             // reach (device feedback, 2026-08-22) — same reasoning as
-            // MultipleChoiceRowHeight.
+            // MultipleChoiceRowHeight. With the keyboard up the section already
+            // sits on top of it, so the margin goes back to the card instead.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 16.dp,
+                        bottom = if (WindowInsets.isImeVisible) 8.dp else 32.dp,
+                    ),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (effectiveTyping) {
@@ -643,8 +670,15 @@ fun ReadingFlashcardScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(56.dp),
+                            // A third of a 360dp row minus the default 24dp
+                            // padding cut "Check" to "Chec" at font 2.0.
+                            contentPadding = PaddingValues(horizontal = 12.dp),
                         ) {
-                            Text(if (state.revealed) "Next" else "Check", maxLines = 1)
+                            AutoShrinkText(
+                                text = if (state.revealed) "Next" else "Check",
+                                style = LocalTextStyle.current,
+                                minFontSize = 10.dp.toNonScalingSp(),
+                            )
                         }
                     }
                 } else {
